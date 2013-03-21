@@ -168,7 +168,7 @@ static int at91_cf_set_io_map(struct pcmcia_socket *s, struct pccard_io_map *io)
 	 * some cards only like that way to get at the odd byte, despite
 	 * CF 3.0 spec table 35 also giving the D8-D15 option.
 	 */
-	if (!(io->flags & (MAP_16BIT|MAP_AUTOSZ))) {
+	if (!(io->flags & (MAP_16BIT | MAP_AUTOSZ))) {
 		csr |= AT91_SMC_DBW_8;
 		pr_debug("%s: 8bit i/o bus\n", driver_name);
 	} else {
@@ -194,7 +194,7 @@ at91_cf_set_mem_map(struct pcmcia_socket *s, struct pccard_mem_map *map)
 
 	cf = container_of(s, struct at91_cf_socket, socket);
 
-	map->flags &= MAP_ACTIVE|MAP_ATTRIB|MAP_16BIT;
+	map->flags &= (MAP_ACTIVE | MAP_ATTRIB | MAP_16BIT);
 	if (map->flags & MAP_ATTRIB)
 		map->static_start = CF_ATTR_PHYS;
 	else
@@ -214,11 +214,10 @@ static struct pccard_operations at91_cf_ops = {
 
 /*--------------------------------------------------------------------------*/
 
-static int __init at91_cf_probe(struct device *dev)
+static int __init at91_cf_probe(struct platform_device *pdev)
 {
 	struct at91_cf_socket	*cf;
-	struct at91_cf_data	*board = dev->platform_data;
-	struct platform_device	*pdev = to_platform_device(dev);
+	struct at91_cf_data	*board = pdev->dev.platform_data;
 	struct resource		*io;
 	unsigned int		csa;
 	int			status;
@@ -236,17 +235,11 @@ static int __init at91_cf_probe(struct device *dev)
 
 	cf->board = board;
 	cf->pdev = pdev;
-	dev_set_drvdata(dev, cf);
+	platform_set_drvdata(pdev, cf);
 
 	/* CF takes over CS4, CS5, CS6 */
 	csa = at91_sys_read(AT91_EBI_CSA);
 	at91_sys_write(AT91_EBI_CSA, csa | AT91_EBI_CS4A_SMC_COMPACTFLASH);
-
-	/* force poweron defaults for these pins ... */
-	(void) at91_set_A_periph(AT91_PIN_PC9, 0);	/* A25/CFRNW */
-	(void) at91_set_A_periph(AT91_PIN_PC10, 0);	/* NCS4/CFCS */
-	(void) at91_set_A_periph(AT91_PIN_PC11, 0);	/* NCS5/CFCE1 */
-	(void) at91_set_A_periph(AT91_PIN_PC12, 0);	/* NCS6/CFCE2 */
 
 	/* nWAIT is _not_ a default setting */
 	(void) at91_set_A_periph(AT91_PIN_PC6, 1);	/*  nWAIT */
@@ -267,10 +260,10 @@ static int __init at91_cf_probe(struct device *dev)
 	);
 
 	/* must be a GPIO; ergo must trigger on both edges */
-	status = request_irq(board->det_pin, at91_cf_irq,
-			SA_SAMPLE_RANDOM, driver_name, cf);
+	status = request_irq(board->det_pin, at91_cf_irq, 0, driver_name, cf);
 	if (status < 0)
 		goto fail0;
+	device_init_wakeup(&pdev->dev, 1);
 
 	/*
 	 * The card driver will request this irq later as needed.
@@ -301,7 +294,7 @@ static int __init at91_cf_probe(struct device *dev)
 		board->det_pin, board->irq_pin);
 
 	cf->socket.owner = THIS_MODULE;
-	cf->socket.dev.dev = dev;
+	cf->socket.dev.dev = &pdev->dev;
 	cf->socket.ops = &at91_cf_ops;
 	cf->socket.resource_ops = &pccard_static_ops;
 	cf->socket.features = SS_CAP_PCCARD | SS_CAP_STATIC_MAP
@@ -322,6 +315,7 @@ fail1:
 	if (board->irq_pin)
 		free_irq(board->irq_pin, cf);
 fail0a:
+	device_init_wakeup(&pdev->dev, 0);
 	free_irq(board->det_pin, cf);
 fail0:
 	at91_sys_write(AT91_EBI_CSA, csa);
@@ -329,15 +323,18 @@ fail0:
 	return status;
 }
 
-static int __exit at91_cf_remove(struct device *dev)
+static int __exit at91_cf_remove(struct platform_device *pdev)
 {
-	struct at91_cf_socket	*cf = dev_get_drvdata(dev);
+	struct at91_cf_socket	*cf = platform_get_drvdata(pdev);
+	struct at91_cf_data	*board = cf->board;
 	struct resource		*io = cf->socket.io[0].res;
 	unsigned int		csa;
 
 	pcmcia_unregister_socket(&cf->socket);
-	free_irq(cf->board->irq_pin, cf);
-	free_irq(cf->board->det_pin, cf);
+	device_init_wakeup(&pdev->dev, 0);
+	if (board->irq_pin)
+		free_irq(board->irq_pin, cf);
+	free_irq(board->det_pin, cf);
 	iounmap((void __iomem *) cf->socket.io_offset);
 	release_mem_region(io->start, io->end + 1 - io->start);
 
@@ -348,26 +345,60 @@ static int __exit at91_cf_remove(struct device *dev)
 	return 0;
 }
 
-static struct device_driver at91_cf_driver = {
-	.name		= (char *) driver_name,
-	.bus		= &platform_bus_type,
+#ifdef CONFIG_PM
+
+static int at91_cf_suspend(struct platform_device *pdev, pm_message_t mesg)
+{
+	struct at91_cf_socket	*cf = platform_get_drvdata(pdev);
+	struct at91_cf_data	*board = cf->board;
+
+	pcmcia_socket_dev_suspend(&pdev->dev, mesg);
+	if (device_may_wakeup(&pdev->dev)) {
+		enable_irq_wake(board->det_pin);
+		if (board->irq_pin)
+			enable_irq_wake(board->irq_pin);
+	} else {
+		disable_irq_wake(board->det_pin);
+		if (board->irq_pin)
+			disable_irq_wake(board->irq_pin);
+	}
+
+	return 0;
+}
+
+static int at91_cf_resume(struct platform_device *pdev)
+{
+	pcmcia_socket_dev_resume(&pdev->dev);
+	return 0;
+}
+
+#else
+#define at91_cf_suspend	NULL
+#define at91_cf_resume	NULL
+#endif
+
+static struct platform_driver at91_cf_driver = {
 	.probe		= at91_cf_probe,
 	.remove		= __exit_p(at91_cf_remove),
-	.suspend	= pcmcia_socket_dev_suspend,
-	.resume		= pcmcia_socket_dev_resume,
+	.suspend	= at91_cf_suspend,
+	.resume		= at91_cf_resume,
+	.driver		= {
+		.name	= (char *) driver_name,
+		.owner	= THIS_MODULE,
+	},
 };
 
 /*--------------------------------------------------------------------------*/
 
 static int __init at91_cf_init(void)
 {
-	return driver_register(&at91_cf_driver);
+	return platform_driver_register(&at91_cf_driver);
 }
 module_init(at91_cf_init);
 
 static void __exit at91_cf_exit(void)
 {
-	driver_unregister(&at91_cf_driver);
+	platform_driver_unregister(&at91_cf_driver);
 }
 module_exit(at91_cf_exit);
 

@@ -1,6 +1,16 @@
-if ARCH_AT91RM9200
+if ARCH_AT91
 
-menu "AT91RM9200 Implementations"
+menu "Atmel AT91 System-on-Chip"
+
+# -----------------------------------------------------
+
+config ARCH_AT91RM9200
+	bool "Atmel AT91RM9200"
+	help
+	  Select this if you intend to run this kernel on an Atmel
+	  AT91RM9200-based board.
+
+if ARCH_AT91RM9200
 
 comment "AT91RM9200 Board Type"
 
@@ -40,8 +50,46 @@ config MACH_KB9200
 	help
 	  Select this if you are using KwikByte's KB920x board
 
+config MACH_ATEB9200
+	bool "Embest's ATEB9200"
+	depends on ARCH_AT91RM9200
+	help
+	  Select this if you are using Embest's ATEB9200 board
 
-comment "AT91RM9200 Feature Selections"
+config MACH_KAFA
+	bool "Sperry-Sun KAFA board"
+	depends on ARCH_AT91RM9200
+	help
+	  Select this if you are using Sperry-Sun's KAFA board
+
+endif
+
+
+# ----------------------------------------------------------
+
+config ARCH_AT91SAM9261
+	bool "Atmel AT91SAM9261"
+	help
+	  Select this if you are using board built around Atmel's AT91SAM9261
+	  processors.
+
+if ARCH_AT91SAM9261
+
+comment "AT91SAM9261 Board Type"
+
+config MACH_AT91SAM9261EK
+	bool "Atmel AT91SAM9261-EK Evaluation Kit"
+	depends on ARCH_AT91SAM9261
+	help
+	  Select this if you are using Atmel's AT91SAM9261-EK Evaluation Kit.
+
+endif
+
+
+# ----------------------------------------------------------
+
+
+comment "AT91 Feature Selections"
 
 config AT91_PROGRAMMABLE_CLOCKS
 	bool "Programmable Clocks"

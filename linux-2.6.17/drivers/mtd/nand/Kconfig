@@ -183,6 +183,12 @@ config MTD_NAND_SHARPSL
 	tristate "Support for NAND Flash on Sharp SL Series (C7xx + others)"
 	depends on MTD_NAND && ARCH_PXA
 
+config MTD_NAND_AT91
+	bool "AT91 NAND Access (Smart Media)"
+	depends on MTD_NAND && ARCH_AT91RM9200
+	help
+	  Enables access to the Smart Media Card interface on the AT91RM9200
+
 config MTD_NAND_NANDSIM
 	tristate "Support for NAND Flash Simulator"
 	depends on MTD_NAND && MTD_PARTITIONS

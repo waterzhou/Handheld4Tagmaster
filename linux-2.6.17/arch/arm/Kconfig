@@ -264,11 +264,11 @@ config ARCH_AAEC2000
 	help
 	  This enables support for systems based on the Agilent AAEC-2000
 
-config ARCH_AT91RM9200
-	bool "AT91RM9200"
+config ARCH_AT91
+	bool "AT91"
 	help
-	  Say Y here if you intend to run this kernel on an Atmel
-	  AT91RM9200-based board.
+	  Say Y here if you intend to run this kernel on an Atmel AT91
+	  System-on-Chip board.
 
 endchoice
 

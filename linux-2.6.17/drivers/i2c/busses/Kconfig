@@ -201,6 +201,13 @@ config I2C_IOP3XX
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-iop3xx.
 
+config I2C_AT91
+	tristate "Atmel AT91RM9200 I2C Two-Wire interface (TWI)"
+	depends on I2C && ARCH_AT91RM9200
+	help
+	  This supports the use of the I2C interface on the AT91RM9200
+	  processor.
+
 config I2C_ISA
 	tristate
 	depends on I2C

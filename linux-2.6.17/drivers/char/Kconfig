@@ -1034,5 +1034,21 @@ config TELCLOCK
 	  sysfs directory, /sys/devices/platform/telco_clock, with a number of
 	  files for controlling the behavior of this hardware.
 
+config AT91_SPI
+	bool "SPI driver for AT91 processors"
+	depends on ARCH_AT91RM9200
+	default y
+	help
+	  The SPI driver gives access to this serial bus on the AT91x
+	  processor.
+
+config AT91_SPIDEV
+	bool "SPI device interface for AT91 processors"
+	depends on ARCH_AT91RM9200 && AT91_SPI
+	default n
+	help
+	  The SPI driver gives user mode access to this serial
+	  bus on the AT91x processor.
+
 endmenu
 

@@ -631,5 +631,25 @@ config MTD_PLATRAM
 
 	  This selection automatically selects the map_ram driver.
 
+config MTD_CSB337
+	bool "Flash mapped on Cogent CSB337"
+	depends on MTD && MACH_CSB337
+	help
+	  This enables access to the flash chip on the Cogent CSB337
+	  single board computer.  The default behavior of the startup
+	  script the comes with BSPs for that board is to pass the address
+	  of a file romfs.img, which is assumed to be a romfs filesystem image
+	  to be used as the initial root filesystem.
+
+config MTD_CSB637
+	bool "Flash mapped on Cogent CSB637"
+	depends on MTD && MACH_CSB637
+	help
+	  This enables access to the flash chip on the Cogent CSB637
+	  single board computer.  The default behavior of the startup
+	  script the comes with BSPs for that board is to pass the address
+	  of a file romfs.img, which is assumed to be a romfs filesystem image
+	  to be used as the initial root filesystem.
+
 endmenu
 
