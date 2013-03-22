@@ -1,0 +1,6 @@
+#!/bin/sh
+#rm -f /etc/ppp/pppd.log
+#route del default 2>/dev/null
+#pppd call gprs
+pppd /dev/ttyS1 9600 modem lock connect "chat -v -f /etc/ppp/chat-dialscript" disconnect /etc/ppp/chat-disconnect user "" debug
+

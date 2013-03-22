@@ -1,0 +1,12 @@
+/dev/ttyS1
+9600
+modem
+lock
+#logfile /var/tmp/pppd.log
+connect /etc/ppp/chat-connect
+disconnect /etc/ppp/chat-disconnect
+defaultroute
+usepeerdns
+#user ""
+#noipdefault
+#debug

@@ -1,0 +1,111 @@
+/*
+ *
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <signal.h>
+#include <termios.h>
+#include <fcntl.h>
+
+const char *com2 = "/dev/ttyS2";
+
+static struct termios newtios, oldtios;		/* terminal settings */
+static int saved_portfd = -1;           /* serial port fd */
+
+/* cleanup atexit handler */
+static void reset_tty_atexit(void)
+{
+	if(saved_portfd != -1){
+		tcsetattr(saved_portfd, TCSANOW, &oldtios);
+	}
+}
+
+/* cleanup signal handler */
+static void reset_tty_handler(int signal)
+{
+	if(saved_portfd != -1){
+		tcsetattr(saved_portfd, TCSANOW, &oldtios);
+	}
+	_exit(EXIT_FAILURE);
+}
+
+static int open_port(const char *portname)
+{
+	struct sigaction sa;
+	int portfd;
+
+	printf("opening serial port: %s\n", portname);
+
+	/* open serial port */
+	if((portfd = open(portname, O_RDWR|O_NOCTTY)) < 0){
+		printf("open serial port %s fail\n", portname);
+		return portfd;
+	}
+
+	/* get serial port params, save away */
+	tcgetattr(portfd, &newtios);
+	memcpy(&oldtios, &newtios, sizeof newtios);
+
+	/* configure new values */
+	cfmakeraw(&newtios);            /* see man page */
+	newtios.c_iflag |= IGNPAR;      /* ignore parity on input */
+	newtios.c_oflag &= ~(OPOST|ONLCR|OLCUC|OCRNL|ONOCR|ONLRET|OFILL);
+	newtios.c_cflag = CS8|CLOCAL|CREAD;
+	newtios.c_cc[VMIN] = 1;         /* block until 1 char received */
+	newtios.c_cc[VTIME] = 0;        /* no inter-character timer */
+	
+	/* 115200 bps */
+	cfsetospeed(&newtios, B115200);
+	cfsetispeed(&newtios, B115200);
+
+	/* register cleanup stuff  */
+	atexit(reset_tty_atexit);
+	memset(&sa, 0, sizeof sa);
+	sa.sa_handler = reset_tty_handler;
+	sigaction(SIGHUP, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGPIPE, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+
+	/* apply modified termios */
+	saved_portfd = portfd;
+	tcflush(portfd, TCIFLUSH);
+	tcsetattr(portfd, TCSADRAIN, &newtios);
+
+	return portfd;
+}
+
+static void close_port(int portfd)
+{
+	tcsetattr(portfd, TCSANOW, &oldtios);
+	close(portfd);
+	saved_portfd = -1;
+}
+
+int main(int argc, char *argv[])
+{
+	fd_set fds;
+	int portfd;
+	int retval;
+	unsigned char c;
+	unsigned int tx_buf[10]={0xaa,0x52,0xcc,0x33,0xc3,0x3c};
+	if((portfd = open_port(com2)) < 0)
+		return -1;
+	write(portfd,tx_buf,6);
+	while(1){
+		FD_ZERO(&fds);
+		FD_SET(portfd, &fds);
+
+		retval = select(portfd + 1, &fds, NULL, NULL, NULL);
+		if(FD_ISSET(portfd, &fds)){
+			if(read(portfd, &c, 1) == 1)
+				putchar(c);
+		}
+		fflush(NULL);
+	}
+	
+	return 0;
+}

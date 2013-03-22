@@ -1,0 +1,6 @@
+#!/bin/sh
+#rm -f /etc/ppp/pppd.log
+#route del default 2>/dev/null
+pppd call gprs2
+#pppd /dev/ppp 115200 modem lock connect /etc/ppp/chat-connect disconnect /etc/ppp/chat-disconnect user "" debug
+

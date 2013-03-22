@@ -1,0 +1,3 @@
+#!/bin/sh
+chat -V -f /etc/ppp/chat-disconnscript
+

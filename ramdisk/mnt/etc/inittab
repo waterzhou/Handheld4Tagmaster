@@ -1,0 +1,4 @@
+::respawn:/bin/sh
+::respawn:/sbin/syslogd -n
+::sysinit:/etc/rc
+#::bootwait:/bin/cat /etc/motd

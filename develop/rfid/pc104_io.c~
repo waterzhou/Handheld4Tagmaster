@@ -1,0 +1,32 @@
+/*
+	2007-9-8 
+	arm-pc104 io read & write function interface  
+	VERSION 1.0.0
+*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <stdarg.h>
+#include <linux/types.h>
+#include <termios.h>
+#include <unistd.h>
+
+#include "pc104_io.h"
+
+static int fd;
+int pc104_io_open(void)
+{
+	fd = open("/dev/pc104_io/0",O_RDWR);
+	if(fd < 0){
+		printf("###open /dev/pc104_io/0 fail####\n");
+		return (-1);
+	}
+	iobase = (unsigned long *)mmap(0, 0x1000000,PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
+	return fd;
+}
+int pc104_io_close(void)
+{
+	return close(fd);
+}
+

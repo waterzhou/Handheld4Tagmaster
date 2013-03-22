@@ -1,0 +1,19 @@
+#!/bin/sh
+
+rm -rf ramdisk.img
+dd if=/dev/zero of=ramdisk.img bs=1024 count=6000 
+#mke2fs -N 500 ramdisk.img
+echo y | mke2fs -vm0 ramdisk.img 6000
+
+rm -rf *.gz
+tar -zcvf target.gz target/
+mount -t ext2 -o loop ramdisk.img ./mnt
+cd mnt/
+cp ../target.gz .
+tar -zxvf target.gz
+mv  target/* .
+rm -rf target*
+cd ..
+umount mnt/
+cat ramdisk.img | gzip -9 -c > Ramdisk.gz
+cp -f Ramdisk.gz /tftpboot/

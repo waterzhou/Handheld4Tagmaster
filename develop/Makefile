@@ -1,0 +1,47 @@
+#
+#
+#
+include ./.config
+
+.EXPORT_ALL_VARIABLES:
+
+TOPDIR  := $(shell /bin/pwd)
+LINUXDIR = $(TOPDIR)/../linux-2.6.17
+CFLAGS = -I$(TOPDIR)/../tools/arm-linux/include -O -Wall
+LDFLAGS = --static
+CROSS_COMPILE :=$(TOPDIR)/../tools/bin/arm-linux-
+
+AS              = $(CROSS_COMPILE)as
+LD              = $(CROSS_COMPILE)ld
+CC              = $(CROSS_COMPILE)gcc
+CPP             = $(CROSS_COMPILE)g++
+AR              = $(CROSS_COMPILE)ar
+NM              = $(CROSS_COMPILE)nm
+STRIP           = $(CROSS_COMPILE)strip
+OBJCOPY         = $(CROSS_COMPILE)objcopy
+OBJDUMP         = $(CROSS_COMPILE)objdump
+
+
+# dir_y					+= exp2
+# dir_y					+= exp3
+# dir_y                                   += exp4
+# dir_y                                   += exp6
+dir_y                                   += exp7
+# dir_y                                   += exp8
+# dir_y                                   += exp9
+# dir_y                                   += exp10
+# dir_y                                   += hello
+# dir_y                                   += fb
+# dir_y                                   += zlg7289A
+# dir_y                                   += hi
+dir_y                                   +=com2show
+# dir_y                                   +=rfid
+all:
+	for i in $(dir_y) ; do  make -C $$i || exit $? ; done
+
+install:
+	for i in $(dir_y) ; do  make -C $$i install || exit $? ; done
+clean:
+	-for i in $(dir_y) $(dir_n) $(dir_) ; do \
+		[ ! -d $$i ] || make -C $$i clean; \
+	done

@@ -1,0 +1,3 @@
+#!/bin/sh
+chat -v -f /etc/ppp/chat-dialscript
+
