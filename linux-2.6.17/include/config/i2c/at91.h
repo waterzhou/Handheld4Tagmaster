@@ -1,0 +1,1 @@
+#define CONFIG_I2C_AT91 1

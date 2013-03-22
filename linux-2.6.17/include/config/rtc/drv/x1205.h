@@ -1,0 +1,1 @@
+#undef CONFIG_RTC_DRV_X1205

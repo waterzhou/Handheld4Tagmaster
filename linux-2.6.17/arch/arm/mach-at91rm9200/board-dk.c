@@ -60,8 +60,8 @@ static void __init dk_init_irq(void)
  */
 static struct at91_uart_config __initdata dk_uart_config = {
 	.console_tty	= 0,				/* ttyS0 */
-	.nr_tty		= 5,
-	.tty_map	= { 4, 1, 0, 2, 3 }		/* ttyS0, ..., ttyS4 */
+	.nr_tty		= 3,
+	.tty_map	= { 4, 1, 0, -1, -1 }		/* ttyS0, ..., ttyS4 */
 };
 
 static void __init dk_map_io(void)

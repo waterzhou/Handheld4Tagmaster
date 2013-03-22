@@ -1,0 +1,1 @@
+#define CONFIG_AT91_SPI 1

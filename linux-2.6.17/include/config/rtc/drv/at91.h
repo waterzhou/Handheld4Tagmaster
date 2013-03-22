@@ -1,0 +1,1 @@
+#define CONFIG_RTC_DRV_AT91 1

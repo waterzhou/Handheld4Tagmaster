@@ -1,0 +1,1 @@
+#define CONFIG_RTC_INTF_DEV 1

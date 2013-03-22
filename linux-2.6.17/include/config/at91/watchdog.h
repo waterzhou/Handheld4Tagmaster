@@ -1,0 +1,1 @@
+#define CONFIG_AT91_WATCHDOG 1

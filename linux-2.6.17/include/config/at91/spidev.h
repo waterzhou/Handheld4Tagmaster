@@ -1,0 +1,1 @@
+#define CONFIG_AT91_SPIDEV 1

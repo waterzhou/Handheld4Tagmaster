@@ -1,0 +1,1 @@
+#define CONFIG_ARCH_AT91 1

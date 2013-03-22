@@ -1,0 +1,1 @@
+#define CONFIG_MMC_AT91RM9200 1
