@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.17-rc3
-# Sun May  7 16:49:48 2006
+# Linux kernel version: .6.17
+# Fri Mar 22 15:58:11 2013
 #
 CONFIG_ARM=y
 CONFIG_MMU=y
@@ -107,7 +107,6 @@ CONFIG_DEFAULT_IOSCHED="anticipatory"
 # CONFIG_ARCH_H720X is not set
 # CONFIG_ARCH_AAEC2000 is not set
 CONFIG_ARCH_AT91=y
-# CONFIG_ARCH_KS8695 is not set
 
 #
 # Atmel AT91 System-on-Chip
@@ -196,7 +195,7 @@ CONFIG_ALIGNMENT_TRAP=y
 #
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
-CONFIG_CMDLINE="mem=32M console=ttyS0,115200 initrd=0x20410000,3145728 root=/dev/ram0 rw"
+CONFIG_CMDLINE="mem=64M console=ttyS0,115200 initrd=0x21000000,8000000 root=/dev/ram rw"
 # CONFIG_XIP_KERNEL is not set
 
 #
@@ -379,7 +378,6 @@ CONFIG_MTD_PHYSMAP_BANKWIDTH=2
 # CONFIG_MTD_ARM_INTEGRATOR is not set
 # CONFIG_MTD_IMPA7 is not set
 # CONFIG_MTD_PLATRAM is not set
-# CONFIG_MTD_ATMEL_AT91 is not set
 
 #
 # Self-contained MTD device drivers
@@ -731,6 +729,7 @@ CONFIG_HWMON=y
 # Multimedia devices
 #
 # CONFIG_VIDEO_DEV is not set
+CONFIG_VIDEO_V4L2=y
 
 #
 # Digital Video Broadcasting Devices
