@@ -170,27 +170,32 @@ int devices_init (void)
 						relocation_offset);
 	}
 #endif
-
+    printf("will list create\n");
 	/* Initialize the list */
 	devlist = ListCreate (sizeof (device_t));
 
 	if (devlist == NULL) {
-		eputs ("Cannot initialize the list of devices!\n");
+		printf ("Cannot initialize the list of devices!\n");
 		return -1;
 	}
 #if defined(CONFIG_HARD_I2C) || defined(CONFIG_SOFT_I2C)
+    printf("will init i2c\n");
 	i2c_init (CFG_I2C_SPEED, CFG_I2C_SLAVE);
 #endif
 #ifdef CONFIG_LCD
+    printf("will lcd init\n");
 	drv_lcd_init ();
 #endif
 #if defined(CONFIG_VIDEO) || defined(CONFIG_CFB_CONSOLE)
+    printf("will video init\n");
 	drv_video_init ();
 #endif
 #ifdef CONFIG_KEYBOARD
+    printf("will keyboard init\n");
 	drv_keyboard_init ();
 #endif
 #ifdef CONFIG_LOGBUFFER
+    printf("will logbuf init\n");
 	drv_logbuff_init ();
 #endif
 	drv_system_init ();

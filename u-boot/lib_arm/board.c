@@ -227,7 +227,7 @@ void start_armboot (void)
 	/* configure available FLASH banks */
 	size = flash_init ();
 	display_flash_config (size);
-
+    printf("after flash display\n");
 #ifdef CONFIG_VFD
 #  ifndef PAGE_SIZE
 #   define PAGE_SIZE 4096
@@ -253,10 +253,11 @@ void start_armboot (void)
 #endif
 
 #ifdef CONFIG_HAS_DATAFLASH
+    printf("will init data flash\n");
 	AT91F_DataflashInit();
 	dataflash_print_info();
 #endif
-
+    printf("will env_relocate\n");
 	/* initialize environment */
 	env_relocate ();
 
@@ -264,10 +265,10 @@ void start_armboot (void)
 	/* must do this after the framebuffer is allocated */
 	drv_vfd_init();
 #endif
-
 	/* IP Address */
 	bd_data.bi_ip_addr = getenv_IPaddr ("ipaddr");
 
+    printf("will get ipaddr\n");
 	/* MAC Address */
 	{
 		int i;
@@ -284,14 +285,14 @@ void start_armboot (void)
 				s = (*e) ? e + 1 : e;
 		}
 	}
-
+    printf("will do device init\n");
 	devices_init ();      /* get the devices list going. */
-
+    printf("after deice init\n");
 	/* Syscalls are not implemented for ARM. But allocating
 	 * this allows the console_init routines to work without #ifdefs
 	 */
 	syscall_tbl = (void **) malloc (NR_SYSCALLS * sizeof (void *));
-
+    printf("will do console init\n");
 	console_init_r ();	/* fully init console as a device */
 
 #if defined(CONFIG_MISC_INIT_R)
@@ -326,7 +327,7 @@ void start_armboot (void)
 #ifdef BOARD_POST_INIT
 	board_post_init ();
 #endif
-
+    printf("will go main loop\n");
 	/* main_loop() can return to retry autoboot, if so just run it again. */
 	for (;;) {
 		main_loop ();

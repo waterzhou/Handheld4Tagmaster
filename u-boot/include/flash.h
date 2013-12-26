@@ -210,6 +210,7 @@ extern int flash_real_protect(flash_info_t *info, long sector, int prot);
 #define INTEL_ID_28F320J3A  0x00160016	/*  32M = 128K x  32	*/
 #define INTEL_ID_28F640J3A  0x00170017	/*  64M = 128K x  64	*/
 #define INTEL_ID_28F128J3A  0x00180018	/* 128M = 128K x 128	*/
+#define INTEL_ID_28F128P30T  0x88188818	/* 128M =  64K x 255 + 32k x 4	*/
 
 #define INTEL_ID_28F160S3   0x00D000D0	/*  16M = 512K x  32 (64kB x 32)	*/
 #define INTEL_ID_28F320S3   0x00D400D4	/*  32M = 512K x  64 (64kB x 64)	*/

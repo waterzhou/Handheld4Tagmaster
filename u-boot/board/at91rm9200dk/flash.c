@@ -57,8 +57,13 @@ OrgDef OrgSST39VF3201[] =
 {
 	{ 1024, 4*1024 } /* 1024 * 4kBytes sectors */	
 };
+OrgDef OrgINTEL28F128P30T[] =
+{
+    {   4,  32*1024 },  /*   4 *  32 kBytes sectors */
+    { 127, 128*1024 },  /* 127 * 128 kBytes sectors */
+};
 
-#define FLASH_BANK_SIZE 0x400000	/* 4 MB */
+#define FLASH_BANK_SIZE 0x1000000	/* 16 MB */
 //#define MAIN_SECT_SIZE  0x10000		/* 64 KB */
 
 flash_info_t    flash_info[CFG_MAX_FLASH_BANKS];
@@ -112,12 +117,12 @@ void flash_identification (ulong flash_base, flash_info_t * info)
 	IDENT_FLASH_ADDR1 = ID_OUT_CODE;
 
 	/* Vendor type */
-	info->flash_id = SST_MANUFACT & FLASH_VENDMASK;
-	printf ("SST: ");
+	info->flash_id = INTEL_MANUFACT & FLASH_VENDMASK;
+	printf ("INTEL: ");
 
-	if ((device_code & FLASH_TYPEMASK) == (SST_ID_xF3201 & FLASH_TYPEMASK)) {
-		info->flash_id |= SST_ID_xF3201 & FLASH_TYPEMASK;
-		printf ("SST39VF3201 (32Mbit)\n");
+	if ((device_code & FLASH_TYPEMASK) == (INTEL_ID_28F128P30T & FLASH_TYPEMASK)) {
+		info->flash_id |= INTEL_ID_28F128P30T & FLASH_TYPEMASK;
+		printf ("JS28F128P30 (128Mbit)\n");
 	} else {
 		printf ("Unkown Flash: 0x%x, 0x%x\n", manuf_code, device_code);
 	}
@@ -164,12 +169,12 @@ ulong flash_init (void)
 		flash_info[i].size = FLASH_BANK_SIZE;
 		
 		if ((flash_info[i].flash_id & FLASH_TYPEMASK) ==
-			(SST_ID_xF3201 & FLASH_TYPEMASK)) {
+			(INTEL_ID_28F128P30T & FLASH_TYPEMASK)) {
 			flash_info[i].sector_count = CFG_MAX_FLASH_SECT;
 			memset (flash_info[i].protect, 0, CFG_MAX_FLASH_SECT);
 
-			pOrgDef = OrgSST39VF3201;
-			flash_nb_blocks = sizeof (OrgSST39VF3201) / sizeof (OrgDef);
+			pOrgDef = OrgINTEL28F128P30T;
+			flash_nb_blocks = sizeof (OrgINTEL28F128P30T) / sizeof (OrgDef);
 		} else 
 			panic ("Unkown Flash!\n");		
 		
@@ -236,8 +241,11 @@ void flash_print_info (flash_info_t * info)
 	case (ATM_MANUFACT & FLASH_VENDMASK):
 		printf ("Atmel: ");
 		break;
-	case (SST_MANUFACT & FLASH_VENDMASK):
+    case (SST_MANUFACT & FLASH_VENDMASK):
 		printf ("SST: ");
+		break;
+    case (INTEL_MANUFACT & FLASH_VENDMASK):
+		printf ("INTEL: ");
 		break;
 	default:
 		printf ("Unknown Vendor ");
@@ -251,8 +259,11 @@ void flash_print_info (flash_info_t * info)
 	case (ATM_ID_BV1614A & FLASH_TYPEMASK):
 		printf ("AT49BV1614A (16Mbit)\n");
 		break;
-	case (SST_ID_xF3201 & FLASH_TYPEMASK):
+    case (SST_ID_xF3201 & FLASH_TYPEMASK):
 		printf ("SST39VF3201 (32Mbit)\n");
+		break;
+    case (INTEL_ID_28F128P30T & FLASH_TYPEMASK):
+		printf ("JS28F128P30T (128Mbit)\n");
 		break;
 	default:
 		printf ("Unknown Chip Type\n");
@@ -297,7 +308,7 @@ int flash_erase (flash_info_t * info, int s_first, int s_last)
 	}
 
 	if ((info->flash_id & FLASH_VENDMASK) !=
-		(SST_MANUFACT & FLASH_VENDMASK)) {
+		(INTEL_MANUFACT & FLASH_VENDMASK)) {
 		return ERR_UNKNOWN_FLASH_VENDOR;
 	}
 

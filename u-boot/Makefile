@@ -56,7 +56,7 @@ ifeq ($(ARCH),ppc)
 CROSS_COMPILE = ppc_8xx-
 endif
 ifeq ($(ARCH),arm)
-CROSS_COMPILE = $(TOPDIR)/../toolchain_arm/bin/arm-linux-uclibc-
+CROSS_COMPILE = $(TOPDIR)/../toolchain_arm/bin/arm-linux-
 endif
 ifeq ($(ARCH),i386)
 ifeq ($(HOSTARCH),i386)
