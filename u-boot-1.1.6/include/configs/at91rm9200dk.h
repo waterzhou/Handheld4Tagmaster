@@ -141,7 +141,7 @@
 
 #define CONFIG_NR_DRAM_BANKS 1
 #define PHYS_SDRAM 0x20000000
-#define PHYS_SDRAM_SIZE 0x2000000  /* 32 megs */
+#define PHYS_SDRAM_SIZE 0x4000000  /* 32 megs */
 
 #define CFG_MEMTEST_START		PHYS_SDRAM
 #define CFG_MEMTEST_END			CFG_MEMTEST_START + PHYS_SDRAM_SIZE - 262144
@@ -150,7 +150,7 @@
 #define CONFIG_NET_RETRY_COUNT		20
 #define CONFIG_AT91C_USE_RMII
 
-#define CONFIG_HAS_DATAFLASH		1
+//#define CONFIG_HAS_DATAFLASH		1
 #define CFG_SPI_WRITE_TOUT		(5*CFG_HZ)
 #define CFG_MAX_DATAFLASH_BANKS 	2
 #define CFG_MAX_DATAFLASH_PAGES 	16384
@@ -158,12 +158,19 @@
 #define CFG_DATAFLASH_LOGIC_ADDR_CS3	0xD0000000	/* Logical adress for CS3 */
 
 #define PHYS_FLASH_1			0x10000000
-#define PHYS_FLASH_SIZE			0x200000  /* 2 megs main flash */
+#define PHYS_FLASH_SIZE			0x1000000  /* 2 megs main flash */
 #define CFG_FLASH_BASE			PHYS_FLASH_1
 #define CFG_MAX_FLASH_BANKS		1
-#define CFG_MAX_FLASH_SECT		256
+#define CFG_MAX_FLASH_SECT		259
 #define CFG_FLASH_ERASE_TOUT		(2*CFG_HZ) /* Timeout for Flash Erase */
 #define CFG_FLASH_WRITE_TOUT		(2*CFG_HZ) /* Timeout for Flash Write */
+#define CFG_FLASH_LOCK_TOUT (2*CFG_HZ)  /* Timeout for Flash Set Lock Bit */
+#define CFG_FLASH_UNLOCK_TOUT   (2*CFG_HZ)  /* Timeout for Flash Clear Lock Bits */
+#define CFG_FLASH_PROTECTION            /* "Real" (hardware) sectors protection */
+#define PHYS_INTEL_SECT_SIZE    0x00020000 /* 128 KB sectors (x2) */
+
+#define PHYS_FLASH_BANK_SIZE    0x01000000 /* 16 MB Banks   */
+#define PHYS_FLASH_SECT_SIZE    0x00040000 /* 256 KB sectors (x2) */
 
 #undef	CFG_ENV_IS_IN_DATAFLASH
 
