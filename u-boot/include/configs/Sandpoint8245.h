@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2001, 2002
+ * (C) Copyright 2001-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -49,11 +49,16 @@
 #define CONFIG_BAUDRATE		9600
 #define CONFIG_DRAM_SPEED	100		/* MHz				*/
 
-#define CONFIG_COMMANDS		( CONFIG_CMD_DFL | \
-				  CFG_CMD_ELF    | \
-				  CFG_CMD_I2C 	 | \
-				  CFG_CMD_EEPROM | \
-				  CFG_CMD_PCI )
+#define	CONFIG_TIMESTAMP		/* Print image info with timestamp */
+
+#define CONFIG_COMMANDS	      ( CONFIG_CMD_DFL	| \
+				CFG_CMD_DHCP	| \
+				CFG_CMD_ELF	| \
+				CFG_CMD_I2C	| \
+				CFG_CMD_EEPROM	| \
+				CFG_CMD_NFS	| \
+				CFG_CMD_PCI	| \
+				CFG_CMD_SNTP	)
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any)	*/
 #include <cmd_confdefs.h>
@@ -224,7 +229,11 @@
 
 #define CFG_NS16550_REG_SIZE	1
 
-#define CFG_NS16550_CLK		1843200
+#if (CONFIG_CONS_INDEX > 2)
+#define CFG_NS16550_CLK         CONFIG_DRAM_SPEED*1000000
+#else
+#define CFG_NS16550_CLK         1843200
+#endif
 
 #define CFG_NS16550_COM1	(CFG_ISA_IO + CFG_NS87308_UART1_BASE)
 #define CFG_NS16550_COM2	(CFG_ISA_IO + CFG_NS87308_UART2_BASE)

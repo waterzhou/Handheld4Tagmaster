@@ -2,6 +2,9 @@
  * (C) Copyright 2001
  * Rob Taylor, Flying Pig Systems. robt@flyingpig.com.
  *
+ * Modified during 2003 by
+ * Ken Chou, kchou@ieee.org
+ *
  * See file CREDITS for list of people who contributed to this
  * project.
  *
@@ -37,99 +40,63 @@ int checkboard (void)
 
 long int initdram (int board_type)
 {
-	int              i, cnt;
-	volatile uchar * base= CFG_SDRAM_BASE;
-	volatile ulong * addr;
-	ulong            save[32];
-	ulong            val, ret  = 0;
+	long size;
+	long new_bank0_end;
+	long mear1;
+	long emear1;
 
-	for (i=0, cnt=(CFG_MAX_RAM_SIZE / sizeof(long)) >> 1; cnt > 0; cnt >>= 1) {
-		addr = (volatile ulong *)base + cnt;
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
+	size = get_ram_size(CFG_SDRAM_BASE, CFG_MAX_RAM_SIZE);
 
-	addr = (volatile ulong *)base;
-	save[i] = *addr;
-	*addr = 0;
+	new_bank0_end = size - 1;
+	mear1 = mpc824x_mpc107_getreg(MEAR1);
+	emear1 = mpc824x_mpc107_getreg(EMEAR1);
+	mear1 = (mear1  & 0xFFFFFF00) |
+		((new_bank0_end & MICR_ADDR_MASK) >> MICR_ADDR_SHIFT);
+	emear1 = (emear1 & 0xFFFFFF00) |
+		((new_bank0_end & MICR_ADDR_MASK) >> MICR_EADDR_SHIFT);
+	mpc824x_mpc107_setreg(MEAR1, mear1);
+	mpc824x_mpc107_setreg(EMEAR1, emear1);
 
-	if (*addr != 0) {
-		*addr = save[i];
-		goto Done;
-	}
-
-	for (cnt = 1; cnt <= CFG_MAX_RAM_SIZE / sizeof(long); cnt <<= 1) {
-		addr = (volatile ulong *)base + cnt;
-		val = *addr;
-		*addr = save[--i];
-		if (val != ~cnt) {
-			ulong new_bank0_end = cnt * sizeof(long) - 1;
-			ulong mear1  = mpc824x_mpc107_getreg(MEAR1);
-			ulong emear1 = mpc824x_mpc107_getreg(EMEAR1);
-			mear1 =  (mear1  & 0xFFFFFF00) |
-			  ((new_bank0_end & MICR_ADDR_MASK) >> MICR_ADDR_SHIFT);
-			emear1 = (emear1 & 0xFFFFFF00) |
-			  ((new_bank0_end & MICR_ADDR_MASK) >> MICR_EADDR_SHIFT);
-			mpc824x_mpc107_setreg(MEAR1,  mear1);
-			mpc824x_mpc107_setreg(EMEAR1, emear1);
-
-			ret = cnt * sizeof(long);
-			goto Done;
-		}
-	}
-
-	ret = CFG_MAX_RAM_SIZE;
-Done:
-	return ret;
+	return (size);
 }
 
 /*
  * Initialize PCI Devices
  */
-#if 1
 #ifndef CONFIG_PCI_PNP
 static struct pci_config_table pci_a3000_config_table[] = {
-	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  0x0, 0x0, 0x0, /* unknown eth0 divice */
+	/* vendor, device, class */
+	/* bus, dev, func */
+	{ PCI_VENDOR_ID_NS, PCI_DEVICE_ID_NS_83815, PCI_ANY_ID,
+	  PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,	/* dp83815 eth0 divice */
 	  pci_cfgfunc_config_device, { PCI_ENET0_IOADDR,
 				       PCI_ENET0_MEMADDR,
 				       PCI_COMMAND_IO |
 				       PCI_COMMAND_MEMORY |
 				       PCI_COMMAND_MASTER }},
 	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  0x0, 0x0, 0x0, /* unknown eth1 device */
+	  PCI_ANY_ID, 0x14, PCI_ANY_ID,		/* PCI slot1 */
 	  pci_cfgfunc_config_device, { PCI_ENET1_IOADDR,
 				       PCI_ENET1_MEMADDR,
 				       PCI_COMMAND_IO |
 				       PCI_COMMAND_MEMORY |
 				       PCI_COMMAND_MASTER }},
 	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  0x0, 0x0, 0x0, /* unknown eth1 device */
+	  PCI_ANY_ID, 0x15, PCI_ANY_ID, 	/* PCI slot2 */
 	  pci_cfgfunc_config_device, { PCI_ENET2_IOADDR,
 				       PCI_ENET2_MEMADDR,
 				       PCI_COMMAND_IO |
 				       PCI_COMMAND_MEMORY |
 				       PCI_COMMAND_MASTER }},
+	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
+	  PCI_ANY_ID, 0x16, PCI_ANY_ID,		/* PCI slot3 */
+	  pci_cfgfunc_config_device, { PCI_ENET3_IOADDR,
+				       PCI_ENET3_MEMADDR,
+				       PCI_COMMAND_IO |
+				       PCI_COMMAND_MEMORY |
+				       PCI_COMMAND_MASTER }},
 	{ }
 };
-#endif
-
-#else
-
-#ifndef CONFIG_PCI_PNP
-static struct pci_config_table pci_a3000_config_table[] = {
-	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, 0x0f, PCI_ANY_ID,
-	  pci_cfgfunc_config_device, { PCI_ENET0_IOADDR,
-				       PCI_ENET0_MEMADDR,
-				       PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER }},
-	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, 0x10, PCI_ANY_ID,
-	  pci_cfgfunc_config_device, { PCI_ENET1_IOADDR,
-				       PCI_ENET1_MEMADDR,
-				       PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER }},
-	{ }
-};
-#endif
-
 #endif
 
 struct pci_controller hose = {

@@ -27,9 +27,12 @@ LIB	= lib$(CPU).a
 
 START	= start.o resetvec.o kgdb.o
 AOBJS	= dcr.o
-COBJS	= traps.o serial.o cpu.o cpu_init.o speed.o interrupts.o \
-	  405gp_pci.o 405gp_enet.o miiphy.o i2c.o bedbug_405.o \
-	  spd_sdram.o sdram.o
+COBJS	= 405gp_pci.o 4xx_enet.o \
+	  bedbug_405.o commproc.o \
+	  cpu.o cpu_init.o i2c.o interrupts.o \
+	  miiphy.o sdram.o serial.o \
+	  spd_sdram.o speed.o traps.o usb_ohci.o usbdev.o
+
 OBJS	= $(AOBJS) $(COBJS)
 
 all:	.depend $(START) $(LIB)

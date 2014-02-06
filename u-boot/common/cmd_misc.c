@@ -31,6 +31,7 @@
 
 int do_sleep (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
+	ulong start = get_timer(0);
 	ulong delay;
 
 	if (argc != 2) {
@@ -38,19 +39,34 @@ int do_sleep (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return 1;
 	}
 
-	delay = simple_strtoul(argv[1], NULL, 10);
+	delay = simple_strtoul(argv[1], NULL, 10) * CFG_HZ;
 
-	while (delay) {
-		int i;
-		for (i=0; i<1000; ++i) {
-			if (ctrlc ()) {
-				return (-1);
-			}
-			udelay (1000);
+	while (get_timer(start) < delay) {
+		if (ctrlc ()) {
+			return (-1);
 		}
-		--delay;
+		udelay (100);
 	}
+
 	return 0;
 }
+
+/* Implemented in $(CPU)/interrupts.c */
+#if (CONFIG_COMMANDS & CFG_CMD_IRQ)
+int do_irqinfo (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+
+U_BOOT_CMD(
+	irqinfo,    1,    1,     do_irqinfo,
+	"irqinfo - print information about IRQs\n",
+	NULL
+);
+#endif  /* CONFIG_COMMANDS & CFG_CMD_IRQ */
+
+U_BOOT_CMD(
+	sleep ,    2,    2,     do_sleep,
+	"sleep   - delay execution for some time\n",
+	"N\n"
+	"    - delay execution for N seconds (N is _decimal_ !!!)\n"
+);
 
 #endif	/* CFG_CMD_MISC */

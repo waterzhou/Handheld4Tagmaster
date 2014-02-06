@@ -137,8 +137,6 @@ void enable_8259A_irq(unsigned int irq);
 #define 	KBD_BUFFER_LEN 0x20  /* size of the keyboardbuffer */
 
 
-
-
 static volatile char kbd_buffer[KBD_BUFFER_LEN];
 static volatile int in_pointer = 0;
 static volatile int out_pointer = 0;
@@ -450,7 +448,6 @@ unsigned char handle_kbd_event(void)
 }
 
 
-
 /******************************************************************************
  * Lowlevel Part of keyboard section
  */
@@ -616,7 +613,7 @@ char * kbd_initialize(void)
 			      | KBD_MODE_DISABLE_MOUSE
 			      | KBD_MODE_KCC);
 
-	/* ibm powerpc portables need this to use scan-code set 1 -- Cort */
+	/* AMCC powerpc portables need this to use scan-code set 1 -- Cort */
 	kbd_write_command_w(KBD_CCMD_READ_MODE);
 	if (!(kbd_wait_for_input() & KBD_MODE_KCC)) {
 		/*
@@ -648,8 +645,3 @@ void kbd_interrupt(void)
 {
 	handle_kbd_event();
 }
-
-
-
-/* eof */
-

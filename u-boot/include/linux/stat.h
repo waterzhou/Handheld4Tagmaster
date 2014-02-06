@@ -67,7 +67,7 @@ struct stat {
 
 #endif	/* __PPC__ */
 
-#if defined (__ARM__) || defined (__I386__)
+#if defined (__ARM__) || defined (__I386__) || defined (__M68K__)
 
 struct stat {
 	unsigned short st_dev;
@@ -93,6 +93,37 @@ struct stat {
 };
 
 #endif	/* __ARM__ */
+
+#if defined (__MIPS__)
+
+struct stat {
+	dev_t           st_dev;
+	long            st_pad1[3];
+	ino_t           st_ino;
+	mode_t          st_mode;
+	nlink_t         st_nlink;
+	uid_t           st_uid;
+	gid_t           st_gid;
+	dev_t           st_rdev;
+	long            st_pad2[2];
+	off_t           st_size;
+	long            st_pad3;
+	/*
+	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
+	 * but we don't have it under Linux.
+	 */
+	time_t          st_atime;
+	long            reserved0;
+	time_t          st_mtime;
+	long            reserved1;
+	time_t          st_ctime;
+	long            reserved2;
+	long            st_blksize;
+	long            st_blocks;
+	long            st_pad4[14];
+};
+
+#endif	/* __MIPS__ */
 
 #ifdef __cplusplus
 }

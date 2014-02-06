@@ -41,14 +41,21 @@
  * LICENSED MATERIAL  -  PROGRAM PROPERTY OF I B M
  */
 /*------------------------------------------------------------------------------- */
-
+/*
+ * Travis Sawyer 15 September 2004
+ *    Added CONFIG_SERIAL_MULTI support
+ */
 #include <common.h>
 #include <commproc.h>
 #include <asm/processor.h>
 #include <watchdog.h>
 #include "vecnum.h"
 
-#if CONFIG_SERIAL_SOFTWARE_FIFO
+#ifdef CONFIG_SERIAL_MULTI
+#include <serial.h>
+#endif
+
+#ifdef CONFIG_SERIAL_SOFTWARE_FIFO
 #include <malloc.h>
 #endif
 
@@ -147,7 +154,6 @@
 #define asyncXOFFchar                 0x13
 #define asyncXONchar                  0x11
 
-
 /*
  * Minimal serial functions needed to use one of the SMC ports
  * as serial console interface.
@@ -177,7 +183,6 @@ int serial_init (void)
 	return (0);
 }
 
-
 void serial_setbrg (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
@@ -189,7 +194,6 @@ void serial_setbrg (void)
 	out8 (SPU_BASE + spu_BRateDivl, (br_reg & 0x00ff)); /* Set baud rate divisor... */
 	out8 (SPU_BASE + spu_BRateDivh, ((br_reg & 0xff00) >> 8)); /* ... */
 }
-
 
 void serial_putc (const char c)
 {
@@ -208,14 +212,12 @@ void serial_putc (const char c)
 	}
 }
 
-
 void serial_puts (const char *s)
 {
 	while (*s) {
 		serial_putc (*s++);
 	}
 }
-
 
 int serial_getc ()
 {
@@ -240,7 +242,6 @@ int serial_getc ()
 	return (0x000000ff & (int) in8 (asyncRxBufferport1));
 }
 
-
 int serial_tstc ()
 {
 	unsigned char status;
@@ -264,16 +265,26 @@ int serial_tstc ()
 
 #endif	/* CONFIG_IOP480 */
 
-
 /*****************************************************************************/
 #if defined(CONFIG_405GP) || defined(CONFIG_405CR) || defined(CONFIG_440) || defined(CONFIG_405EP)
 
 #if defined(CONFIG_440)
+#if defined(CONFIG_440EP) || defined(CONFIG_440GR)
+#define UART0_BASE  CFG_PERIPHERAL_BASE + 0x00000300
+#define UART1_BASE  CFG_PERIPHERAL_BASE + 0x00000400
+#else
 #define UART0_BASE  CFG_PERIPHERAL_BASE + 0x00000200
 #define UART1_BASE  CFG_PERIPHERAL_BASE + 0x00000300
+#endif
+#if defined(CONFIG_440GX) || defined(CONFIG_440EP) || defined(CONFIG_440GR)
+#define CR0_MASK        0xdfffffff
+#define CR0_EXTCLK_ENA  0x00800000
+#define CR0_UDIV_POS    0
+#else
 #define CR0_MASK        0x3fff0000
 #define CR0_EXTCLK_ENA  0x00600000
 #define CR0_UDIV_POS    16
+#endif /* CONFIG_440GX */
 #elif defined(CONFIG_405EP)
 #define UART0_BASE      0xef600300
 #define UART1_BASE      0xef600400
@@ -295,13 +306,21 @@ int serial_tstc ()
 #if defined(CONFIG_UART1_CONSOLE)
 #define ACTING_UART0_BASE	UART1_BASE
 #define ACTING_UART1_BASE	UART0_BASE
+#if defined(CONFIG_440GX) || defined(CONFIG_440EP) || defined(CONFIG_440GR)
+#define UART0_SDR           sdr_uart1
+#define UART1_SDR           sdr_uart0
+#endif /* CONFIG_440GX */
 #else
 #define ACTING_UART0_BASE	UART0_BASE
 #define ACTING_UART1_BASE	UART1_BASE
+#if defined(CONFIG_440GX) || defined(CONFIG_440EP) || defined(CONFIG_440GR)
+#define UART0_SDR           sdr_uart0
+#define UART1_SDR           sdr_uart1
+#endif /* CONFIG_440GX */
 #endif
 
 #if defined(CONFIG_405EP) && defined(CFG_EXT_SERIAL_CLOCK)
-#error "External serial clock not supported on IBM PPC405EP!"
+#error "External serial clock not supported on AMCC PPC405EP!"
 #endif
 
 #define UART_RBR    0x00
@@ -336,8 +355,7 @@ int serial_tstc ()
 /*#define asyncTxBufferport1      ACTING_UART0_BASE+0x00 */
 /*#define asyncRxBufferport1      ACTING_UART0_BASE+0x00 */
 
-
-#if CONFIG_SERIAL_SOFTWARE_FIFO
+#ifdef CONFIG_SERIAL_SOFTWARE_FIFO
 /*-----------------------------------------------------------------------------+
   | Fifo
   +-----------------------------------------------------------------------------*/
@@ -349,7 +367,6 @@ typedef struct {
 
 volatile static serial_buffer_t buf_info;
 #endif
-
 
 #if defined(CONFIG_440) && !defined(CFG_EXT_SERIAL_CLOCK)
 static void serial_divs (int baudrate, unsigned long *pudiv,
@@ -397,14 +414,17 @@ static void serial_divs (int baudrate, unsigned long *pudiv,
 }
 #endif /* defined(CONFIG_440) && !defined(CFG_EXT_SERIAL_CLK */
 
-
 /*
  * Minimal serial functions needed to use one of the SMC ports
  * as serial console interface.
  */
 
 #if defined(CONFIG_440)
-int serial_init (void)
+#if defined(CONFIG_SERIAL_MULTI)
+int serial_init_dev (unsigned long dev_base)
+#else
+int serial_init(void)
+#endif
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -416,7 +436,22 @@ int serial_init (void)
 	unsigned long tmp;
 #endif
 
+#if defined(CONFIG_440GX)
+#if defined(CONFIG_SERIAL_MULTI)
+	if (UART0_BASE == dev_base) {
+		mfsdr(UART0_SDR,reg);
+		reg &= ~CR0_MASK;
+	} else {
+		mfsdr(UART1_SDR,reg);
+		reg &= ~CR0_MASK;
+	}
+#else
+	mfsdr(UART0_SDR,reg);
+	reg &= ~CR0_MASK;
+#endif
+#else
 	reg = mfdcr(cntrl0) & ~CR0_MASK;
+#endif /* CONFIG_440GX */
 #ifdef CFG_EXT_SERIAL_CLOCK
 	reg |= CR0_EXTCLK_ENA;
 	udiv = 1;
@@ -430,9 +465,34 @@ int serial_init (void)
 	serial_divs (gd->baudrate, &udiv, &bdiv);
 #endif
 
+#if defined(CONFIG_440GX) || defined(CONFIG_440EP) || defined(CONFIG_440GR)
+	reg |= udiv << CR0_UDIV_POS;	/* set the UART divisor */
+#if defined(CONFIG_SERIAL_MULTI)
+	if (UART0_BASE == dev_base) {
+		mtsdr (UART0_SDR,reg);
+	} else {
+		mtsdr (UART1_SDR,reg);
+	}
+#else
+	mtsdr (UART0_SDR,reg);
+#endif
+#else
 	reg |= (udiv - 1) << CR0_UDIV_POS;	/* set the UART divisor */
 	mtdcr (cntrl0, reg);
+#endif
 
+#if defined(CONFIG_SERIAL_MULTI)
+	out8 (dev_base + UART_LCR, 0x80);	/* set DLAB bit */
+	out8 (dev_base + UART_DLL, bdiv);	/* set baudrate divisor */
+	out8 (dev_base + UART_DLM, bdiv >> 8);/* set baudrate divisor */
+	out8 (dev_base + UART_LCR, 0x03);	/* clear DLAB; set 8 bits, no parity */
+	out8 (dev_base + UART_FCR, 0x00);	/* disable FIFO */
+	out8 (dev_base + UART_MCR, 0x00);	/* no modem control DTR RTS */
+	val = in8 (dev_base + UART_LSR);	/* clear line status */
+	val = in8 (dev_base + UART_RBR);	/* read receive buffer */
+	out8 (dev_base + UART_SCR, 0x00);	/* set scratchpad */
+	out8 (dev_base + UART_IER, 0x00);	/* set interrupt enable reg */
+#else
 	out8 (ACTING_UART0_BASE + UART_LCR, 0x80);	/* set DLAB bit */
 	out8 (ACTING_UART0_BASE + UART_DLL, bdiv);	/* set baudrate divisor */
 	out8 (ACTING_UART0_BASE + UART_DLM, bdiv >> 8);/* set baudrate divisor */
@@ -443,13 +503,17 @@ int serial_init (void)
 	val = in8 (ACTING_UART0_BASE + UART_RBR);	/* read receive buffer */
 	out8 (ACTING_UART0_BASE + UART_SCR, 0x00);	/* set scratchpad */
 	out8 (ACTING_UART0_BASE + UART_IER, 0x00);	/* set interrupt enable reg */
-
+#endif
 	return (0);
 }
 
 #else /* !defined(CONFIG_440) */
 
+#if defined(CONFIG_SERIAL_MULTI)
+int serial_init_dev (unsigned long dev_base)
+#else
 int serial_init (void)
+#endif
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -494,6 +558,18 @@ int serial_init (void)
 	tmp = gd->baudrate * udiv * 16;
 	bdiv = (clk + tmp / 2) / tmp;
 
+#if defined(CONFIG_SERIAL_MULTI)
+	out8 (dev_base + UART_LCR, 0x80);	/* set DLAB bit */
+	out8 (dev_base + UART_DLL, bdiv);	/* set baudrate divisor */
+	out8 (dev_base + UART_DLM, bdiv >> 8);/* set baudrate divisor */
+	out8 (dev_base + UART_LCR, 0x03);	/* clear DLAB; set 8 bits, no parity */
+	out8 (dev_base + UART_FCR, 0x00);	/* disable FIFO */
+	out8 (dev_base + UART_MCR, 0x00);	/* no modem control DTR RTS */
+	val = in8 (dev_base + UART_LSR);	/* clear line status */
+	val = in8 (dev_base + UART_RBR);	/* read receive buffer */
+	out8 (dev_base + UART_SCR, 0x00);	/* set scratchpad */
+	out8 (dev_base + UART_IER, 0x00);	/* set interrupt enable reg */
+#else
 	out8 (ACTING_UART0_BASE + UART_LCR, 0x80);	/* set DLAB bit */
 	out8 (ACTING_UART0_BASE + UART_DLL, bdiv);	/* set baudrate divisor */
 	out8 (ACTING_UART0_BASE + UART_DLM, bdiv >> 8);/* set baudrate divisor */
@@ -504,13 +580,17 @@ int serial_init (void)
 	val = in8 (ACTING_UART0_BASE + UART_RBR);	/* read receive buffer */
 	out8 (ACTING_UART0_BASE + UART_SCR, 0x00);	/* set scratchpad */
 	out8 (ACTING_UART0_BASE + UART_IER, 0x00);	/* set interrupt enable reg */
-
+#endif
 	return (0);
 }
 
 #endif /* if defined(CONFIG_440) */
 
+#if defined(CONFIG_SERIAL_MULTI)
+void serial_setbrg_dev (unsigned long dev_base)
+#else
 void serial_setbrg (void)
+#endif
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -533,39 +613,71 @@ void serial_setbrg (void)
 	tmp = gd->baudrate * udiv * 16;
 	bdiv = (clk + tmp / 2) / tmp;
 
+#if defined(CONFIG_SERIAL_MULTI)
+	out8 (dev_base + UART_LCR, 0x80);	/* set DLAB bit */
+	out8 (dev_base + UART_DLL, bdiv);	/* set baudrate divisor */
+	out8 (dev_base + UART_DLM, bdiv >> 8);/* set baudrate divisor */
+	out8 (dev_base + UART_LCR, 0x03);	/* clear DLAB; set 8 bits, no parity */
+#else
 	out8 (ACTING_UART0_BASE + UART_LCR, 0x80);	/* set DLAB bit */
 	out8 (ACTING_UART0_BASE + UART_DLL, bdiv);	/* set baudrate divisor */
 	out8 (ACTING_UART0_BASE + UART_DLM, bdiv >> 8);/* set baudrate divisor */
 	out8 (ACTING_UART0_BASE + UART_LCR, 0x03);	/* clear DLAB; set 8 bits, no parity */
+#endif
 }
 
-
+#if defined(CONFIG_SERIAL_MULTI)
+void serial_putc_dev (unsigned long dev_base, const char c)
+#else
 void serial_putc (const char c)
+#endif
 {
 	int i;
 
 	if (c == '\n')
+#if defined(CONFIG_SERIAL_MULTI)
+		serial_putc_dev (dev_base, '\r');
+#else
 		serial_putc ('\r');
+#endif
 
 	/* check THRE bit, wait for transmiter available */
 	for (i = 1; i < 3500; i++) {
+#if defined(CONFIG_SERIAL_MULTI)
+		if ((in8 (dev_base + UART_LSR) & 0x20) == 0x20)
+#else
 		if ((in8 (ACTING_UART0_BASE + UART_LSR) & 0x20) == 0x20)
+#endif
 			break;
 		udelay (100);
 	}
+#if defined(CONFIG_SERIAL_MULTI)
+	out8 (dev_base + UART_THR, c);	/* put character out */
+#else
 	out8 (ACTING_UART0_BASE + UART_THR, c);	/* put character out */
+#endif
 }
 
-
+#if defined(CONFIG_SERIAL_MULTI)
+void serial_puts_dev (unsigned long dev_base, const char *s)
+#else
 void serial_puts (const char *s)
+#endif
 {
 	while (*s) {
+#if defined(CONFIG_SERIAL_MULTI)
+		serial_putc_dev (dev_base, *s++);
+#else
 		serial_putc (*s++);
+#endif
 	}
 }
 
-
-int serial_getc ()
+#if defined(CONFIG_SERIAL_MULTI)
+int serial_getc_dev (unsigned long dev_base)
+#else
+int serial_getc (void)
+#endif
 {
 	unsigned char status = 0;
 
@@ -573,7 +685,11 @@ int serial_getc ()
 #if defined(CONFIG_HW_WATCHDOG)
 		WATCHDOG_RESET ();	/* Reset HW Watchdog, if needed */
 #endif	/* CONFIG_HW_WATCHDOG */
+#if defined(CONFIG_SERIAL_MULTI)
+		status = in8 (dev_base + UART_LSR);
+#else
 		status = in8 (ACTING_UART0_BASE + UART_LSR);
+#endif
 		if ((status & asyncLSRDataReady1) != 0x0) {
 			break;
 		}
@@ -581,22 +697,37 @@ int serial_getc ()
 				asyncLSROverrunError1 |
 				asyncLSRParityError1  |
 				asyncLSRBreakInterrupt1 )) != 0) {
+#if defined(CONFIG_SERIAL_MULTI)
+			out8 (dev_base + UART_LSR,
+#else
 			out8 (ACTING_UART0_BASE + UART_LSR,
+#endif
 			      asyncLSRFramingError1 |
 			      asyncLSROverrunError1 |
 			      asyncLSRParityError1  |
 			      asyncLSRBreakInterrupt1);
 		}
 	}
+#if defined(CONFIG_SERIAL_MULTI)
+	return (0x000000ff & (int) in8 (dev_base));
+#else
 	return (0x000000ff & (int) in8 (ACTING_UART0_BASE));
+#endif
 }
 
-
-int serial_tstc ()
+#if defined(CONFIG_SERIAL_MULTI)
+int serial_tstc_dev (unsigned long dev_base)
+#else
+int serial_tstc (void)
+#endif
 {
 	unsigned char status;
 
+#if defined(CONFIG_SERIAL_MULTI)
+	status = in8 (dev_base + UART_LSR);
+#else
 	status = in8 (ACTING_UART0_BASE + UART_LSR);
+#endif
 	if ((status & asyncLSRDataReady1) != 0x0) {
 		return (1);
 	}
@@ -604,7 +735,11 @@ int serial_tstc ()
 			asyncLSROverrunError1 |
 			asyncLSRParityError1  |
 			asyncLSRBreakInterrupt1 )) != 0) {
+#if defined(CONFIG_SERIAL_MULTI)
+		out8 (dev_base + UART_LSR,
+#else
 		out8 (ACTING_UART0_BASE + UART_LSR,
+#endif
 		      asyncLSRFramingError1 |
 		      asyncLSROverrunError1 |
 		      asyncLSRParityError1  |
@@ -613,8 +748,7 @@ int serial_tstc ()
 	return 0;
 }
 
-
-#if CONFIG_SERIAL_SOFTWARE_FIFO
+#ifdef CONFIG_SERIAL_SOFTWARE_FIFO
 
 void serial_isr (void *arg)
 {
@@ -628,8 +762,8 @@ void serial_isr (void *arg)
 	} else {
 		space = rx_get - rx_put;
 	}
-	while (serial_tstc ()) {
-		c = serial_getc ();
+	while (serial_tstc_dev (ACTING_UART0_BASE)) {
+		c = serial_getc_dev (ACTING_UART0_BASE);
 		if (space) {
 			buf_info.rx_buffer[rx_put++] = c;
 			space--;
@@ -729,7 +863,6 @@ int serial_buffered_tstc (void)
 
 #endif	/* CONFIG_SERIAL_SOFTWARE_FIFO */
 
-
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 /*
   AS HARNOIS : according to CONFIG_KGDB_SER_INDEX kgdb uses serial port
@@ -765,7 +898,6 @@ void kgdb_serial_init (void)
 	out8 (ACTING_UART1_BASE + UART_IER, 0x00);	/* set interrupt enable reg */
 }
 
-
 void putDebugChar (const char c)
 {
 	if (c == '\n')
@@ -777,14 +909,12 @@ void putDebugChar (const char c)
 	while ((in8 (ACTING_UART1_BASE + UART_LSR) & 0x20) != 0x20);
 }
 
-
 void putDebugStr (const char *s)
 {
 	while (*s) {
 		serial_putc (*s++);
 	}
 }
-
 
 int getDebugChar (void)
 {
@@ -808,7 +938,6 @@ int getDebugChar (void)
 	}
 	return (0x000000ff & (int) in8 (ACTING_UART1_BASE));
 }
-
 
 void kgdb_interruptible (int yes)
 {
@@ -843,5 +972,88 @@ void kgdb_interruptible (int yes)
 }
 #endif	/* (CONFIG_KGDB_SER_INDEX & 2) */
 #endif	/* CFG_CMD_KGDB */
+
+
+#if defined(CONFIG_SERIAL_MULTI)
+int serial0_init(void)
+{
+	return (serial_init_dev(UART0_BASE));
+}
+
+int serial1_init(void)
+{
+	return (serial_init_dev(UART1_BASE));
+}
+void serial0_setbrg (void)
+{
+	serial_setbrg_dev(UART0_BASE);
+}
+void serial1_setbrg (void)
+{
+	serial_setbrg_dev(UART1_BASE);
+}
+
+void serial0_putc(const char c)
+{
+	serial_putc_dev(UART0_BASE,c);
+}
+
+void serial1_putc(const char c)
+{
+	serial_putc_dev(UART1_BASE, c);
+}
+void serial0_puts(const char *s)
+{
+	serial_puts_dev(UART0_BASE, s);
+}
+
+void serial1_puts(const char *s)
+{
+	serial_puts_dev(UART1_BASE, s);
+}
+
+int serial0_getc(void)
+{
+	return(serial_getc_dev(UART0_BASE));
+}
+
+int serial1_getc(void)
+{
+	return(serial_getc_dev(UART1_BASE));
+}
+int serial0_tstc(void)
+{
+	return (serial_tstc_dev(UART0_BASE));
+}
+
+int serial1_tstc(void)
+{
+	return (serial_tstc_dev(UART1_BASE));
+}
+
+struct serial_device serial0_device =
+{
+	"serial0",
+	"UART0",
+	serial0_init,
+	serial0_setbrg,
+	serial0_getc,
+	serial0_tstc,
+	serial0_putc,
+	serial0_puts,
+};
+
+struct serial_device serial1_device =
+{
+	"serial1",
+	"UART1",
+	serial1_init,
+	serial1_setbrg,
+	serial1_getc,
+	serial1_tstc,
+	serial1_putc,
+	serial1_puts,
+};
+#endif /* CONFIG_SERIAL_MULTI */
 
 #endif	/* CONFIG_405GP || CONFIG_405CR */

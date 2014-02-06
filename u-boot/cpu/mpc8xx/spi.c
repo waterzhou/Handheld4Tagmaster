@@ -39,7 +39,7 @@
 #include <linux/ctype.h>
 #include <malloc.h>
 #include <post.h>
-#include <net.h>
+#include <serial.h>
 
 #if (defined(CONFIG_SPI)) || (CONFIG_POST & CFG_POST_SPI)
 
@@ -223,12 +223,12 @@ void spi_init_f (void)
 
 	/***********IMPORTANT******************/
 
-        /*
-         * Setting transmit and receive buffer descriptor pointers
-         * initially to rbase and tbase. Only the microcode patches
-         * documentation talks about initializing this pointer. This
-         * is missing from the sample I2C driver. If you dont
-         * initialize these pointers, the kernel hangs.
+	/*
+	 * Setting transmit and receive buffer descriptor pointers
+	 * initially to rbase and tbase. Only the microcode patches
+	 * documentation talks about initializing this pointer. This
+	 * is missing from the sample I2C driver. If you dont
+	 * initialize these pointers, the kernel hangs.
 	 */
 	spi->spi_rbptr = spi->spi_rbase;
 	spi->spi_tbptr = spi->spi_tbase;
@@ -503,8 +503,7 @@ static int packet_check (char * packet, int length)
 	char c = (char) length;
 	int i;
 
-	for (i = 0; i < length; i++)
-	{
+	for (i = 0; i < length; i++) {
 	    if (packet[i] != c++) return -1;
 	}
 
@@ -513,57 +512,47 @@ static int packet_check (char * packet, int length)
 
 int spi_post_test (int flags)
 {
-	DECLARE_GLOBAL_DATA_PTR;
-
 	int res = -1;
 	volatile immap_t *immr = (immap_t *) CFG_IMMR;
-	volatile cpm8xx_t *cp = (cpm8xx_t *) &immr->im_cpm;
+	volatile cpm8xx_t *cp = (cpm8xx_t *) & immr->im_cpm;
 	int i;
 	int l;
 
-	spi_init_f();
-	spi_init_r();
+	spi_init_f ();
+	spi_init_r ();
 
 	cp->cp_spmode |= SPMODE_LOOP;
 
-	for (i = 0; i < TEST_NUM; i++)
-	{
-	    for (l = TEST_MIN_LENGTH; l <= TEST_MAX_LENGTH; l += 8)
-	    {
-		packet_fill(txbuf, l);
+	for (i = 0; i < TEST_NUM; i++) {
+		for (l = TEST_MIN_LENGTH; l <= TEST_MAX_LENGTH; l += 8) {
+			packet_fill ((char *)txbuf, l);
 
-		spi_xfer(l);
+			spi_xfer (l);
 
-		if (packet_check(rxbuf, l) < 0)
-		{
-		    goto Done;
+			if (packet_check ((char *)rxbuf, l) < 0) {
+				goto Done;
+			}
 		}
-	    }
 	}
 
 	res = 0;
 
-	Done:
+      Done:
 
 	cp->cp_spmode &= ~SPMODE_LOOP;
 
 	/*
-	 * SCC2 Ethernet parameter RAM space overlaps
+	 * SCC2 parameter RAM space overlaps
 	 * the SPI parameter RAM space. So we need to restore
-	 * the SCC2 configuration if it is used by UART or Ethernet.
+	 * the SCC2 configuration if it is used by UART.
 	 */
 
-#if defined(CONFIG_8xx_CONS_SCC2)
-	serial_init();
+#if !defined(CONFIG_8xx_CONS_NONE)
+	serial_reinit_all ();
 #endif
 
-#if defined(SCC_ENET) && (SCC_ENET == 1)
-	eth_init(gd->bd);
-#endif
-
-	if (res != 0)
-	{
-		post_log("SPI test failed\n");
+	if (res != 0) {
+		post_log ("SPI test failed\n");
 	}
 
 	return res;

@@ -26,8 +26,6 @@
 #include <command.h>
 #include <linux/ctype.h>
 #include <common.h>
-#include <cmd_boot.h>
-#include <cmd_bsp.h>
 
 #include "fpga.h"
 
@@ -146,7 +144,7 @@ static int fpga_load (fpga_t* fpga, ulong addr, int checkall)
 
     if (hdr.ih_magic != IH_MAGIC) {
 	strcpy (msg, "Bad Image Magic Number");
-        goto failure;
+	goto failure;
     }
 
     len  = sizeof(image_header_t);
@@ -171,7 +169,7 @@ static int fpga_load (fpga_t* fpga, ulong addr, int checkall)
 	}
     }
 
-    if (checkall && fpga_get_version(fpga, hdr.ih_name) < 0)
+    if (checkall && fpga_get_version(fpga, (char *)(hdr.ih_name)) < 0)
 	return 1;
 
     /* align length */
@@ -293,6 +291,14 @@ int do_fpga (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
     return 1;
 }
 
+U_BOOT_CMD(
+	fpga,	4,	1,	do_fpga,
+	"fpga    - access FPGA(s)\n",
+	"fpga status [name] - print FPGA status\n"
+	"fpga reset  [name] - reset FPGA\n"
+	"fpga load [name] addr - load FPGA configuration data\n"
+);
+
 #endif	/* CONFIG_COMMANDS & CFG_CMD_BSP */
 
 /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . */
@@ -335,7 +341,7 @@ int fpga_init (void)
 	}
 
 	hdr = (image_header_t *)addr;
-	if ((new_id = fpga_get_version(fpga, hdr->ih_name)) == -1)
+	if ((new_id = fpga_get_version(fpga, (char *)(hdr->ih_name))) == -1)
 	    return 1;
 
 	do_load = 1;

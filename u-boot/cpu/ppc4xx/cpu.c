@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000
+ * (C) Copyright 2000-2003
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -22,8 +22,6 @@
  */
 
 /*
- * m8xx.c
- *
  * CPU specific code
  *
  * written or collected and sometimes rewritten by
@@ -50,15 +48,15 @@ int checkcpu (void)
 {
 #if defined(CONFIG_405GP) || \
     defined(CONFIG_405CR) || \
-    defined(CONFIG_IOP480) || \
-    defined(CONFIG_440) || \
-    defined(CONFIG_405EP)
+    defined(CONFIG_405EP) || \
+    defined(CONFIG_440)   || \
+    defined(CONFIG_IOP480)
 	uint pvr = get_pvr();
 #endif
 #if defined(CONFIG_405GP) || \
     defined(CONFIG_405CR) || \
-    defined(CONFIG_IOP480) || \
-    defined(CONFIG_405EP)
+    defined(CONFIG_405EP) || \
+    defined(CONFIG_IOP480)
 	DECLARE_GLOBAL_DATA_PTR;
 
 	ulong clock = gd->cpu_clk;
@@ -72,18 +70,18 @@ int checkcpu (void)
 
 	get_sys_info(&sys_info);
 
-#if CONFIG_405GP
-	puts("IBM PowerPC 405GP");
+#ifdef CONFIG_405GP
+	puts ("AMCC PowerPC 405GP");
 	if (pvr == PVR_405GPR_RB) {
 		putc('r');
 	}
-	puts(" Rev. ");
+	puts (" Rev. ");
 #endif
-#if CONFIG_405CR
-	puts("IBM PowerPC 405CR Rev. ");
+#ifdef CONFIG_405CR
+	puts ("AMCC PowerPC 405CR Rev. ");
 #endif
-#if CONFIG_405EP
-	puts("IBM PowerPC 405EP Rev. ");
+#ifdef CONFIG_405EP
+	puts ("AMCC PowerPC 405EP Rev. ");
 #endif
 	switch (pvr) {
 	case PVR_405GP_RB:
@@ -91,7 +89,7 @@ int checkcpu (void)
 		putc('B');
 		break;
 	case PVR_405GP_RC:
-#if CONFIG_405CR
+#ifdef CONFIG_405CR
 	case PVR_405CR_RC:
 #endif
 		putc('C');
@@ -99,7 +97,7 @@ int checkcpu (void)
 	case PVR_405GP_RD:
 		putc('D');
 		break;
-#if CONFIG_405GP
+#ifdef CONFIG_405GP
 	case PVR_405GP_RE:
 		putc('E');
 		break;
@@ -112,79 +110,96 @@ int checkcpu (void)
 		putc('B');
 		break;
 	default:
-		printf("? (PVR=%08x)", pvr);
+		printf ("? (PVR=%08x)", pvr);
 		break;
 	}
 
-	printf(" at %s MHz (PLB=%lu, OPB=%lu, EBC=%lu MHz)\n", strmhz(buf, clock),
+	printf (" at %s MHz (PLB=%lu, OPB=%lu, EBC=%lu MHz)\n", strmhz(buf, clock),
 	       sys_info.freqPLB / 1000000,
 	       sys_info.freqPLB / sys_info.pllOpbDiv / 1000000,
 	       sys_info.freqPLB / sys_info.pllExtBusDiv / 1000000);
 
 #if defined(CONFIG_405GP)
-	if (mfdcr(strap) & PSR_PCI_ASYNC_EN)
-		printf("           PCI async ext clock used, ");
-	else
-		printf("           PCI sync clock at %lu MHz, ",
+	if (mfdcr(strap) & PSR_PCI_ASYNC_EN) {
+		printf ("       PCI async ext clock used, ");
+	} else {
+		printf ("       PCI sync clock at %lu MHz, ",
 		       sys_info.freqPLB / sys_info.pllPciDiv / 1000000);
-	if (mfdcr(strap) & PSR_PCI_ARBIT_EN)
-		printf("internal PCI arbiter enabled\n");
-	else
-		printf("external PCI arbiter enabled\n");
+	}
+	printf ("%sternal PCI arbiter enabled\n",
+		(mfdcr(strap) & PSR_PCI_ARBIT_EN) ? "in" : "ex");
 #elif defined(CONFIG_405EP)
-	if (mfdcr(cpc0_boot) & CPC0_BOOT_SEP)
-		printf("           IIC Boot EEPROM enabled\n");
-	else
-		printf("           IIC Boot EEPROM disabled\n");
-	printf("           PCI async ext clock used, ");
-	if (mfdcr(cpc0_pci) & CPC0_PCI_ARBIT_EN)
-		printf("internal PCI arbiter enabled\n");
-	else
-		printf("external PCI arbiter enabled\n");
+	printf ("       IIC Boot EEPROM %sabled\n",
+		(mfdcr(cpc0_boot) & CPC0_BOOT_SEP) ? "en" : "dis");
+	printf ("       PCI async ext clock used, ");
+	printf ("%sternal PCI arbiter enabled\n",
+		(mfdcr(cpc0_pci) & CPC0_PCI_ARBIT_EN) ? "in" : "ex");
 #endif
 
 #if defined(CONFIG_405EP)
-	printf("           16 kB I-Cache 16 kB D-Cache");
+	printf ("       16 kB I-Cache 16 kB D-Cache");
 #else
-	if ((pvr | 0x00000001) == PVR_405GPR_RB) {
-		printf("           16 kB I-Cache 16 kB D-Cache");
-	} else {
-		printf("           16 kB I-Cache 8 kB D-Cache");
-	}
+	printf ("       16 kB I-Cache %d kB D-Cache",
+		((pvr | 0x00000001) == PVR_405GPR_RB) ? 16 : 8);
 #endif
 #endif  /* defined(CONFIG_405GP) || defined(CONFIG_405CR) */
 
 #ifdef CONFIG_IOP480
-	printf("PLX IOP480 (PVR=%08x)", pvr);
-	printf(" at %s MHz:", strmhz(buf, clock));
-	printf(" %u kB I-Cache", 4);
-	printf(" %u kB D-Cache", 2);
+	printf ("PLX IOP480 (PVR=%08x)", pvr);
+	printf (" at %s MHz:", strmhz(buf, clock));
+	printf (" %u kB I-Cache", 4);
+	printf (" %u kB D-Cache", 2);
 #endif
 
 #if defined(CONFIG_440)
-	puts("IBM PowerPC 440 Rev. ");
-	switch(pvr)
-	{
-        case PVR_440GP_RB:
-		putc('B');
-        /* See errata 1.12: CHIP_4 */
-        if(   ( mfdcr(cpc0_sys0) != mfdcr(cpc0_strp0) )
-            ||( mfdcr(cpc0_sys1) != mfdcr(cpc0_strp1) ) ){
-            puts("\n\t CPC0_SYSx DCRs corrupted. Resetting chip ...\n");
-            udelay( 1000 * 1000 ); /* Give time for serial buf to clear */
-            do_chip_reset( mfdcr(cpc0_strp0), mfdcr(cpc0_strp1) );
-        }
+	puts ("AMCC PowerPC 440");
+	switch(pvr) {
+	case PVR_440GP_RB:
+		puts("GP Rev. B");
+		/* See errata 1.12: CHIP_4 */
+		if ((mfdcr(cpc0_sys0) != mfdcr(cpc0_strp0)) ||
+		    (mfdcr(cpc0_sys1) != mfdcr(cpc0_strp1)) ){
+			puts (  "\n\t CPC0_SYSx DCRs corrupted. "
+				"Resetting chip ...\n");
+			udelay( 1000 * 1000 ); /* Give time for serial buf to clear */
+			do_chip_reset ( mfdcr(cpc0_strp0),
+					mfdcr(cpc0_strp1) );
+		}
 		break;
-        case PVR_440GP_RC:
-		putc('C');
+	case PVR_440GP_RC:
+		puts("GP Rev. C");
 		break;
-        default:
-		printf("UNKNOWN (PVR=%08x)", pvr);
+	case PVR_440GX_RA:
+		puts("GX Rev. A");
+		break;
+	case PVR_440GX_RB:
+		puts("GX Rev. B");
+		break;
+	case PVR_440GX_RC:
+		puts("GX Rev. C");
+		break;
+	case PVR_440GX_RF:
+		puts("GX Rev. F");
+		break;
+	case PVR_440EP_RA:
+		puts("EP Rev. A");
+		break;
+#ifdef CONFIG_440EP
+	case PVR_440EP_RB: /* 440EP rev B and 440GR rev A have same PVR */
+		puts("EP Rev. B");
+		break;
+#endif /*  CONFIG_440EP */
+#ifdef CONFIG_440GR
+	case PVR_440GR_RA: /* 440EP rev B and 440GR rev A have same PVR */
+		puts("GR Rev. A");
+		break;
+#endif /* CONFIG_440GR */
+	default:
+		printf (" UNKNOWN (PVR=%08x)", pvr);
 		break;
 	}
 #endif
-
-	printf("\n");
+	puts ("\n");
 
 	return 0;
 }
@@ -192,34 +207,42 @@ int checkcpu (void)
 
 /* ------------------------------------------------------------------------- */
 
-int do_reset (cmd_tbl_t *cmdtp, bd_t *bd, int flag, int argc, char *argv[])
+int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-        /*
-         * Initiate system reset in debug control register DBCR
-         */
+#if defined(CONFIG_YOSEMITE) || defined(CONFIG_YELLOWSTONE)
+	/*give reset to BCSR*/
+	*(unsigned char*)(CFG_BCSR_BASE | 0x06) = 0x09;
+
+#else
+
+	/*
+	 * Initiate system reset in debug control register DBCR
+	 */
 	__asm__ __volatile__("lis   3, 0x3000" ::: "r3");
 #if defined(CONFIG_440)
 	__asm__ __volatile__("mtspr 0x134, 3");
 #else
 	__asm__ __volatile__("mtspr 0x3f2, 3");
 #endif
+
+#endif/* defined(CONFIG_YOSEMITE) || defined(CONFIG_YELLOWSTONE)*/
 	return 1;
 }
 
 #if defined(CONFIG_440)
 static
-int do_chip_reset( unsigned long sys0, unsigned long sys1 )
+int do_chip_reset (unsigned long sys0, unsigned long sys1)
 {
-    /* Changes to cpc0_sys0 and cpc0_sys1 require chip
-     * reset.
-     */
-    mtdcr( cntrl0, mfdcr(cntrl0) | 0x80000000 ); /* Set SWE */
-    mtdcr( cpc0_sys0, sys0 );
-    mtdcr( cpc0_sys1, sys1 );
-    mtdcr( cntrl0, mfdcr(cntrl0) & ~0x80000000 ); /* Clr SWE */
-    mtspr( dbcr0, 0x20000000);  /* Reset the chip */
+	/* Changes to cpc0_sys0 and cpc0_sys1 require chip
+	 * reset.
+	 */
+	mtdcr (cntrl0, mfdcr (cntrl0) | 0x80000000);	/* Set SWE */
+	mtdcr (cpc0_sys0, sys0);
+	mtdcr (cpc0_sys1, sys1);
+	mtdcr (cntrl0, mfdcr (cntrl0) & ~0x80000000);	/* Clr SWE */
+	mtspr (dbcr0, 0x20000000);	/* Reset the chip */
 
-    return 1;
+	return 1;
 }
 #endif
 

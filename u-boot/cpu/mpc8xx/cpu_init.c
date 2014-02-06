@@ -42,6 +42,9 @@ void cpu_init_f (volatile immap_t * immr)
 {
 #ifndef CONFIG_MBX
 	volatile memctl8xx_t *memctl = &immr->im_memctl;
+# ifdef CFG_PLPRCR
+	ulong mfmask;
+# endif
 #endif
 	ulong reg;
 
@@ -86,17 +89,26 @@ void cpu_init_f (volatile immap_t * immr)
 
 	/* If CFG_PLPRCR (set in the various *_config.h files) tries to
 	 * set the MF field, then just copy CFG_PLPRCR over car_plprcr,
-	 * otherwise OR in CFG_PLPRCR so we do not change the currentMF
+	 * otherwise OR in CFG_PLPRCR so we do not change the current MF
 	 * field value.
+	 *
+	 * For newer (starting MPC866) chips PLPRCR layout is different.
 	 */
-#if ((CFG_PLPRCR & PLPRCR_MF_MSK) != 0)
-	reg = CFG_PLPRCR;			/* reset control bits   */
-#else
-	reg = immr->im_clkrst.car_plprcr;
-	reg &= PLPRCR_MF_MSK;			/* isolate MF field */
-	reg |= CFG_PLPRCR;			/* reset control bits   */
-#endif
+#ifdef CFG_PLPRCR
+	if (get_immr(0xFFFF) >= MPC8xx_NEW_CLK)
+	   mfmask = PLPRCR_MFACT_MSK;
+	else
+	   mfmask = PLPRCR_MF_MSK;
+
+	if ((CFG_PLPRCR & mfmask) != 0)
+	   reg = CFG_PLPRCR;			/* reset control bits   */
+	else {
+	   reg = immr->im_clkrst.car_plprcr;
+	   reg &= mfmask;			/* isolate MF-related fields */
+	   reg |= CFG_PLPRCR;			/* reset control bits   */
+	}
 	immr->im_clkrst.car_plprcr = reg;
+#endif
 
 	/*
 	 * Memory Controller:
@@ -142,10 +154,10 @@ void cpu_init_f (volatile immap_t * immr)
     defined(CONFIG_MHPC)	|| \
     defined(CONFIG_PCU_E)	|| \
     defined(CONFIG_R360MPI)	|| \
+    defined(CONFIG_RMU)		|| \
     defined(CONFIG_RPXCLASSIC)	|| \
     defined(CONFIG_RPXLITE)	|| \
-    defined(CONFIG_SPD823TS)	|| \
-   (defined(CONFIG_MPC860T) && defined(CONFIG_FADS))
+    defined(CONFIG_SPD823TS)
 
 	memctl->memc_br0 = CFG_BR0_PRELIM;
 #endif
@@ -225,6 +237,10 @@ void cpu_init_f (volatile immap_t * immr)
 
 #ifdef CONFIG_RPXCLASSIC
 	rpxclassic_init ();
+#endif
+
+#if defined(CONFIG_RPXLITE) && defined(CFG_ENV_IS_IN_NVRAM)
+	rpxlite_init ();
 #endif
 
 #ifdef CFG_RCCR			/* must be done before cpm_load_patch() */

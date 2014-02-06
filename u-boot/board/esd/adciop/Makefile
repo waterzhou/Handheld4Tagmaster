@@ -1,3 +1,4 @@
+
 #
 # (C) Copyright 2000
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
@@ -25,10 +26,10 @@ include $(TOPDIR)/config.mk
 
 LIB	= lib$(BOARD).a
 
-OBJS	= $(BOARD).o flash.o ../common/pci.o
+OBJS	= $(BOARD).o flash.o ../common/misc.o ../common/pci.o
 
 $(LIB):	$(OBJS)
-	$(AR) crv $@ $^
+	$(AR) crv $@ $(OBJS)
 
 clean:
 	rm -f $(SOBJS) $(OBJS)

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2001
+ * (C) Copyright 2001-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -39,19 +39,27 @@
 #define CONFIG_MPC823		1	/* This is a MPC823E CPU	*/
 #define CONFIG_LWMON		1	/* ...on a LWMON board		*/
 
-#define CONFIG_BOARD_PRE_INIT	1	/* Call board_pre_init		*/
+/* Default Ethernet MAC address */
+#define CONFIG_ETHADDR          00:11:B0:00:00:00
+
+/* The default Ethernet MAC address can be overwritten just once */
+#ifdef CONFIG_ETHADDR
+#define CONFIG_OVERWRITE_ETHADDR_ONCE   1
+#endif
+
+#define CONFIG_BOARD_EARLY_INIT_F 1	/* Call board_early_init_f	*/
 #define CONFIG_BOARD_POSTCLK_INIT 1	/* Call board_postclk_init	*/
 
 #define CONFIG_LCD		1	/* use LCD controller ...	*/
 #define CONFIG_HLD1045		1	/* ... with a HLD1045 display	*/
 
+#define CONFIG_LCD_LOGO		1	/* print our logo on the LCD	*/
+#define CONFIG_LCD_INFO		1	/* ... and some board info	*/
 #define	CONFIG_SPLASH_SCREEN		/* ... with splashscreen support*/
 
-#if 1
+#define CONFIG_SERIAL_MULTI	1
 #define CONFIG_8xx_CONS_SMC2	1	/* Console is on SMC2		*/
-#else
-#define CONFIG_8xx_CONS_SCC2
-#endif
+#define CONFIG_8xx_CONS_SCC2	1	/* Console is on SCC2		*/
 
 #define CONFIG_BAUDRATE		115200	/* with watchdog >= 38400 needed */
 
@@ -78,14 +86,31 @@
 				 CFG_POST_SPR	   | \
 				 CFG_POST_SYSMON)
 
-#define CONFIG_BOOTCOMMAND	"run flash_self"
+/*
+ * Keyboard commands:
+ * # = 0x28 = ENTER :		enable bootmessages on LCD
+ * 2 = 0x3A+0x3C = F1 + F3 :	enable update mode
+ * 3 = 0x3C+0x3F = F3 + F6 :	enable test mode
+ */
 
+#define CONFIG_BOOTCOMMAND "autoscr 40040000;saveenv"
+
+/*	"gatewayip=10.8.211.250\0"			                \ */
 #define	CONFIG_EXTRA_ENV_SETTINGS					\
 	"kernel_addr=40080000\0"					\
 	"ramdisk_addr=40280000\0"					\
-	"magic_keys=#3\0"						\
+	"netmask=255.255.192.0\0"				        \
+	"serverip=10.8.2.101\0"				                \
+	"ipaddr=10.8.57.0\0"				                \
+	"magic_keys=#23\0"						\
 	"key_magic#=28\0"						\
 	"key_cmd#=setenv addfb setenv 'bootargs $bootargs console=tty0'\0" \
+	"key_magic2=3A+3C\0"						\
+	"key_cmd2=echo *** Entering Update Mode ***;"			\
+		"if fatload ide 0:3 10000 update.scr;"			\
+			"then autoscr 10000;"				\
+			"else echo *** UPDATE FAILED ***;"		\
+		"fi\0"							\
 	"key_magic3=3C+3F\0"						\
 	"key_cmd3=echo *** Entering Test Mode ***;"			\
 		"setenv add_misc 'setenv bootargs $bootargs testmode'\0" \
@@ -113,6 +138,7 @@
 #undef	CFG_LOADS_BAUD_CHANGE		/* don't allow baudrate change	*/
 
 #define	CONFIG_WATCHDOG		1	/* watchdog enabled		*/
+#define	CFG_WATCHDOG_FREQ       (CFG_HZ / 20)
 
 #undef	CONFIG_STATUS_LED		/* Status LED disabled		*/
 
@@ -150,26 +176,19 @@
 #define CFG_CMD_POST_DIAG 0
 #endif
 
-#ifdef CONFIG_8xx_CONS_SCC2	/* Can't use ethernet, then */
-#define CONFIG_COMMANDS	     ( (CONFIG_CMD_DFL & ~CFG_CMD_NET) | \
-				CFG_CMD_DATE	| \
-				CFG_CMD_I2C	| \
-				CFG_CMD_EEPROM	| \
-				CFG_CMD_IDE	| \
-				CFG_CMD_BSP	| \
-				CFG_CMD_BMP	| \
-				CFG_CMD_POST_DIAG )
-#else
 #define CONFIG_COMMANDS	      ( CONFIG_CMD_DFL	| \
-				CFG_CMD_DHCP	| \
-				CFG_CMD_DATE	| \
-				CFG_CMD_I2C	| \
-				CFG_CMD_EEPROM	| \
-				CFG_CMD_IDE	| \
-				CFG_CMD_BSP	| \
+				CFG_CMD_ASKENV	| \
 				CFG_CMD_BMP	| \
-				CFG_CMD_POST_DIAG )
-#endif
+				CFG_CMD_BSP	| \
+				CFG_CMD_DATE	| \
+				CFG_CMD_DHCP	| \
+				CFG_CMD_EEPROM	| \
+				CFG_CMD_FAT	| \
+				CFG_CMD_I2C	| \
+				CFG_CMD_IDE	| \
+				CFG_CMD_NFS	| \
+				CFG_CMD_POST_DIAG | \
+				CFG_CMD_SNTP	)
 #define CONFIG_MAC_PARTITION
 #define CONFIG_DOS_PARTITION
 
@@ -187,9 +206,9 @@
 #define CFG_PROMPT	"=> "		/* Monitor Command Prompt	*/
 
 #define	CFG_HUSH_PARSER		1	/* use "hush" command parser	*/
-#endif
 #ifdef	CFG_HUSH_PARSER
 #define	CFG_PROMPT_HUSH_PS2	"> "
+#endif
 
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 #define CFG_CBSIZE	1024		/* Console I/O Buffer Size	*/
@@ -217,6 +236,19 @@
 #else
 #define CFG_BAUDRATE_TABLE	{  9600, 19200, 38400, 57600, 115200 }
 #endif
+
+/*----------------------------------------------------------------------*/
+#define CONFIG_MODEM_SUPPORT	1	/* enable modem initialization stuff */
+#undef CONFIG_MODEM_SUPPORT_DEBUG
+
+#define	CONFIG_MODEM_KEY_MAGIC	"3C+3D"	/* press F3 + F4 keys to enable modem */
+#define	CONFIG_POST_KEY_MAGIC	"3C+3E"	/* press F3 + F5 keys to force POST */
+#if 0
+#define	CONFIG_AUTOBOOT_KEYED		/* Enable "password" protection	*/
+#define CONFIG_AUTOBOOT_PROMPT	"\nEnter password - autoboot in %d sec...\n"
+#define CONFIG_AUTOBOOT_DELAY_STR	"  "	/* "password"	*/
+#endif
+/*----------------------------------------------------------------------*/
 
 /*
  * Low Level Configuration Settings
@@ -266,19 +298,20 @@
 
 #define CFG_FLASH_ERASE_TOUT	180000	/* Timeout for Flash Erase (in ms)	*/
 #define CFG_FLASH_WRITE_TOUT	600	/* Timeout for Flash Write (in ms)	*/
+#define CFG_FLASH_USE_BUFFER_WRITE
+#define CFG_FLASH_BUFFER_WRITE_TOUT	2048	/* Timeout for Flash Buffer Write (in ms)	*/
+/* Buffer size.
+   We have two flash devices connected in parallel.
+   Each device incorporates a Write Buffer of 32 bytes.
+ */
+#define CFG_FLASH_BUFFER_SIZE	(2*32)
 
-#if 1
-/* Put environment in flash which is much faster to boot */
+/* Put environment in flash which is much faster to boot than using the EEPROM	*/
 #define CFG_ENV_IS_IN_FLASH	1
 #define CFG_ENV_ADDR	    0x40040000	/* Address    of Environment Sector	*/
 #define CFG_ENV_SIZE		0x2000	/* Total Size of Environment		*/
 #define CFG_ENV_SECT_SIZE	0x40000 /* we have BIG sectors only :-(		*/
-#else
-/* Environment in EEPROM */
-#define CFG_ENV_IS_IN_EEPROM	1
-#define CFG_ENV_OFFSET		0
-#define CFG_ENV_SIZE		2048
-#endif
+
 /*-----------------------------------------------------------------------
  * I2C/EEPROM Configuration
  */
@@ -479,6 +512,8 @@
 /* Offset for alternate registers	*/
 #define CFG_ATA_ALT_OFFSET	0x0100
 
+#define CONFIG_SUPPORT_VFAT		/* enable VFAT support */
+
 /*-----------------------------------------------------------------------
  *
  *-----------------------------------------------------------------------
@@ -573,10 +608,5 @@
  */
 #define BOOTFLAG_COLD	0x01		/* Normal Power-On: Boot from FLASH	*/
 #define BOOTFLAG_WARM	0x02		/* Software reboot			*/
-
-#define CONFIG_MODEM_SUPPORT	1	/* enable modem initialization stuff */
-#undef CONFIG_MODEM_SUPPORT_DEBUG
-
-#define	CONFIG_MODEM_KEY_MAGIC	"3C+3F"	/* hold down these keys to enable modem */
 
 #endif	/* __CONFIG_H */

@@ -215,7 +215,7 @@ i2c_init(int speed, int slaveaddr)
 	volatile I2C_BD *rxbd, *txbd;
 	uint dpaddr;
 
-#ifdef CFG_I2C_INIT_BOARD        
+#ifdef CFG_I2C_INIT_BOARD
 	/* call board specific i2c bus reset routine before accessing the   */
 	/* environment, which might be in a chip on that bus. For details   */
 	/* about this problem see doc/I2C_Edge_Conditions.                  */
@@ -724,7 +724,7 @@ int i2c_write(uchar chip, uint addr, int alen, uchar *buffer, int len)
 uchar
 i2c_reg_read(uchar i2c_addr, uchar reg)
 {
-	char buf;
+	uchar buf;
 
 	i2c_init(CFG_I2C_SPEED, CFG_I2C_SLAVE);
 

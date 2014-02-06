@@ -54,6 +54,7 @@ flash_info_t	flash_info[CFG_MAX_FLASH_BANKS]; /* info for FLASH chips */
 static ulong flash_get_size (int portwidth, vu_long *addr, flash_info_t *info);
 static int write_word (flash_info_t *info, ulong dest, ulong data);
 static void flash_get_offsets (ulong base, flash_info_t *info);
+static flash_info_t *flash_get_info(ulong base);
 
 /*-----------------------------------------------------------------------
  */
@@ -72,9 +73,17 @@ flash_init (void)
 
 	/* the boot flash */
 	base = CFG_FLASH_BASE;
-	size_b0 = flash_get_size(1, (vu_long *)base, &flash_info[0]);
+#ifndef CFG_BOOT_FLASH_WIDTH
+#define CFG_BOOT_FLASH_WIDTH	1
+#endif
+	size_b0 = flash_get_size(CFG_BOOT_FLASH_WIDTH, (vu_long *)base,
+	                         &flash_info[0]);
 
-	printf("[%ldkB@%lx] ", size_b0/1024, base);
+#ifndef CONFIG_P3G4
+	printf("[");
+	print_size (size_b0, "");
+	printf("@%08lX] ", base);
+#endif
 
 	if (flash_info[0].flash_id == FLASH_UNKNOWN) {
 		printf ("## Unknown FLASH at %08lx: Size = 0x%08lx = %ld MB\n",
@@ -85,7 +94,11 @@ flash_init (void)
 	for(i=1;i<CFG_MAX_FLASH_BANKS;i++) {
 	    unsigned long size = flash_get_size(CFG_EXTRA_FLASH_WIDTH, (vu_long *)base, &flash_info[i]);
 
-	    printf("[%ldMB@%lx] ", size>>20, base);
+#ifndef CONFIG_P3G4
+	    printf("[");
+	    print_size (size, "");
+	    printf("@%08lX] ", base);
+#endif
 
 	    if (flash_info[i].flash_id == FLASH_UNKNOWN) {
 		if(i==1) {
@@ -97,6 +110,22 @@ flash_init (void)
 	    size_b1+=size;
 	    base+=size;
 	}
+
+#if CFG_MONITOR_BASE >= CFG_FLASH_BASE
+	/* monitor protection ON by default */
+	flash_protect(FLAG_PROTECT_SET,
+	              CFG_MONITOR_BASE,
+	              CFG_MONITOR_BASE + monitor_flash_len - 1,
+	              flash_get_info(CFG_MONITOR_BASE));
+#endif
+
+#ifdef  CFG_ENV_IS_IN_FLASH
+	/* ENV protection ON by default */
+	flash_protect(FLAG_PROTECT_SET,
+	              CFG_ENV_ADDR,
+	              CFG_ENV_ADDR + CFG_ENV_SIZE - 1,
+	              flash_get_info(CFG_ENV_ADDR));
+#endif
 
 	flash_size = size_b0 + size_b1;
 	return flash_size;
@@ -144,6 +173,23 @@ flash_get_offsets (ulong base, flash_info_t *info)
 		    }
 		}
 	}
+}
+
+/*-----------------------------------------------------------------------
+ */
+
+static flash_info_t *flash_get_info(ulong base)
+{
+	int i;
+	flash_info_t * info;
+
+	for (i = 0; i < CFG_MAX_FLASH_BANKS; i ++) {
+		info = & flash_info[i];
+		if (info->start[0] <= base && base <= info->start[0] + info->size - 1)
+			break;
+	}
+
+	return i == CFG_MAX_FLASH_BANKS ? 0 : info;
 }
 
 /*-----------------------------------------------------------------------
@@ -240,15 +286,18 @@ flash_print_info  (flash_info_t *info)
 
 static inline void flash_cmd(int width, volatile unsigned char *addr, int offset, unsigned char cmd)
 {
-        /* supports 1x8, 1x16, and 2x16 */
-        /* 2x8 and 4x8 are not supported */
+	/* supports 1x8, 1x16, and 2x16 */
+	/* 2x8 and 4x8 are not supported */
 	if(width==4) {
 	    /* assuming chips are in 16 bit mode */
 	    /* 2x16 */
 	    unsigned long cmd32=(cmd<<16)|cmd;
 	    *(volatile unsigned long *)(addr+offset*2)=cmd32;
+	} else if (width == 2) {
+	    /* 1x16 */
+	    *(volatile unsigned short *)((unsigned short*)addr+offset)=cmd;
 	} else {
-	    /* 1x16 or 1x8 */
+	    /* 1x8 */
 	    *(volatile unsigned char *)(addr+offset)=cmd;
 	}
 }
@@ -540,7 +589,7 @@ flash_get_size (int portwidth, vu_long *addr, flash_info_t *info)
 int
 flash_erase (flash_info_t *info, int s_first, int s_last)
 {
-	volatile unsigned char *addr = (char *)(info->start[0]);
+	volatile unsigned char *addr = (uchar *)(info->start[0]);
 	int flag, prot, sect, l_sect;
 	ulong start, now, last;
 
@@ -551,7 +600,7 @@ flash_erase (flash_info_t *info, int s_first, int s_last)
 	if((info->flash_id & FLASH_TYPEMASK) == FLASH_RAM) {
 	    for (sect = s_first; sect<=s_last; sect++) {
 		int sector_size=info->size/info->sector_count;
-		addr = (char *)(info->start[sect]);
+		addr = (uchar *)(info->start[sect]);
 		memset((void *)addr, 0, sector_size);
 	    }
 	    return 0;
@@ -609,7 +658,7 @@ flash_erase (flash_info_t *info, int s_first, int s_last)
 	/* Start erase on unprotected sectors */
 	for (sect = s_first; sect<=s_last; sect++) {
 		if (info->protect[sect] == 0) {	/* not protected */
-			addr = (char *)(info->start[sect]);
+			addr = (uchar *)(info->start[sect]);
 			flash_cmd(info->portwidth,addr,0,0x30);
 			l_sect = sect;
 		}
@@ -745,7 +794,7 @@ write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 static int
 write_word (flash_info_t *info, ulong dest, ulong data)
 {
-	volatile unsigned char *addr = (char *)(info->start[0]);
+	volatile unsigned char *addr = (uchar *)(info->start[0]);
 	ulong start;
 	int flag, i;
 

@@ -21,8 +21,8 @@
  * MA 02111-1307 USA
  */
 
-/* 
- * To build the utility with the run-time configuration 
+/*
+ * To build the utility with the run-time configuration
  * uncomment the next line.
  * See included "fw_env.config" sample file (TRAB board)
  * for notes on configuration.
@@ -43,8 +43,8 @@
 #define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 #define CONFIG_BOOTCOMMAND							\
 	"bootp; " 								\
-	"setenv bootargs root=/dev/nfs nfsroot=$(serverip):$(rootpath) " 	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; " 	\
+	"setenv bootargs root=/dev/nfs nfsroot=${serverip}:${rootpath} " 	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; " 	\
 	"bootm"
 
 extern		void  fw_printenv(int argc, char *argv[]);

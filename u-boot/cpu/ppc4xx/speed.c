@@ -132,10 +132,10 @@ void get_sys_info (PPC405_SYS_INFO * sysInfo)
 			m = sysInfo->pllFbkDiv * sysInfo->pllFwdDivB * sysInfo->pllPlbDiv;
 		}
 
-		sysInfo->freqVCOMhz = (1000000 * m) / sysClkPeriodPs;
-		sysInfo->freqProcessor = (sysInfo->freqVCOMhz * 1000000) / sysInfo->pllFwdDiv;
-		sysInfo->freqPLB = (sysInfo->freqVCOMhz * 1000000) /
-			(sysInfo->pllFwdDivB * sysInfo->pllPlbDiv);
+		sysInfo->freqVCOHz = (1000000000000LL * (unsigned long long)m) /
+			(unsigned long long)sysClkPeriodPs;
+		sysInfo->freqProcessor = sysInfo->freqVCOHz / sysInfo->pllFwdDiv;
+		sysInfo->freqPLB = sysInfo->freqVCOHz / (sysInfo->pllFwdDivB * sysInfo->pllPlbDiv);
 	} else {
 		/*
 		 * Check pllFwdDiv to see if running in bypass mode where the CPU speed
@@ -148,26 +148,14 @@ void get_sys_info (PPC405_SYS_INFO * sysInfo)
 			sysInfo->freqProcessor = CONFIG_SYS_CLK_FREQ;
 			sysInfo->freqPLB = CONFIG_SYS_CLK_FREQ / sysInfo->pllPlbDiv;
 		} else {
-			sysInfo->freqVCOMhz = ( 1000000 *
-						sysInfo->pllFwdDiv *
-						sysInfo->pllFbkDiv *
-						sysInfo->pllPlbDiv
-				) / sysClkPeriodPs;
-			if (sysInfo->freqVCOMhz >= VCO_MIN
-			    && sysInfo->freqVCOMhz <= VCO_MAX) {
-				sysInfo->freqPLB = (ONE_BILLION /
-						    ((sysClkPeriodPs * 10) /
-						     sysInfo->pllFbkDiv)) * 10000;
-				sysInfo->freqProcessor = sysInfo->freqPLB * sysInfo->pllPlbDiv;
-			} else {
-				printf ("\nInvalid VCO frequency calculated :  %ld MHz \a\n",
-					sysInfo->freqVCOMhz);
-				printf ("It must be between %d-%d MHz \a\n",
-					VCO_MIN, VCO_MAX);
-				printf ("PLL Mode reg           :  %8.8lx\a\n",
-					pllmr);
-				hang ();
-			}
+			sysInfo->freqVCOHz = ( 1000000000000LL *
+					       (unsigned long long)sysInfo->pllFwdDiv *
+					       (unsigned long long)sysInfo->pllFbkDiv *
+					       (unsigned long long)sysInfo->pllPlbDiv
+				) / (unsigned long long)sysClkPeriodPs;
+			sysInfo->freqPLB = (ONE_BILLION / ((sysClkPeriodPs * 10) /
+							   sysInfo->pllFbkDiv)) * 10000;
+			sysInfo->freqProcessor = sysInfo->freqPLB * sysInfo->pllPlbDiv;
 		}
 	}
 }
@@ -206,6 +194,96 @@ ulong get_PCI_freq (void)
 
 
 #elif defined(CONFIG_440)
+
+#if  defined(CONFIG_440EP) || defined(CONFIG_440GR)
+void get_sys_info (sys_info_t *sysInfo)
+{
+	unsigned long temp;
+	unsigned long reg;
+	unsigned long lfdiv;
+	unsigned long m;
+	unsigned long prbdv0;
+	/*
+	  WARNING: ASSUMES the following:
+	  ENG=1
+	  PRADV0=1
+	  PRBDV0=1
+	*/
+
+	/* Decode CPR0_PLLD0 for divisors */
+	mfclk(clk_plld, reg);
+	temp = (reg & PLLD_FWDVA_MASK) >> 16;
+	sysInfo->pllFwdDivA = temp ? temp : 16;
+	temp = (reg & PLLD_FWDVB_MASK) >> 8;
+	sysInfo->pllFwdDivB = temp ? temp: 8 ;
+	temp = (reg & PLLD_FBDV_MASK) >> 24;
+	sysInfo->pllFbkDiv = temp ? temp : 32;
+	lfdiv = reg & PLLD_LFBDV_MASK;
+
+	mfclk(clk_opbd, reg);
+	temp = (reg & OPBDDV_MASK) >> 24;
+	sysInfo->pllOpbDiv = temp ? temp : 4;
+
+	mfclk(clk_perd, reg);
+	temp = (reg & PERDV_MASK) >> 24;
+	sysInfo->pllExtBusDiv = temp ? temp : 8;
+
+	mfclk(clk_primbd, reg);
+	temp = (reg & PRBDV_MASK) >> 24;
+	prbdv0 = temp ? temp : 8;
+
+	mfclk(clk_spcid, reg);
+	temp = (reg & SPCID_MASK) >> 24;
+	sysInfo->pllPciDiv = temp ? temp : 4;
+
+	/* Calculate 'M' based on feedback source */
+	mfsdr(sdr_sdstp0, reg);
+	temp = (reg & PLLSYS0_SEL_MASK) >> 27;
+	if (temp == 0) { /* PLL output */
+		/* Figure which pll to use */
+		mfclk(clk_pllc, reg);
+		temp = (reg & PLLC_SRC_MASK) >> 29;
+		if (!temp) /* PLLOUTA */
+			m = sysInfo->pllFbkDiv * lfdiv * sysInfo->pllFwdDivA;
+		else       /* PLLOUTB */
+			m = sysInfo->pllFbkDiv * lfdiv * sysInfo->pllFwdDivB;
+	}
+	else if (temp == 1) /* CPU output */
+		m = sysInfo->pllFbkDiv * sysInfo->pllFwdDivA;
+	else /* PerClk */
+		m = sysInfo->pllExtBusDiv * sysInfo->pllOpbDiv * sysInfo->pllFwdDivB;
+
+	/* Now calculate the individual clocks */
+	sysInfo->freqVCOMhz = (m * CONFIG_SYS_CLK_FREQ) + (m>>1);
+	sysInfo->freqProcessor = sysInfo->freqVCOMhz/sysInfo->pllFwdDivA;
+	sysInfo->freqPLB = sysInfo->freqVCOMhz/sysInfo->pllFwdDivB/prbdv0;
+	sysInfo->freqOPB = sysInfo->freqPLB/sysInfo->pllOpbDiv;
+	sysInfo->freqEPB = sysInfo->freqPLB/sysInfo->pllExtBusDiv;
+	sysInfo->freqPCI = sysInfo->freqPLB/sysInfo->pllPciDiv;
+
+	/* Figure which timer source to use */
+	if (mfspr(ccr1) & 0x0080) { /* External Clock, assume same as SYS_CLK */
+		temp = sysInfo->freqProcessor / 2;  /* Max extern clock speed */
+		if (CONFIG_SYS_CLK_FREQ > temp)
+			sysInfo->freqTmrClk = temp;
+		else
+			sysInfo->freqTmrClk = CONFIG_SYS_CLK_FREQ;
+	}
+	else  /* Internal clock */
+		sysInfo->freqTmrClk = sysInfo->freqProcessor;
+}
+/********************************************
+ * get_PCI_freq
+ * return PCI bus freq in Hz
+ *********************************************/
+ulong get_PCI_freq (void)
+{
+	sys_info_t sys_info;
+	get_sys_info (&sys_info);
+	return sys_info.freqPCI;
+}
+
+#elif !defined(CONFIG_440GX)
 void get_sys_info (sys_info_t * sysInfo)
 {
 	unsigned long strp0;
@@ -231,12 +309,65 @@ void get_sys_info (sys_info_t * sysInfo)
 	sysInfo->freqVCOMhz = (m * CONFIG_SYS_CLK_FREQ) + (m>>1);
 	sysInfo->freqProcessor = sysInfo->freqVCOMhz/sysInfo->pllFwdDivA;
 	sysInfo->freqPLB = sysInfo->freqVCOMhz/sysInfo->pllFwdDivB;
-    if( get_pvr() == PVR_440GP_RB ) /* Rev B divs an extra 2 -- geez! */
-        sysInfo->freqPLB >>= 1;
+	if( get_pvr() == PVR_440GP_RB ) /* Rev B divs an extra 2 -- geez! */
+		sysInfo->freqPLB >>= 1;
 	sysInfo->freqOPB = sysInfo->freqPLB/sysInfo->pllOpbDiv;
 	sysInfo->freqEPB = sysInfo->freqOPB/sysInfo->pllExtBusDiv;
 
 }
+#else
+void get_sys_info (sys_info_t * sysInfo)
+{
+	unsigned long strp0;
+	unsigned long strp1;
+	unsigned long temp;
+	unsigned long temp1;
+	unsigned long lfdiv;
+	unsigned long m;
+	unsigned long prbdv0;
+
+	/* Extract configured divisors */
+	mfsdr( sdr_sdstp0,strp0 );
+	mfsdr( sdr_sdstp1,strp1 );
+
+	temp = ((strp0 & PLLSYS0_FWD_DIV_A_MASK) >> 8);
+	sysInfo->pllFwdDivA = temp ? temp : 16 ;
+	temp = ((strp0 & PLLSYS0_FWD_DIV_B_MASK) >> 5);
+	sysInfo->pllFwdDivB = temp ? temp: 8 ;
+	temp = (strp0 & PLLSYS0_FB_DIV_MASK) >> 12;
+	sysInfo->pllFbkDiv = temp ? temp : 32;
+	temp = (strp0 & PLLSYS0_OPB_DIV_MASK);
+	sysInfo->pllOpbDiv = temp ? temp : 4;
+	temp = (strp1 & PLLSYS1_PERCLK_DIV_MASK) >> 24;
+	sysInfo->pllExtBusDiv = temp ? temp : 4;
+	prbdv0 = (strp0 >> 2) & 0x7;
+
+	/* Calculate 'M' based on feedback source */
+	temp = (strp0 & PLLSYS0_SEL_MASK) >> 27;
+	temp1 = (strp1 & PLLSYS1_LF_DIV_MASK) >> 26;
+	lfdiv = temp1 ? temp1 : 64;
+	if (temp == 0) { /* PLL output */
+		/* Figure which pll to use */
+		temp = (strp0 & PLLSYS0_SRC_MASK) >> 30;
+		if (!temp)
+			m = sysInfo->pllFbkDiv * lfdiv * sysInfo->pllFwdDivA;
+		else
+			m = sysInfo->pllFbkDiv * lfdiv * sysInfo->pllFwdDivB;
+	}
+	else if (temp == 1) /* CPU output */
+		m = sysInfo->pllFbkDiv * sysInfo->pllFwdDivA;
+	else /* PerClk */
+		m = sysInfo->pllExtBusDiv * sysInfo->pllOpbDiv * sysInfo->pllFwdDivB;
+
+	/* Now calculate the individual clocks */
+	sysInfo->freqVCOMhz = (m * CONFIG_SYS_CLK_FREQ) + (m>>1);
+	sysInfo->freqProcessor = sysInfo->freqVCOMhz/sysInfo->pllFwdDivA;
+	sysInfo->freqPLB = sysInfo->freqVCOMhz/sysInfo->pllFwdDivB/prbdv0;
+	sysInfo->freqOPB = sysInfo->freqPLB/sysInfo->pllOpbDiv;
+	sysInfo->freqEPB = sysInfo->freqOPB/sysInfo->pllExtBusDiv;
+
+}
+#endif
 
 ulong get_OPB_freq (void)
 {
@@ -244,6 +375,17 @@ ulong get_OPB_freq (void)
 	sys_info_t sys_info;
 	get_sys_info (&sys_info);
 	return sys_info.freqOPB;
+}
+
+#elif defined(CONFIG_XILINX_ML300)
+extern void get_sys_info (sys_info_t * sysInfo);
+extern ulong get_PCI_freq (void);
+
+#elif defined(CONFIG_AP1000)
+void get_sys_info (sys_info_t * sysInfo) {
+	sysInfo->freqProcessor = 240 * 1000 * 1000;
+	sysInfo->freqPLB = 80 * 1000 * 1000;
+	sysInfo->freqPCI = 33 * 1000 * 1000;
 }
 
 #elif defined(CONFIG_405)
@@ -318,15 +460,21 @@ void get_sys_info (PPC405_SYS_INFO * sysInfo)
 	/*
 	 * Determine VCO clock frequency
 	 */
-	sysInfo->freqVCOMhz = (1000000 * m) / sysClkPeriodPs;
+	sysInfo->freqVCOHz = (1000000000000LL * (unsigned long long)m) /
+		(unsigned long long)sysClkPeriodPs;
 
 	/*
 	 * Determine CPU clock frequency
 	 */
 	pllmr0_ccdv = ((pllmr0 & PLLMR0_CPU_DIV_MASK) >> 20) + 1;
 	if (pllmr1 & PLLMR1_SSCS_MASK) {
-		sysInfo->freqProcessor = (CONFIG_SYS_CLK_FREQ * sysInfo->pllFbkDiv)
-			/ pllmr0_ccdv;
+		/*
+		 * This is true if FWDVA == FWDVB:
+		 * sysInfo->freqProcessor = (CONFIG_SYS_CLK_FREQ * sysInfo->pllFbkDiv)
+		 *	/ pllmr0_ccdv;
+		 */
+		sysInfo->freqProcessor = (CONFIG_SYS_CLK_FREQ * sysInfo->pllFbkDiv * sysInfo->pllFwdDivB)
+			/ sysInfo->pllFwdDiv / pllmr0_ccdv;
 	} else {
 		sysInfo->freqProcessor = CONFIG_SYS_CLK_FREQ / pllmr0_ccdv;
 	}
@@ -335,15 +483,6 @@ void get_sys_info (PPC405_SYS_INFO * sysInfo)
 	 * Determine PLB clock frequency
 	 */
 	sysInfo->freqPLB = sysInfo->freqProcessor / sysInfo->pllPlbDiv;
-
-	if (!((sysInfo->freqVCOMhz >= VCO_MIN) && (sysInfo->freqVCOMhz <= VCO_MAX))) {
-		printf ("\nInvalid VCO frequency calculated :  %ld MHz \a\n",
-			sysInfo->freqVCOMhz);
-		printf ("It must be between %d-%d MHz \a\n", VCO_MIN, VCO_MAX);
-		printf ("PLL Mode reg 0           :  %8.8lx\a\n", pllmr0);
-		printf ("PLL Mode reg 1           :  %8.8lx\a\n", pllmr1);
-		hang ();
-	}
 }
 
 

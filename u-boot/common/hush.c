@@ -94,7 +94,8 @@
 #include <common.h>        /* readline */
 #include <hush.h>
 #include <command.h>        /* find_cmd */
-#include <cmd_bootm.h>      /* do_bootd */
+/*cmd_boot.c*/
+extern int do_bootd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);      /* do_bootd */
 #endif
 #ifdef CFG_HUSH_PARSER
 #ifndef __U_BOOT__
@@ -289,12 +290,13 @@ char **global_argv;
 unsigned int global_argc;
 #endif
 unsigned int last_return_code;
+int nesting_level;
 #ifndef __U_BOOT__
 extern char **environ; /* This is in <unistd.h>, but protected with __USE_GNU */
 #endif
 
 /* "globals" within this file */
-static char *ifs;
+static uchar *ifs;
 static char map[256];
 #ifndef __U_BOOT__
 static int fake_mode;
@@ -312,7 +314,7 @@ struct variables *top_vars = &shell_ver;
 #else
 static int flag_repeat = 0;
 static int do_repeat = 0;
-static struct variables *top_vars ;
+static struct variables *top_vars = NULL ;
 #endif /*__U_BOOT__ */
 
 #define B_CHUNK (100)
@@ -415,7 +417,9 @@ static int b_check_space(o_string *o, int len);
 static int b_addchr(o_string *o, int ch);
 static void b_reset(o_string *o);
 static int b_addqchr(o_string *o, int ch, int quote);
+#ifndef __U_BOOT__
 static int b_adduint(o_string *o, unsigned int i);
+#endif
 /*  in_str manipulations: */
 static int static_get(struct in_str *i);
 static int static_peek(struct in_str *i);
@@ -935,6 +939,7 @@ char *simple_itoa(unsigned int i)
 	return p + 1;
 }
 
+#ifndef __U_BOOT__
 static int b_adduint(o_string *o, unsigned int i)
 {
 	int r;
@@ -943,6 +948,7 @@ static int b_adduint(o_string *o, unsigned int i)
 	do r=b_addchr(o, *p++); while (r==0 && *p);
 	return r;
 }
+#endif
 
 static int static_get(struct in_str *i)
 {
@@ -1016,12 +1022,30 @@ static void get_user_input(struct in_str *i)
 	int n;
 	static char the_command[CFG_CBSIZE];
 
+#ifdef CONFIG_BOOT_RETRY_TIME
+#  ifdef CONFIG_RESET_TO_RETRY
+	extern int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+#  else
+#	error "This currently only works with CONFIG_RESET_TO_RETRY enabled"
+#  endif
+	reset_cmd_timeout();
+#endif
 	i->__promptme = 1;
 	if (i->promptmode == 1) {
 		n = readline(CFG_PROMPT);
 	} else {
 		n = readline(CFG_PROMPT_HUSH_PS2);
 	}
+#ifdef CONFIG_BOOT_RETRY_TIME
+	if (n == -2) {
+	  puts("\nTimeout waiting for command\n");
+#  ifdef CONFIG_RESET_TO_RETRY
+	  do_reset(NULL, 0, 0, NULL);
+#  else
+#	error "This currently only works with CONFIG_RESET_TO_RETRY enabled"
+#  endif
+	}
+#endif
 	if (n == -1 ) {
 		flag_repeat = 0;
 		i->__promptme = 0;
@@ -1048,12 +1072,12 @@ static void get_user_input(struct in_str *i)
 		i->p = the_command;
 	}
 	else {
-	        if (console_buffer[0] != '\n') {
-	                if (strlen(the_command) + strlen(console_buffer)
+		if (console_buffer[0] != '\n') {
+			if (strlen(the_command) + strlen(console_buffer)
 			    < CFG_CBSIZE) {
-			        n = strlen(the_command);
-			        the_command[n-1] = ' ';
-			        strcpy(&the_command[n],console_buffer);
+				n = strlen(the_command);
+				the_command[n-1] = ' ';
+				strcpy(&the_command[n],console_buffer);
 			}
 			else {
 				the_command[0] = '\n';
@@ -1257,8 +1281,8 @@ static void pseudo_exec(struct child_prog *child)
 			if (p != child->argv[i]) free(p);
 		}
 		child->argv+=i;  /* XXX this hack isn't so horrible, since we are about
-		                        to exit, and therefore don't need to keep data
-		                        structures consistent for free() use. */
+					to exit, and therefore don't need to keep data
+					structures consistent for free() use. */
 		/* If a variable is assigned in a forest, and nobody listens,
 		 * was it ever really set?
 		 */
@@ -1648,14 +1672,18 @@ static int run_pipe_real(struct pipe *pi)
 					child->argv[i]);
 				return -1;
 			}
-		   	/* Look up command in command table */
+			/* Look up command in command table */
+
+
 			if ((cmdtp = find_cmd(child->argv[i])) == NULL) {
 				printf ("Unknown command '%s' - try 'help'\n", child->argv[i]);
 				return -1;	/* give up after bad command */
 			} else {
 				int rcode;
 #if (CONFIG_COMMANDS & CFG_CMD_BOOTD)
-		                /* avoid "bootd" recursion */
+	    extern int do_bootd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+
+				/* avoid "bootd" recursion */
 				if (cmdtp->cmd == do_bootd) {
 					if (flag & CMD_FLAG_BOOTD) {
 						printf ("'bootd' recursion detected\n");
@@ -1665,7 +1693,7 @@ static int run_pipe_real(struct pipe *pi)
 					flag |= CMD_FLAG_BOOTD;
 				}
 #endif	/* CFG_CMD_BOOTD */
-		                /* found - check max args */
+				/* found - check max args */
 				if ((child->argc - i) > cmdtp->maxargs) {
 					printf ("Usage:\n%s\n", cmdtp->usage);
 					return -1;
@@ -1676,15 +1704,20 @@ static int run_pipe_real(struct pipe *pi)
 				rcode = x->function(child);
 #else
 				/* OK - call function to do the command */
+
 				rcode = (cmdtp->cmd)
-					(cmdtp, flag,child->argc-i,&child->argv[i]);
+(cmdtp, flag,child->argc-i,&child->argv[i]);
 				if ( !cmdtp->repeatable )
 					flag_repeat = 0;
+
+
 #endif
 				child->argv-=i;  /* XXX restore hack so free() can work right */
 #ifndef __U_BOOT__
+
 				restore_redirects(squirrel);
 #endif
+
 				return rcode;
 			}
 		}
@@ -1833,7 +1866,7 @@ static int run_list_real(struct pipe *pi)
 		if (rmode == RES_THEN || rmode == RES_ELSE) if_code = next_if_code;
 		if (rmode == RES_THEN &&  if_code) continue;
 		if (rmode == RES_ELSE && !if_code) continue;
-		if (rmode == RES_ELIF && !if_code) continue;
+		if (rmode == RES_ELIF && !if_code) break;
 		if (rmode == RES_FOR && pi->num_progs) {
 			if (!list) {
 				/* if no variable values after "in" we skip "for" */
@@ -1911,6 +1944,10 @@ static int run_list_real(struct pipe *pi)
 		}
 		last_return_code=rcode;
 #else
+		if (rcode < -1) {
+			last_return_code = -rcode - 2;
+			return -2;	/* exit */
+		}
 		last_return_code=(rcode == 0) ? 0 : 1;
 #endif
 #ifndef __U_BOOT__
@@ -1965,11 +2002,11 @@ static int free_pipe(struct pipe *pi, int indent)
 #ifndef __U_BOOT__
 			globfree(&child->glob_result);
 #else
-	                for (a = child->argc;a >= 0;a--) {
-	                        free(child->argv[a]);
-	                }
+			for (a = child->argc;a >= 0;a--) {
+				free(child->argv[a]);
+			}
 					free(child->argv);
-	                child->argc = 0;
+			child->argc = 0;
 #endif
 			child->argv=NULL;
 		} else if (child->group) {
@@ -2103,17 +2140,17 @@ static int xglob(o_string *dest, int flags, glob_t *pglob)
 {
 	int gr;
 
- 	/* short-circuit for null word */
+	/* short-circuit for null word */
 	/* we can code this better when the debug_printf's are gone */
- 	if (dest->length == 0) {
- 		if (dest->nonnull) {
- 			/* bash man page calls this an "explicit" null */
- 			gr = globhack(dest->data, flags, pglob);
- 			debug_printf("globhack returned %d\n",gr);
- 		} else {
+	if (dest->length == 0) {
+		if (dest->nonnull) {
+			/* bash man page calls this an "explicit" null */
+			gr = globhack(dest->data, flags, pglob);
+			debug_printf("globhack returned %d\n",gr);
+		} else {
 			return 0;
 		}
- 	} else if (glob_needed(dest->data)) {
+	} else if (glob_needed(dest->data)) {
 		gr = glob(dest->data, flags, NULL, pglob);
 		debug_printf("glob returned %d\n",gr);
 		if (gr == GLOB_NOMATCH) {
@@ -2135,6 +2172,10 @@ static int xglob(o_string *dest, int flags, glob_t *pglob)
 }
 #endif
 
+#ifdef __U_BOOT__
+static char *get_dollar_var(char ch);
+#endif
+
 /* This is used to get/check local shell variables */
 static char *get_local_var(const char *s)
 {
@@ -2142,6 +2183,12 @@ static char *get_local_var(const char *s)
 
 	if (!s)
 		return NULL;
+
+#ifdef __U_BOOT__
+	if (*s == '$')
+		return get_dollar_var(s[1]);
+#endif
+
 	for (cur = top_vars; cur; cur=cur->next)
 		if(strcmp(cur->name, s)==0)
 			return cur->value;
@@ -2158,12 +2205,19 @@ static int set_local_var(const char *s, int flg_export)
 	int result=0;
 	struct variables *cur;
 
+#ifdef __U_BOOT__
+	/* might be possible! */
+	if (!isalpha(*s))
+		return -1;
+#endif
+
 	name=strdup(s);
 
 #ifdef __U_BOOT__
 	if (getenv(name) != NULL) {
 		printf ("ERROR: "
-				"There is a global environmet variable with the same name.\n");
+				"There is a global environment variable with the same name.\n");
+		free(name);
 		return -1;
 	}
 #endif
@@ -2268,7 +2322,10 @@ static void unset_local_var(const char *name)
 
 static int is_assignment(const char *s)
 {
-	if (s==NULL || !isalpha(*s)) return 0;
+	if (s == NULL)
+		return 0;
+
+	if (!isalpha(*s)) return 0;
 	++s;
 	while(isalnum(*s) || *s=='_') ++s;
 	return *s=='=';
@@ -2332,6 +2389,7 @@ struct pipe *new_pipe(void) {
 	pi->progs = NULL;
 	pi->next = NULL;
 	pi->followup = 0;  /* invalid */
+	pi->r_mode = RES_NONE;
 	return pi;
 }
 
@@ -2462,7 +2520,7 @@ static int done_word(o_string *dest, struct p_context *ctx)
 		}
 #ifndef __U_BOOT__
 		glob_target = &child->glob_result;
- 		if (child->argv) flags |= GLOB_APPEND;
+		if (child->argv) flags |= GLOB_APPEND;
 #else
 		for (cnt = 1, s = dest->data; s && *s; s++) {
 			if (*s == '\\') s++;
@@ -2522,9 +2580,9 @@ static int done_command(struct p_context *ctx)
 	struct child_prog *prog=ctx->child;
 
 	if (prog && prog->group == NULL
-	         && prog->argv == NULL
+		 && prog->argv == NULL
 #ifndef __U_BOOT__
-	         && prog->redirects == NULL) {
+		 && prog->redirects == NULL) {
 #else
 										) {
 #endif
@@ -2739,14 +2797,34 @@ static int parse_group(o_string *dest, struct p_context *ctx,
  * see the bash man page under "Parameter Expansion" */
 static char *lookup_param(char *src)
 {
-	char *p=NULL;
-	if (src) {
+	char *p;
+
+	if (!src)
+		return NULL;
+
 		p = getenv(src);
 		if (!p)
 			p = get_local_var(src);
-	}
+
 	return p;
 }
+
+#ifdef __U_BOOT__
+static char *get_dollar_var(char ch)
+{
+	static char buf[40];
+
+	buf[0] = '\0';
+	switch (ch) {
+		case '?':
+			sprintf(buf, "%u", (unsigned int)last_return_code);
+			break;
+		default:
+			return NULL;
+	}
+	return buf;
+}
+#endif
 
 /* return code: 0 for OK, 1 for syntax error */
 static int handle_dollar(o_string *dest, struct p_context *ctx, struct in_str *input)
@@ -2789,7 +2867,15 @@ static int handle_dollar(o_string *dest, struct p_context *ctx, struct in_str *i
 			break;
 #endif
 		case '?':
+#ifndef __U_BOOT__
 			b_adduint(dest,last_return_code);
+#else
+			ctx->child->sp++;
+			b_addchr(dest, SPECIAL_VAR_SYMBOL);
+			b_addchr(dest, '$');
+			b_addchr(dest, '?');
+			b_addchr(dest, SPECIAL_VAR_SYMBOL);
+#endif
 			advance = 1;
 			break;
 #ifndef __U_BOOT__
@@ -2875,8 +2961,11 @@ int parse_stream(o_string *dest, struct p_context *ctx,
 		if (input->__promptme == 0) return 1;
 #endif
 		next = (ch == '\n') ? 0 : b_peek(input);
-		debug_printf("parse_stream: ch=%c (%d) m=%d quote=%d\n",
-			ch,ch,m,dest->quote);
+
+		debug_printf("parse_stream: ch=%c (%d) m=%d quote=%d - %c\n",
+			ch >= ' ' ? ch : '.', ch, m,
+			dest->quote, ctx->stack == NULL ? '*' : '.');
+
 		if (m==0 || ((m==1 || m==2) && dest->quote)) {
 			b_addqchr(dest, ch, dest->quote);
 		} else {
@@ -3045,8 +3134,8 @@ void mapset(const unsigned char *set, int code)
 void update_ifs_map(void)
 {
 	/* char *ifs and char map[256] are both globals. */
-	ifs = getenv("IFS");
-	if (ifs == NULL) ifs=" \t\n";
+	ifs = (uchar *)getenv("IFS");
+	if (ifs == NULL) ifs=(uchar *)" \t\n";
 	/* Precompute a list of 'flow through' behavior so it can be treated
 	 * quickly up front.  Computation is necessary because of IFS.
 	 * Special case handling of IFS == " \t\n" is not implemented.
@@ -3055,11 +3144,11 @@ void update_ifs_map(void)
 	 */
 	memset(map,0,sizeof(map)); /* most characters flow through always */
 #ifndef __U_BOOT__
-	mapset("\\$'\"`", 3);      /* never flow through */
-	mapset("<>;&|(){}#", 1);   /* flow through if quoted */
+	mapset((uchar *)"\\$'\"`", 3);      /* never flow through */
+	mapset((uchar *)"<>;&|(){}#", 1);   /* flow through if quoted */
 #else
-	mapset("\\$'\"", 3);       /* never flow through */
-	mapset(";&|#", 1);         /* flow through if quoted */
+	mapset((uchar *)"\\$'\"", 3);       /* never flow through */
+	mapset((uchar *)";&|#", 1);         /* flow through if quoted */
 #endif
 	mapset(ifs, 2);            /* also flow through if quoted */
 }
@@ -3079,7 +3168,7 @@ int parse_stream_outer(struct in_str *inp, int flag)
 		ctx.type = flag;
 		initialize_context(&ctx);
 		update_ifs_map();
-		if (!(flag & FLAG_PARSE_SEMICOLON) || (flag & FLAG_REPARSING)) mapset(";$&|", 0);
+		if (!(flag & FLAG_PARSE_SEMICOLON) || (flag & FLAG_REPARSING)) mapset((uchar *)";$&|", 0);
 		inp->promptmode=1;
 		rcode = parse_stream(&temp, &ctx, inp, '\n');
 #ifdef __U_BOOT__
@@ -3097,7 +3186,18 @@ int parse_stream_outer(struct in_str *inp, int flag)
 #ifndef __U_BOOT__
 			run_list(ctx.list_head);
 #else
-			if (((code = run_list(ctx.list_head)) == -1))
+			code = run_list(ctx.list_head);
+			if (code == -2) {	/* exit */
+				b_free(&temp);
+				code = 0;
+				/* XXX hackish way to not allow exit from main loop */
+				if (inp->peek == file_peek) {
+					printf("exit not allowed from main input shell.\n");
+					continue;
+				}
+				break;
+			}
+			if (code == -1)
 			    flag_repeat = 0;
 #endif
 		} else {
@@ -3184,13 +3284,15 @@ static void u_boot_hush_reloc(void)
 
 int u_boot_hush_start(void)
 {
-	top_vars = malloc(sizeof(struct variables));
-	top_vars->name = "HUSH_VERSION";
-	top_vars->value = "0.01";
-	top_vars->next = 0;
-	top_vars->flg_export = 0;
-	top_vars->flg_read_only = 1;
-	u_boot_hush_reloc();
+	if (top_vars == NULL) {
+		top_vars = malloc(sizeof(struct variables));
+		top_vars->name = "HUSH_VERSION";
+		top_vars->value = "0.01";
+		top_vars->next = 0;
+		top_vars->flg_export = 0;
+		top_vars->flg_read_only = 1;
+		u_boot_hush_reloc();
+	}
 	return 0;
 }
 
@@ -3339,7 +3441,7 @@ int hush_main(int argc, char **argv)
 	debug_printf("\ninteractive=%d\n", interactive);
 	if (interactive) {
 		/* Looks like they want an interactive shell */
-#ifndef CONFIG_FEATURE_SH_EXTRA_QUIET 
+#ifndef CONFIG_FEATURE_SH_EXTRA_QUIET
 		printf( "\n\n" BB_BANNER " hush - the humble shell v0.01 (testing)\n");
 		printf( "Enter 'help' for a list of built-in commands.\n\n");
 #endif

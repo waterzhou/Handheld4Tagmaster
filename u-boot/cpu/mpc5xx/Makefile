@@ -23,10 +23,10 @@
 
 #
 # File:			cpu/mpc5xx/Makefile
-# 
+#
 # Discription:		Makefile to build mpc5xx cpu configuration.
 #			Will include top config.mk which itselfs
-#			uses the definitions made in cpu/mpc5xx/config.mk 
+#			uses the definitions made in cpu/mpc5xx/config.mk
 #
 
 
@@ -34,8 +34,8 @@ include $(TOPDIR)/config.mk
 
 LIB	= lib$(CPU).a
 
-START	= start.S 
-OBJS	= serial.o cpu.o cpu_init.o interrupts.o traps.o speed.o
+START	= start.S
+OBJS	= serial.o cpu.o cpu_init.o interrupts.o traps.o speed.o spi.o
 
 all:	.depend $(START) $(LIB)
 

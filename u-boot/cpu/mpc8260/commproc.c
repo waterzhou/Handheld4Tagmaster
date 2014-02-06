@@ -20,13 +20,6 @@
 #include <common.h>
 #include <asm/cpm_8260.h>
 
-/*
- * because we have stack and init data in dual port ram
- * we must reduce the size
- */
-#undef	CPM_DATAONLY_SIZE
-#define CPM_DATAONLY_SIZE	((uint)(8 * 1024) - CPM_DATAONLY_BASE)
-
 void
 m8260_cpm_reset(void)
 {
@@ -111,9 +104,9 @@ m8260_cpm_hostalloc(uint size, uint align)
  * to port numbers).  Documentation uses 1-based numbering.
  */
 #define BRG_INT_CLK	gd->brg_clk
-#define BRG_UART_CLK	((BRG_INT_CLK + 15) / 16)
+#define BRG_UART_CLK	(BRG_INT_CLK / 16)
 
-/* This function is used by UARTS, or anything else that uses a 16x
+/* This function is used by UARTs, or anything else that uses a 16x
  * oversampled clock.
  */
 void
@@ -123,9 +116,10 @@ m8260_cpm_setbrg(uint brg, uint rate)
 
 	volatile immap_t *immr = (immap_t *)CFG_IMMR;
 	volatile uint	*bp;
+	uint cd = BRG_UART_CLK / rate;
 
-	/* This is good enough to get SMCs running.....
-	*/
+	if ((BRG_UART_CLK % rate) < (rate / 2))
+		cd--;
 	if (brg < 4) {
 		bp = (uint *)&immr->im_brgc1;
 	}
@@ -134,7 +128,7 @@ m8260_cpm_setbrg(uint brg, uint rate)
 		brg -= 4;
 	}
 	bp += brg;
-	*bp = (((((BRG_UART_CLK+rate-1)/rate)-1)&0xfff)<<1)|CPM_BRG_EN;
+	*bp = (cd << 1) | CPM_BRG_EN;
 }
 
 /* This function is used to set high speed synchronous baud rate
@@ -188,7 +182,7 @@ m8260_cpm_extcbrg(uint brg, uint rate, uint extclk, int pinsel)
 		*bp |= CPM_BRG_EXTC_CLK5_15;
 }
 
-#ifdef CONFIG_POST
+#if defined(CONFIG_POST) || defined(CONFIG_LOGBUFFER)
 
 void post_word_store (ulong a)
 {
@@ -206,4 +200,28 @@ ulong post_word_load (void)
 	return *save_addr;
 }
 
-#endif	/* CONFIG_POST */
+#endif	/* CONFIG_POST || CONFIG_LOGBUFFER*/
+
+#ifdef CONFIG_BOOTCOUNT_LIMIT
+
+void bootcount_store (ulong a)
+{
+	volatile ulong *save_addr =
+		(volatile ulong *)(CFG_IMMR + CPM_BOOTCOUNT_ADDR);
+
+	save_addr[0] = a;
+	save_addr[1] = BOOTCOUNT_MAGIC;
+}
+
+ulong bootcount_load (void)
+{
+	volatile ulong *save_addr =
+		(volatile ulong *)(CFG_IMMR + CPM_BOOTCOUNT_ADDR);
+
+	if (save_addr[1] != BOOTCOUNT_MAGIC)
+		return 0;
+	else
+		return save_addr[0];
+}
+
+#endif /* CONFIG_BOOTCOUNT_LIMIT */

@@ -1,0 +1,461 @@
+? include/at91rm9200.h
+? include/config.h
+? include/config.mk
+Index: cpu/arm920t/start.S
+===================================================================
+RCS file: /cvsroot/u-boot/u-boot/cpu/arm920t/start.S,v
+retrieving revision 1.14
+diff -u -r1.14 start.S
+--- cpu/arm920t/start.S	6 Oct 2005 21:47:43 -0000	1.14
++++ cpu/arm920t/start.S	30 Nov 2005 15:11:14 -0000
+@@ -225,6 +225,7 @@
+ _start_armboot:	.word start_armboot
+ 
+ 
++#ifndef CONFIG_SKIP_LOWLEVEL_INIT
+ /*
+  *************************************************************************
+  *
+@@ -265,7 +266,8 @@
+ 	mov	lr, ip
+ 	mov	pc, lr
+ 
+-
++#endif
++        
+ /*
+  *************************************************************************
+  *
+Index: cpu/arm920t/at91rm9200/ether.c
+===================================================================
+RCS file: /cvsroot/u-boot/u-boot/cpu/arm920t/at91rm9200/ether.c,v
+retrieving revision 1.5
+diff -u -r1.5 ether.c
+--- cpu/arm920t/at91rm9200/ether.c	29 Oct 2005 21:58:47 -0000	1.5
++++ cpu/arm920t/at91rm9200/ether.c	30 Nov 2005 15:11:15 -0000
+@@ -180,7 +180,11 @@
+ 
+ 	*AT91C_PMC_PCER = 1 << AT91C_ID_EMAC;	/* Peripheral Clock Enable Register */
+ 
+-	p_mac->EMAC_CFG |= AT91C_EMAC_CSR;	/* Clear statistics */
++        /* dast:
++           http://sourceforge.net/mailarchive/forum.php?thread_id=8789511&forum_id=12898
++        */
++
++	p_mac->EMAC_CTL |= AT91C_EMAC_CSR;	/* Clear statistics */
+ 
+ 	/* Init Ehternet buffers */
+ 	for (i = 0; i < RBF_FRAMEMAX; i++) {
+@@ -197,8 +201,7 @@
+ 	p_mac->EMAC_RBQP = (long) (&rbfdt[0]);
+ 	p_mac->EMAC_RSR &= ~(AT91C_EMAC_RSR_OVR | AT91C_EMAC_REC | AT91C_EMAC_BNA);
+ 
+-	p_mac->EMAC_CFG = (p_mac->EMAC_CFG | AT91C_EMAC_CAF | AT91C_EMAC_NBC)
+-			& ~AT91C_EMAC_CLK;
++	p_mac->EMAC_CFG &= ~AT91C_EMAC_CLK;
+ 
+ #ifdef CONFIG_AT91C_USE_RMII
+ 	p_mac->EMAC_CFG |= AT91C_EMAC_RMII;
+Index: cpu/arm920t/at91rm9200/interrupts.c
+===================================================================
+RCS file: /cvsroot/u-boot/u-boot/cpu/arm920t/at91rm9200/interrupts.c,v
+retrieving revision 1.1
+diff -u -r1.1 interrupts.c
+--- cpu/arm920t/at91rm9200/interrupts.c	6 Apr 2005 13:52:34 -0000	1.1
++++ cpu/arm920t/at91rm9200/interrupts.c	30 Nov 2005 15:11:15 -0000
+@@ -108,9 +108,11 @@
+ 		timestamp += now - lastinc;
+ 	} else {
+ 		/* we have an overflow ... */
+-		timestamp += now + TIMER_LOAD_VAL - lastinc;
+-	}
+-	lastinc = now;
++          /* dast:
++             http://sourceforge.net/mailarchive/forum.php?thread_id=8947167&forum_id=12898 */
++		timestamp += now + 0x10000 - lastinc;
++        }
++        lastinc = now;
+ 
+ 	return timestamp;
+ }
+Index: drivers/cfi_flash.c
+===================================================================
+RCS file: /cvsroot/u-boot/u-boot/drivers/cfi_flash.c,v
+retrieving revision 1.26
+diff -u -r1.26 cfi_flash.c
+--- drivers/cfi_flash.c	22 Nov 2005 13:39:09 -0000	1.26
++++ drivers/cfi_flash.c	30 Nov 2005 15:11:17 -0000
+@@ -42,7 +42,7 @@
+  */
+ 
+ /* The DEBUG define must be before common to enable debugging */
+-/* #define DEBUG	*/
++#define DEBUG
+ 
+ #include <common.h>
+ #include <asm/processor.h>
+@@ -112,6 +112,7 @@
+ #define AMD_ADDR_ACK			0x2AA
+ 
+ #define FLASH_OFFSET_CFI		0x55
++#define FLASH_OFFSET_READ_CONFIG        0x05
+ #define FLASH_OFFSET_CFI_RESP		0x10
+ #define FLASH_OFFSET_PRIMARY_VENDOR	0x13
+ #define FLASH_OFFSET_WTOUT		0x1F
+@@ -199,6 +200,7 @@
+ #endif
+ #ifdef CFG_FLASH_USE_BUFFER_WRITE
+ static int flash_write_cfibuffer (flash_info_t * info, ulong dest, uchar * cp, int len);
++static int flash_write_cfibuffer_final (flash_info_t * info, ulong dest);
+ #endif
+ 
+ /*-----------------------------------------------------------------------
+@@ -206,7 +208,7 @@
+  */
+ inline uchar *flash_make_addr (flash_info_t * info, flash_sect_t sect, uint offset)
+ {
+-	return ((uchar *) (info->start[sect] + (offset * info->portwidth)));
++	return (uchar *) ((info->start[sect] + (offset * info->portwidth)) );
+ }
+ 
+ #ifdef DEBUG
+@@ -532,7 +534,7 @@
+ 	ulong cp;
+ 	int aln;
+ 	cfiword_t cword;
+-	int i, rc;
++	int i=0, rc;
+ 
+ #ifdef CFG_FLASH_USE_BUFFER_WRITE
+ 	int buffered_size;
+@@ -573,6 +575,11 @@
+ 		src += i;
+ 		cnt -= i;
+ 	}
++        if(i) {
++          rc = flash_write_cfibuffer_final(info, wp - i);
++          if(rc != ERR_OK)
++            return rc;
++        }
+ #else
+ 	while (cnt >= info->portwidth) {
+ 		cword.l = 0;
+@@ -624,6 +631,7 @@
+ 				      prot ? "protect" : "unprotect")) == 0) {
+ 
+ 		info->protect[sector] = prot;
++#if 0
+ 		/* Intel's unprotect unprotects all locking */
+ 		if (prot == 0) {
+ 			flash_sect_t i;
+@@ -633,6 +641,7 @@
+ 					flash_real_protect (info, i, 1);
+ 			}
+ 		}
++#endif
+ 	}
+ 	return retcode;
+ }
+@@ -689,7 +698,9 @@
+ 	default:
+ 		retval = 0;
+ 	}
++#if 0
+ 	debug ("flash_is_busy: %d\n", retval);
++#endif
+ 	return retval;
+ }
+ 
+@@ -705,7 +716,7 @@
+ 	/* Wait for command completion */
+ 	start = get_timer (0);
+ 	while (flash_is_busy (info, sector)) {
+-		if (get_timer (start) > info->erase_blk_tout * CFG_HZ) {
++		if (get_timer (start) > tout) {
+ 			printf ("Flash %s timeout at address %lx data %lx\n",
+ 				prompt, info->start[sector],
+ 				flash_read_long (info, sector, 0));
+@@ -725,12 +736,14 @@
+ {
+ 	int retcode;
+ 
++        debug("flash_full_status_check(), timeout %d\n", tout);
++
+ 	retcode = flash_status_check (info, sector, tout, prompt);
+ 	switch (info->vendor) {
+ 	case CFI_CMDSET_INTEL_EXTENDED:
+ 	case CFI_CMDSET_INTEL_STANDARD:
+ 		if ((retcode != ERR_OK)
+-		    && !flash_isequal (info, sector, 0, FLASH_STATUS_DONE)) {
++		    || !flash_isequal (info, sector, 0, FLASH_STATUS_DONE)) {
+ 			retcode = ERR_INVAL;
+ 			printf ("Flash %s error at address %lx\n", prompt,
+ 				info->start[sector]);
+@@ -881,14 +894,15 @@
+ 	cptr.cp = flash_make_addr (info, sect, offset);
+ 	flash_make_cmd (info, cmd, &cword);
+ 
+-	debug ("is= cmd %x(%c) addr %p ", cmd, cmd, cptr.cp);
++	debug ("flash_isequal() cmd %x addr %p\n", cmd, cptr.cp);
++
+ 	switch (info->portwidth) {
+ 	case FLASH_CFI_8BIT:
+ 		debug ("is= %x %x\n", cptr.cp[0], cword.c);
+ 		retval = (cptr.cp[0] == cword.c);
+ 		break;
+ 	case FLASH_CFI_16BIT:
+-		debug ("is= %4.4x %4.4x\n", cptr.wp[0], cword.w);
++		debug ("Address contains %04x, checked for %04x\n", cptr.wp[0], cword.w);
+ 		retval = (cptr.wp[0] == cword.w);
+ 		break;
+ 	case FLASH_CFI_32BIT:
+@@ -930,7 +944,17 @@
+ 		retval = ((cptr.cp[0] & cword.c) == cword.c);
+ 		break;
+ 	case FLASH_CFI_16BIT:
+-		retval = ((cptr.wp[0] & cword.w) == cword.w);
++          {
++            volatile unsigned short *addr = cptr.wp;
++            unsigned short content;
++
++            content = *addr;
++            retval = ((content & cword.w) == cword.w);
++#if 0
++            debug("isset() Address %08x contained %04x, check for %04x match=%s\n",
++                  addr, content, cword.w, retval?"YES":"no");
++#endif
++          }
+ 		break;
+ 	case FLASH_CFI_32BIT:
+ 		retval = ((cptr.lp[0] & cword.l) == cword.l);
+@@ -1106,8 +1130,13 @@
+ 		info->erase_blk_tout = (tmp * (1 << flash_read_uchar (info, FLASH_OFFSET_EMAX_TOUT)));
+ 		tmp = 1 << flash_read_uchar (info, FLASH_OFFSET_WBTOUT);
+ 		info->buffer_write_tout = (tmp * (1 << flash_read_uchar (info, FLASH_OFFSET_WBMAX_TOUT)));
+-		tmp = 1 << flash_read_uchar (info, FLASH_OFFSET_WTOUT);
+-		info->write_tout = (tmp * (1 << flash_read_uchar (info, FLASH_OFFSET_WMAX_TOUT))) / 1000;
++                /* dast:
++                   http://sourceforge.net/mailarchive/message.php?msg_id=12234135
++                */
++		tmp = (1 << flash_read_uchar (info, FLASH_OFFSET_WTOUT)) *
++                  (1 << flash_read_uchar (info, FLASH_OFFSET_WMAX_TOUT));
++		info->write_tout = tmp / 1000 + (tmp % 1000 ? 1 : 0); /* round up when
++                                                                         converting to ms */
+ 		info->flash_id = FLASH_MAN_CFI;
+ 		if ((info->interface == FLASH_CFI_X8X16) && (info->chipwidth == FLASH_CFI_BY8)) {
+ 			info->portwidth >>= 1;	/* XXX - Need to test on x8/x16 in parallel. */
+@@ -1153,15 +1182,22 @@
+ 	if (!flag)
+ 		return 2;
+ 
++        debug("flash_write_cfiword(): %08x seems erased\n", cptr.wp);
++
++        debug("flash_write_cfiword(): vendor: %d\n", info->vendor);
++
+ 	/* Disable interrupts which might cause a timeout here */
+ 	flag = disable_interrupts ();
+ 
+ 	switch (info->vendor) {
+ 	case CFI_CMDSET_INTEL_EXTENDED:
+ 	case CFI_CMDSET_INTEL_STANDARD:
+-		flash_write_cmd (info, 0, 0, FLASH_CMD_CLEAR_STATUS);
+-		flash_write_cmd (info, 0, 0, FLASH_CMD_WRITE);
+-		break;
++          {
++            uint offset = (uint) (dest - info->start[0])/info->portwidth;
++            flash_write_cmd (info, 0, 0, FLASH_CMD_CLEAR_STATUS);
++            flash_write_cmd (info, 0, offset, FLASH_CMD_WRITE);
++          }
++          break;
+ 	case CFI_CMDSET_AMD_EXTENDED:
+ 	case CFI_CMDSET_AMD_STANDARD:
+ 		flash_unlock_seq (info, 0);
+@@ -1169,6 +1205,7 @@
+ 		break;
+ 	}
+ 
++        debug("flash_write_cfiword(): write %x to %x\n", cword.w, cptr.wp);
+ 	switch (info->portwidth) {
+ 	case FLASH_CFI_8BIT:
+ 		cptr.cp[0] = cword.c;
+@@ -1208,6 +1245,25 @@
+ 	return sector;
+ }
+ 
++/* call this when all the writing is done */
++static int flash_write_cfibuffer_final (flash_info_t * info, ulong dest)
++{
++  flash_sect_t sector;
++  int retcode;
++
++  debug ("flash_write_cfibuffer_final()\n");
++
++  sector = find_sector (info, dest);
++  retcode = flash_full_status_check (info, sector,
++                                     info->buffer_write_tout,
++                                     "buffer write");
++  
++  flash_write_cmd (info, sector, 0, FLASH_CMD_CLEAR_STATUS);
++
++  return retcode;
++
++}
++
+ static int flash_write_cfibuffer (flash_info_t * info, ulong dest, uchar * cp,
+ 				  int len)
+ {
+@@ -1216,6 +1272,7 @@
+ 	int retcode;
+ 	volatile cfiptr_t src;
+ 	volatile cfiptr_t dst;
++
+ 	/* buffered writes in the AMD chip set is not supported yet */
+ 	if((info->vendor ==  CFI_CMDSET_AMD_STANDARD) ||
+ 		(info->vendor == CFI_CMDSET_AMD_EXTENDED))
+@@ -1225,17 +1282,25 @@
+ 	dst.cp = (uchar *) dest;
+ 	sector = find_sector (info, dest);
+ 	flash_write_cmd (info, sector, 0, FLASH_CMD_CLEAR_STATUS);
+-	flash_write_cmd (info, sector, 0, FLASH_CMD_WRITE_TO_BUFFER);
+-	if ((retcode =
+-	     flash_status_check (info, sector, info->buffer_write_tout,
+-				 "write to buffer")) == ERR_OK) {
++        flash_write_cmd (info, sector, 0, FLASH_CMD_WRITE_TO_BUFFER);
++
++        debug("flash_status_check(), timeout %d\n", info->buffer_write_tout);
++        retcode = flash_status_check (info, sector, info->buffer_write_tout,
++                                      "write to buffer");
++
++	if (retcode == ERR_OK) {
+ 		/* reduce the number of loops by the width of the port	*/
+ 		switch (info->portwidth) {
+ 		case FLASH_CFI_8BIT:
+ 			cnt = len;
+ 			break;
+ 		case FLASH_CFI_16BIT:
++                  /* dast:
++                     http://sourceforge.net/mailarchive/forum.php?thread_id=8945652&forum_id=12898 */
++
+ 			cnt = len >> 1;
++                        if(len & 1)
++                        	cnt++;
+ 			break;
+ 		case FLASH_CFI_32BIT:
+ 			cnt = len >> 2;
+@@ -1247,6 +1312,7 @@
+ 			return ERR_INVAL;
+ 			break;
+ 		}
++                /* write the number of words -1 to the sector address */
+ 		flash_write_cmd (info, sector, 0, (uchar) cnt - 1);
+ 		while (cnt-- > 0) {
+ 			switch (info->portwidth) {
+@@ -1254,6 +1320,11 @@
+ 				*dst.cp++ = *src.cp++;
+ 				break;
+ 			case FLASH_CFI_16BIT:
++#if 0
++                          debug("Write 16 bits (%04x) from %08x to %08x\n",
++                                *src.wp,
++                                src.wp, dst.wp);
++#endif
+ 				*dst.wp++ = *src.wp++;
+ 				break;
+ 			case FLASH_CFI_32BIT:
+@@ -1269,12 +1340,7 @@
+ 		}
+ 		flash_write_cmd (info, sector, 0,
+ 				 FLASH_CMD_WRITE_BUFFER_CONFIRM);
+-		retcode =
+-			flash_full_status_check (info, sector,
+-						 info->buffer_write_tout,
+-						 "buffer write");
+-	}
+-	flash_write_cmd (info, sector, 0, FLASH_CMD_CLEAR_STATUS);
++        }
+ 	return retcode;
+ }
+ #endif /* CFG_FLASH_USE_BUFFER_WRITE */
+Index: include/configs/at91rm9200dk.h
+===================================================================
+RCS file: /cvsroot/u-boot/u-boot/include/configs/at91rm9200dk.h,v
+retrieving revision 1.17
+diff -u -r1.17 at91rm9200dk.h
+--- include/configs/at91rm9200dk.h	29 Oct 2005 21:58:47 -0000	1.17
++++ include/configs/at91rm9200dk.h	30 Nov 2005 15:11:20 -0000
+@@ -25,6 +25,19 @@
+ #ifndef __CONFIG_H
+ #define __CONFIG_H
+ 
++/* <dast> */
++/* Enable support for (CF) flash protection */
++#define CFG_FLASH_PROTECTION 1
++/* Skip the low level CPU init for when we are loaded and run by loader.bin
++   anyway */
++#define CONFIG_SKIP_LOWLEVEL_INIT 1
++/* Enable the CFI flash driver for our Intel JS28F128P30TD85 (16 MB Strata) */
++#define CFG_FLASH_CFI_DRIVER 1 
++#define CFG_FLASH_CFI 1
++/* Make the CFI driver user 'buffer write' and not single word writes */
++#define CFG_FLASH_USE_BUFFER_WRITE 1
++/* </dast> */
++
+ /* ARM asynchronous clock */
+ #define AT91C_MAIN_CLOCK	179712000	/* from 18.432 MHz crystal (18432000 / 4 * 39) */
+ #define AT91C_MASTER_CLOCK	59904000	/* peripheral clock (AT91C_MASTER_CLOCK / 3) */
+@@ -45,6 +58,7 @@
+ #ifndef CONFIG_SKIP_LOWLEVEL_INIT
+ #define CFG_USE_MAIN_OSCILLATOR		1
+ /* flash */
++
+ #define MC_PUIA_VAL	0x00000000
+ #define MC_PUP_VAL	0x00000000
+ #define MC_PUER_VAL	0x00000000
+@@ -150,7 +164,9 @@
+ #define CONFIG_NET_RETRY_COUNT		20
+ #define CONFIG_AT91C_USE_RMII
+ 
++/* dast
+ #define CONFIG_HAS_DATAFLASH		1
++*/
+ #define CFG_SPI_WRITE_TOUT		(5*CFG_HZ)
+ #define CFG_MAX_DATAFLASH_BANKS 	2
+ #define CFG_MAX_DATAFLASH_PAGES 	16384
+@@ -174,8 +190,8 @@
+ #else
+ #define CFG_ENV_IS_IN_FLASH		1
+ #ifdef CONFIG_SKIP_LOWLEVEL_INIT
+-#define CFG_ENV_ADDR			(PHYS_FLASH_1 + 0x60000)  /* after u-boot.bin */
+-#define CFG_ENV_SIZE			0x10000 /* sectors are 64K here */
++#define CFG_ENV_ADDR			(PHYS_FLASH_1 + 0x40000)  /* after u-boot.bin */
++#define CFG_ENV_SIZE			0x20000 /* sectors are 128K here */
+ #else
+ #define CFG_ENV_ADDR			(PHYS_FLASH_1 + 0xe000)  /* between boot.bin and u-boot.bin.gz */
+ #define CFG_ENV_SIZE			0x2000  /* 0x8000 */
+Index: lib_arm/board.c
+===================================================================
+RCS file: /cvsroot/u-boot/u-boot/lib_arm/board.c,v
+retrieving revision 1.34
+diff -u -r1.34 board.c
+--- lib_arm/board.c	29 Oct 2005 21:58:48 -0000	1.34
++++ lib_arm/board.c	30 Nov 2005 15:11:21 -0000
+@@ -39,6 +39,10 @@
+ #include "../drivers/lan91c96.h"
+ #endif
+ 
++#ifdef CONFIG_AT91RM9200
++#include <at91rm9200.h>
++#endif
++
+ #if (CONFIG_COMMANDS & CFG_CMD_NAND)
+ void nand_init (void);
+ #endif
+@@ -159,6 +163,8 @@
+ {
+ 	puts ("Flash: ");
+ 	print_size (size, "\n");
++
++        printf("OSR: %08x, USR: %08x\n", *AT91C_PIOC_OSR, *AT91C_PIOC_PPUSR);
+ }
+ 
+ 

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000, 2001
+ * (C) Copyright 2000-2004
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -12,7 +12,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -22,45 +22,60 @@
  */
 #ifndef _PART_H
 #define _PART_H
-
+#include <ide.h>
 
 typedef struct block_dev_desc {
-	int           if_type;    /* type of the interface */
-	int           dev;        /* device number */
-	unsigned char part_type;  /* partition type */
-	unsigned char target;			/* target SCSI ID */
-	unsigned char lun;				/* target LUN */
-	unsigned char type;				/* device type */
-	unsigned long lba;        /* number of blocks */
-	unsigned long blksz;			/* block size */
-	unsigned char vendor[40]; /* IDE model, SCSI Vendor */
-	unsigned char product[20];/* IDE Serial no, SCSI product */
-	unsigned char revision[8];/* firmware revision */
-	unsigned char removable;	/* removable device */
-	unsigned long (*block_read)(int dev,unsigned long start,unsigned long blkcnt, unsigned long *buffer);
+	int		if_type;	/* type of the interface */
+	int	        dev;	  	/* device number */
+	unsigned char	part_type;  	/* partition type */
+	unsigned char	target;		/* target SCSI ID */
+	unsigned char	lun;		/* target LUN */
+	unsigned char	type;		/* device type */
+	unsigned char	removable;	/* removable device */
+#ifdef CONFIG_LBA48
+	unsigned char	lba48;		/* device can use 48bit addr (ATA/ATAPI v7) */
+#endif
+	lbaint_t		lba;	  	/* number of blocks */
+	unsigned long	blksz;		/* block size */
+	unsigned char	vendor [40+1]; 	/* IDE model, SCSI Vendor */
+	unsigned char	product[20+1];	/* IDE Serial no, SCSI product */
+	unsigned char	revision[8+1];	/* firmware revision */
+	unsigned long	(*block_read)(int dev,
+				      unsigned long start,
+				      lbaint_t blkcnt,
+				      unsigned long *buffer);
 }block_dev_desc_t;
+
 /* Interface types: */
-#define IF_TYPE_UNKNOWN	0
-#define IF_TYPE_IDE			1
+#define IF_TYPE_UNKNOWN		0
+#define IF_TYPE_IDE		1
 #define IF_TYPE_SCSI		2
 #define IF_TYPE_ATAPI		3
-#define IF_TYPE_USB			4
-#define IF_TYPE_DOC			5
+#define IF_TYPE_USB		4
+#define IF_TYPE_DOC		5
+#define IF_TYPE_MMC		6
+
 /* Part types */
-#define	PART_TYPE_UNKNOWN	0x00
+#define PART_TYPE_UNKNOWN	0x00
 #define PART_TYPE_MAC		0x01
 #define PART_TYPE_DOS		0x02
 #define PART_TYPE_ISO		0x03
-#define PART_TYPE_AMIGA         0x04
+#define PART_TYPE_AMIGA		0x04
+
+/*
+ * Type string for U-Boot bootable partitions
+ */
+#define BOOT_PART_TYPE	"U-Boot"	/* primary boot partition type	*/
+#define BOOT_PART_COMP	"PPCBoot"	/* PPCBoot compatibility type	*/
 
 /* device types */
-#define DEV_TYPE_UNKNOWN 0xff /* not connected */
-#define DEV_TYPE_HARDDISK 0x00 /* harddisk */
-#define DEV_TYPE_TAPE 		0x01 /* Tape */
-#define DEV_TYPE_CDROM 		0x05 /* CD-ROM */
-#define DEV_TYPE_OPDISK 	0x07 /* optical disk */
+#define DEV_TYPE_UNKNOWN	0xff	/* not connected */
+#define DEV_TYPE_HARDDISK	0x00	/* harddisk */
+#define DEV_TYPE_TAPE		0x01	/* Tape */
+#define DEV_TYPE_CDROM		0x05	/* CD-ROM */
+#define DEV_TYPE_OPDISK		0x07	/* optical disk */
 
-typedef	struct disk_partition {
+typedef struct disk_partition {
 	ulong	start;		/* # of first block in partition	*/
 	ulong	size;		/* number of blocks in partition	*/
 	ulong	blksz;		/* block size in bytes			*/
@@ -104,5 +119,3 @@ int   test_part_amiga (block_dev_desc_t *dev_desc);
 #endif
 
 #endif /* _PART_H */
-
-

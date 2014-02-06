@@ -37,7 +37,7 @@
 #define CONFIG_4xx		1	/* ...member of PPC4xx family	*/
 #define CONFIG_ERIC		1	/* ...on a ERIC board	*/
 
-#define	CONFIG_BOARD_PRE_INIT	1	/* run board_pre_init() */
+#define	CONFIG_BOARD_EARLY_INIT_F 1	/* run board_early_init_f() */
 
 #define CONFIG_SYS_CLK_FREQ	33333333 /* external frequency to pll	*/
 
@@ -156,7 +156,7 @@
 #define CONFIG_PCI			/* include pci support	        */
 #define CONFIG_PCI_HOST	PCI_HOST_FORCE  /* select pci host function     */
 #undef  CONFIG_PCI_PNP			/* no pci plug-and-play         */
-                                        /* resource configuration       */
+					/* resource configuration       */
 
 #define CFG_PCI_SUBSYS_VENDORID 0x1743	/* PCI Vendor ID: Peppercon AG	*/
 #define CFG_PCI_SUBSYS_DEVICEID 0x0405	/* PCI Device ID: 405GP		*/
@@ -323,7 +323,7 @@
 /*-----------------------------------------------------------------------
  * Cache Configuration
  */
-#define CFG_DCACHE_SIZE		8192	/* For IBM 405 CPUs			*/
+#define CFG_DCACHE_SIZE		8192	/* For AMCC 405 CPUs			*/
 #define CFG_CACHELINE_SIZE	32	/* ...			*/
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 #define CFG_CACHELINE_SHIFT	5	/* log base 2 of the above value	*/

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2003
+ * (C) Copyright 2003-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -49,24 +49,59 @@
 #define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 #endif
 
-#define	CONFIG_CLOCKS_IN_MHZ	1	/* clocks passsed to Linux in MHz */
-
 #undef	CONFIG_BOOTARGS
 #define CONFIG_BOOTCOMMAND							\
 	"bootp; " 								\
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " 	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; " 	\
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " 	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; " 	\
 	"bootm"
 
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
 #undef	CFG_LOADS_BAUD_CHANGE		/* don't allow baudrate change	*/
 
+/* enable I2C and select the hardware/software driver */
+#undef	CONFIG_HARD_I2C			/* I2C with hardware support	*/
+#define CONFIG_SOFT_I2C		1	/* I2C bit-banged		*/
+
+#define CFG_I2C_SPEED		40000	/* 40 kHz is supposed to work	*/
+#define CFG_I2C_SLAVE		0xFE
+
+/* Software (bit-bang) I2C driver configuration */
+#define PB_SCL		0x00000020	/* PB 26 */
+#define PB_SDA		0x00000010	/* PB 27 */
+
+#define I2C_INIT	(immr->im_cpm.cp_pbdir |=  PB_SCL)
+#define I2C_ACTIVE	(immr->im_cpm.cp_pbdir |=  PB_SDA)
+#define I2C_TRISTATE	(immr->im_cpm.cp_pbdir &= ~PB_SDA)
+#define I2C_READ	((immr->im_cpm.cp_pbdat & PB_SDA) != 0)
+#define I2C_SDA(bit)	if(bit) immr->im_cpm.cp_pbdat |=  PB_SDA; \
+			else    immr->im_cpm.cp_pbdat &= ~PB_SDA
+#define I2C_SCL(bit)	if(bit) immr->im_cpm.cp_pbdat |=  PB_SCL; \
+			else    immr->im_cpm.cp_pbdat &= ~PB_SCL
+#define I2C_DELAY	udelay(5)	/* 1/4 I2C clock duration */
+
+/* M41T11 Serial Access Timekeeper(R) SRAM */
+#define CONFIG_RTC_M41T11 1
+#define CFG_I2C_RTC_ADDR 0x68
+#define CFG_M41T11_BASE_YEAR 1900	/* play along with the linux driver */
+
 #undef	CONFIG_WATCHDOG			/* watchdog disabled		*/
+
+#define CONFIG_COMMANDS	      ( CONFIG_CMD_DFL	| \
+				CFG_CMD_DATE	| \
+				CFG_CMD_DHCP	| \
+				CFG_CMD_I2C	| \
+				CFG_CMD_NFS	| \
+				CFG_CMD_SNTP	)
 
 #define CONFIG_BOOTP_MASK	(CONFIG_BOOTP_DEFAULT | CONFIG_BOOTP_BOOTFILESIZE)
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
+
+#define	CONFIG_AUTOBOOT_KEYED		/* Enable password protection */
+#define	CONFIG_AUTOBOOT_PROMPT		"\nEnter password - autoboot in %d sec...\n"
+#define	CONFIG_AUTOBOOT_DELAY_STR	"system"
 
 /*
  * Miscellaneous configurable options
@@ -116,15 +151,13 @@
  * Please note that CFG_SDRAM_BASE _must_ start at 0
  */
 #define	CFG_SDRAM_BASE		0x00000000
-#define CFG_FLASH_BASE	0xFF800000
-/*%%% #define CFG_FLASH_BASE		0xFFF00000 */
+#define CFG_FLASH_BASE		(0-flash_info[0].size)	/* Put flash at end	*/
 #if defined(DEBUG) || (CONFIG_COMMANDS & CFG_CMD_IDE)
 #define	CFG_MONITOR_LEN		(256 << 10)	/* Reserve 256 kB for Monitor	*/
 #else
 #define	CFG_MONITOR_LEN		(128 << 10)	/* Reserve 128 kB for Monitor	*/
 #endif
-#define CFG_MONITOR_BASE	0xFFF00000
-/*%%% #define CFG_MONITOR_BASE	CFG_FLASH_BASE */
+#define CFG_MONITOR_BASE	TEXT_BASE
 #define	CFG_MALLOC_LEN		(128 << 10)	/* Reserve 128 kB for malloc()	*/
 
 /*
@@ -138,19 +171,23 @@
  * FLASH organization
  */
 #define CFG_MAX_FLASH_BANKS	1	/* max number of memory banks		*/
-#define CFG_MAX_FLASH_SECT	35	/* max number of sectors on one chip	*/
+#define CFG_MAX_FLASH_SECT	67	/* max number of sectors on one chip	*/
 
 #define CFG_FLASH_ERASE_TOUT	120000	/* Timeout for Flash Erase (in ms)	*/
 #define CFG_FLASH_WRITE_TOUT	500	/* Timeout for Flash Write (in ms)	*/
 
 #define	CFG_ENV_IS_IN_FLASH	1
-#define	CFG_ENV_OFFSET	    0x00740000	/*   Offset   of Environment Sector	*/
+#define CFG_ENV_ADDR		((TEXT_BASE) + 0x40000)
 #define	CFG_ENV_SIZE		0x40000	/* Total Size of Environment Sector	*/
-#define CFG_ENV_ADDR		(CFG_FLASH_BASE + CFG_ENV_OFFSET)
 
 /* Address and size of Redundant Environment Sector	*/
-#define CFG_ENV_OFFSET_REDUND	(CFG_ENV_OFFSET+CFG_ENV_SIZE)
+#define CFG_ENV_ADDR_REDUND	(CFG_ENV_ADDR+CFG_ENV_SIZE)
 #define CFG_ENV_SIZE_REDUND	(CFG_ENV_SIZE)
+
+/*-----------------------------------------------------------------------
+ * Reset address
+ */
+#define	CFG_RESET_ADDRESS	((ulong)((((immap_t *)CFG_IMMR)->im_clkrst.res)))
 
 /*-----------------------------------------------------------------------
  * Cache Configuration
@@ -277,8 +314,8 @@
  * BR0 and OR0 (FLASH)
  */
 
-#define FLASH_BASE_PRELIM	0xFE000000	/* FLASH base */
-#define CFG_PRELIM_OR_AM	0xFE000000	/* OR addr mask */
+#define FLASH_BASE_PRELIM	0xFC000000	/* FLASH base - up to 64 MB of flash */
+#define CFG_PRELIM_OR_AM	0xFC000000	/* OR addr mask - map 64 MB */
 
 /* FLASH timing: ACS = 0, TRLX = 0, CSNT = 0, SCY = 4, ETHR = 0, BIH = 1 */
 #define CFG_OR_TIMING_FLASH (OR_SCY_4_CLK | OR_BI)
@@ -291,18 +328,22 @@
  *
  */
 #define SDRAM_BASE_PRELIM	0x00000000	/* SDRAM base	*/
-#define	SDRAM_MAX_SIZE		0x01000000	/* max 16 MB */
+#define	SDRAM_MAX_SIZE		0x08000000	/* max 128 MB */
 
 /* SDRAM timing: Multiplexed addresses, GPL5 output to GPL5_A (don't care)	*/
 #define CFG_OR_TIMING_SDRAM	0x00000E00
 
-#define CFG_OR1_PRELIM	(CFG_PRELIM_OR_AM | CFG_OR_TIMING_SDRAM )
+#define CFG_OR1_PRELIM	(0xF0000000 | CFG_OR_TIMING_SDRAM ) /* map 256 MB */
 #define CFG_BR1_PRELIM	((SDRAM_BASE_PRELIM & BR_BA_MSK) | BR_MS_UPMA | BR_V )
 
 /* RPXLITE mem setting */
-#define	CFG_BR3_PRELIM	0xFA400001		/* BCSR */
+#define CFG_NVRAM_BASE	0xFA000000		/* NVRAM & SRAM base */
+/*      IMMR:		0xFA200000		   IMMR base address - see above */
+#define	CFG_BCSR_BASE	0xFA400000		/* BCSR base address */
+
+#define	CFG_BR3_PRELIM	(CFG_BCSR_BASE | BR_V)			/* BCSR */
 #define CFG_OR3_PRELIM	0xFFFF8910
-#define	CFG_BR4_PRELIM	0xFA000401		/* NVRAM&SRAM */
+#define CFG_BR4_PRELIM  (CFG_NVRAM_BASE | BR_PS_8 | BR_V)	/* NVRAM & SRAM */
 #define CFG_OR4_PRELIM	0xFFFE0970
 
 /*
@@ -321,8 +362,8 @@
  * MAMR settings for SDRAM
  */
 
-/* 10 column SDRAM */
-#define CFG_MAMR_10COL	((CFG_MAMR_PTA << MAMR_PTA_SHIFT)  | MAMR_PTAE	    |	\
+/* 9 column SDRAM */
+#define CFG_MAMR_9COL	((CFG_MAMR_PTA << MAMR_PTA_SHIFT)  | MAMR_PTAE	    |	\
 			 MAMR_AMA_TYPE_1 | MAMR_DSA_1_CYCL | MAMR_G0CLA_A10 |	\
 			 MAMR_RLFA_16X | MAMR_WLFA_16X | MAMR_TLFA_16X)
 
@@ -341,10 +382,10 @@
  *
  */
 
-#define BCSR0 0xFA400000
-#define BCSR1 0xFA400001
-#define BCSR2 0xFA400002
-#define BCSR3 0xFA400003
+#define BCSR0	(CFG_BCSR_BASE + 0)
+#define BCSR1	(CFG_BCSR_BASE + 1)
+#define BCSR2	(CFG_BCSR_BASE + 2)
+#define BCSR3	(CFG_BCSR_BASE + 3)
 
 #define BCSR0_ENMONXCVR	0x01	/* Monitor XVCR Control */
 #define BCSR0_ENNVRAM	0x02 	/* CS4# Control */

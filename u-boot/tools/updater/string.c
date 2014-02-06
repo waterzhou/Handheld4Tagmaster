@@ -129,8 +129,8 @@ char * strrchr(const char * s, int c)
 {
        const char *p = s + strlen(s);
        do {
-           if (*p == (char)c)
-               return (char *)p;
+	   if (*p == (char)c)
+	       return (char *)p;
        } while (--p >= s);
        return NULL;
 }
@@ -164,7 +164,7 @@ char * strdup(const char *s)
 	char *new;
 
 	if ((s == NULL)	||
-	    ((new = mon_malloc (strlen(s) + 1)) == NULL) ) {
+	    ((new = malloc (strlen(s) + 1)) == NULL) ) {
 		return NULL;
 	}
 
@@ -316,7 +316,7 @@ void * memscan(void * addr, int c, size_t size)
 		p++;
 		size--;
 	}
-  	return (void *) p;
+	return (void *) p;
 }
 #endif
 

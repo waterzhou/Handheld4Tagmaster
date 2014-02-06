@@ -29,7 +29,7 @@
 
 #ifdef CONFIG_DTT_DS1621
 #if !defined(CFG_EEPROM_PAGE_WRITE_ENABLE) || \
-        (CFG_EEPROM_PAGE_WRITE_BITS < 1)
+	(CFG_EEPROM_PAGE_WRITE_BITS < 1)
 # error "CFG_EEPROM_PAGE_WRITE_ENABLE must be defined and CFG_EEPROM_PAGE_WRITE_BITS must be greater than 1 to use CONFIG_DTT_DS1621"
 #endif
 #include <i2c.h>
@@ -85,7 +85,7 @@ int dtt_write(int sensor, int reg, int val)
      * Calculate sensor address and register.
      *
      */
-    sensor = DTT_I2C_DEV_CODE + (sensor & sensor);
+    sensor = DTT_I2C_DEV_CODE + (sensor & 0x07);
 
     /*
      * Handle various data sizes.
@@ -188,4 +188,3 @@ int dtt_get_temp(int sensor)
 
 
 #endif /* CONFIG_DTT_DS1621 */
-

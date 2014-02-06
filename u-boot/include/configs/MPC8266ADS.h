@@ -31,14 +31,14 @@
  */
 
 /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   !!                                                                 !!
+   !!								      !!
    !!  This configuration requires JP3 to be in position 1-2 to work  !!
-   !!  To make it work for the default, the TEXT_BASE define in       !!
+   !!  To make it work for the default, the TEXT_BASE define in	      !!
    !!  board/mpc8266ads/config.mk must be changed from 0xfe000000 to  !!
    !!  0xfff00000						      !!
    !!  The CFG_HRCW_MASTER define below must also be changed to match !!
-   !!                                                                 !!
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+   !!								      !!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  */
 
 #ifndef __CONFIG_H
@@ -49,10 +49,11 @@
  * (easy to change)
  */
 
-#define CONFIG_MPC8260		1	/* This is an MPC8260 CPU   */
-#define CONFIG_MPC8266ADS	1	/* ...on motorola ads board */
+#define CONFIG_MPC8260		1	/* This is an MPC8260 CPU	*/
+#define CONFIG_MPC8266ADS	1	/* ...on motorola ADS board	*/
+#define CONFIG_CPM2		1	/* Has a CPM2 */
 
-#define CONFIG_BOARD_PRE_INIT	1	/* Call board_pre_init	*/
+#define CONFIG_BOARD_EARLY_INIT_F 1	/* Call board_early_init_f	*/
 
 /* allow serial and ethaddr to be overwritten */
 #define CONFIG_ENV_OVERWRITE
@@ -138,60 +139,66 @@
  * Definitions for Serial Presence Detect EEPROM address
  * (to get SDRAM settings)
  */
-#define SPD_EEPROM_ADDRESS      0x50
+#define SPD_EEPROM_ADDRESS	0x50
 
 
 #define CONFIG_8260_CLKIN	66000000	/* in Hz */
 #define CONFIG_BAUDRATE		115200
 
 
-#define CONFIG_COMMANDS		(CFG_CMD_ALL & ~( \
-				 CFG_CMD_BEDBUG | \
-				 CFG_CMD_BMP	| \
-				 CFG_CMD_BSP	| \
-				 CFG_CMD_DATE	| \
-				 CFG_CMD_DHCP   | \
-				 CFG_CMD_DOC	| \
-				 CFG_CMD_DTT	| \
-				 CFG_CMD_EEPROM | \
-				 CFG_CMD_ELF    | \
-				 CFG_CMD_FDC	| \
-				 CFG_CMD_FDOS	| \
-				 CFG_CMD_HWFLOW	| \
-				 CFG_CMD_IDE	| \
-				 CFG_CMD_JFFS2	| \
-				 CFG_CMD_KGDB	| \
-				 CFG_CMD_MMC	| \
-				 CFG_CMD_NAND	| \
-				 CFG_CMD_PCMCIA | \
-				 CFG_CMD_SCSI	| \
-				 CFG_CMD_SPI	| \
-				 CFG_CMD_VFD	| \
-				 CFG_CMD_USB	) )
+#define CONFIG_COMMANDS	      ( CFG_CMD_ALL & ~( \
+				CFG_CMD_BEDBUG	| \
+				CFG_CMD_BMP	| \
+				CFG_CMD_BSP	| \
+				CFG_CMD_DATE	| \
+				CFG_CMD_DHCP	| \
+				CFG_CMD_DISPLAY | \
+				CFG_CMD_DOC	| \
+				CFG_CMD_DTT	| \
+				CFG_CMD_EEPROM	| \
+				CFG_CMD_ELF	| \
+				CFG_CMD_EXT2	| \
+				CFG_CMD_FDC	| \
+				CFG_CMD_FDOS	| \
+				CFG_CMD_HWFLOW	| \
+				CFG_CMD_IDE	| \
+				CFG_CMD_JFFS2	| \
+				CFG_CMD_KGDB	| \
+				CFG_CMD_MMC	| \
+				CFG_CMD_NAND	| \
+				CFG_CMD_PCMCIA	| \
+				CFG_CMD_REISER	| \
+				CFG_CMD_SCSI	| \
+				CFG_CMD_SPI	| \
+				CFG_CMD_SNTP	| \
+				CFG_CMD_VFD	| \
+				CFG_CMD_UNIVERSE | \
+				CFG_CMD_USB	| \
+				CFG_CMD_XIMG	) )
 
 /* Define a command string that is automatically executed when no character
  * is read on the console interface withing "Boot Delay" after reset.
  */
-#define CONFIG_BOOT_ROOT_INITRD 0	/* Use ram disk for the root file system */
-#define CONFIG_BOOT_ROOT_NFS	1	/* Use a NFS mounted root file system */
+#undef	CONFIG_BOOT_ROOT_INITRD		/* Use ram disk for the root file system */
+#define CONFIG_BOOT_ROOT_NFS		/* Use a NFS mounted root file system */
 
-#if CONFIG_BOOT_ROOT_INITRD
+#ifdef CONFIG_BOOT_ROOT_INITRD
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
 	"setenv bootargs root=/dev/ram0 rw " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_INITRD */
 
-#if CONFIG_BOOT_ROOT_NFS
+#ifdef CONFIG_BOOT_ROOT_NFS
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_NFS */
 
@@ -398,15 +405,15 @@
 /* Use this HRCW for booting from address 0xfff0000 (JP3 in setting 2-3)  */
 /* #define CFG_HRCW_MASTER 0x0cb23645 */
 
-/* This value should actually be situated in the first 256 bytes of the FLASH  
+/* This value should actually be situated in the first 256 bytes of the FLASH
 	which on the standard MPC8266ADS board is at address 0xFF800000
 	The linker script places it at 0xFFF00000 instead.
 
-	It still works, however, as long as the ADS board jumper JP3 is set to 
-	position 2-3 so the board is using the BCSR as Hardware Configuration Word 
+	It still works, however, as long as the ADS board jumper JP3 is set to
+	position 2-3 so the board is using the BCSR as Hardware Configuration Word
 
-	If you want to use the one defined here instead, ust copy the first 256 bytes from 
-	0xfff00000 to 0xff800000  (for 8MB flash) 
+	If you want to use the one defined here instead, ust copy the first 256 bytes from
+	0xfff00000 to 0xff800000  (for 8MB flash)
 
 	- Rune
 
@@ -451,7 +458,7 @@
 
 
 /*-----------------------------------------------------------------------
- * HIDx - Hardware Implementation-dependent Registers                    2-11
+ * HIDx - Hardware Implementation-dependent Registers			 2-11
  *-----------------------------------------------------------------------
  * HID0 also contains cache control - initially enable both caches and
  * invalidate contents, then the final state leaves only the instruction
@@ -483,7 +490,7 @@
  *	0x80000000-0x9FFFFFFF	512MB	outbound prefetchable PCI memory window
  *	0xA0000000-0xBFFFFFFF	512MB	outbound non-prefetchable PCI memory window
  *	0xF0000000-0xF001FFFF	128KB	MPC8266 internal memory
- *	0xF4000000-0xF7FFFFFF	 64MB   outbound PCI I/O window
+ *	0xF4000000-0xF7FFFFFF	 64MB	outbound PCI I/O window
  *	0xF8000000-0xF8007FFF	 32KB	BCSR
  *	0xF8100000-0xF8107FFF	 32KB	ATM UNI
  *	0xF8200000-0xF8207FFF	 32KB	PCI interrupt controller
@@ -508,18 +515,19 @@
 #define CFG_MPTPR		0x00001900
 #define CFG_PSRT		0x00000021
 
-#define CFG_RESET_ADDRESS	0x04400000
+/* This address must not exist */
+#define CFG_RESET_ADDRESS	0xFCFFFF00
 
 /* PCI Memory map (if different from default map */
 #define CFG_PCI_SLV_MEM_LOCAL	CFG_SDRAM_BASE		/* Local base */
 #define CFG_PCI_SLV_MEM_BUS		0x00000000		/* PCI base */
 #define CFG_PICMR0_MASK_ATTRIB	(PICMR_MASK_512MB | PICMR_ENABLE | \
-                          	 PICMR_PREFETCH_EN)
+				 PICMR_PREFETCH_EN)
 
-/* 
+/*
  * These are the windows that allow the CPU to access PCI address space.
- * All three PCI master windows, which allow the CPU to access PCI 
- * prefetch, non prefetch, and IO space (see below), must all fit within 
+ * All three PCI master windows, which allow the CPU to access PCI
+ * prefetch, non prefetch, and IO space (see below), must all fit within
  * these windows.
  */
 
@@ -530,41 +538,57 @@
 #define CFG_PCI_MSTR1_LOCAL		0xF4000000		/* Local base */
 #define CFG_PCIMSK1_MASK		PCIMSK_64MB		/* Size of window */
 
-/* 
+/*
  * Master window that allows the CPU to access PCI Memory (prefetch).
  * This window will be setup with the first set of Outbound ATU registers
  * in the bridge.
  */
 
-#define CFG_PCI_MSTR_MEM_LOCAL	0x80000000          /* Local base */
-#define CFG_PCI_MSTR_MEM_BUS	0x80000000          /* PCI base   */
-#define	CFG_CPU_PCI_MEM_START	PCI_MSTR_MEM_LOCAL
-#define CFG_PCI_MSTR_MEM_SIZE	0x20000000          /* 512MB */
+#define CFG_PCI_MSTR_MEM_LOCAL	0x80000000			/* Local base */
+#define CFG_PCI_MSTR_MEM_BUS	0x80000000			/* PCI base   */
+#define CFG_CPU_PCI_MEM_START	PCI_MSTR_MEM_LOCAL
+#define CFG_PCI_MSTR_MEM_SIZE	0x20000000			/* 512MB */
 #define CFG_POCMR0_MASK_ATTRIB	(POCMR_MASK_512MB | POCMR_ENABLE | POCMR_PREFETCH_EN)
 
-/* 
+/*
  * Master window that allows the CPU to access PCI Memory (non-prefetch).
  * This window will be setup with the second set of Outbound ATU registers
  * in the bridge.
  */
 
-#define CFG_PCI_MSTR_MEMIO_LOCAL    0xA0000000          /* Local base */
-#define CFG_PCI_MSTR_MEMIO_BUS      0xA0000000          /* PCI base   */
-#define CFG_CPU_PCI_MEMIO_START     PCI_MSTR_MEMIO_LOCAL
-#define CFG_PCI_MSTR_MEMIO_SIZE     0x20000000          /* 512MB */
-#define CFG_POCMR1_MASK_ATTRIB      (POCMR_MASK_512MB | POCMR_ENABLE)
+#define CFG_PCI_MSTR_MEMIO_LOCAL    0xA0000000			/* Local base */
+#define CFG_PCI_MSTR_MEMIO_BUS	    0xA0000000			/* PCI base   */
+#define CFG_CPU_PCI_MEMIO_START	    PCI_MSTR_MEMIO_LOCAL
+#define CFG_PCI_MSTR_MEMIO_SIZE	    0x20000000			/* 512MB */
+#define CFG_POCMR1_MASK_ATTRIB	    (POCMR_MASK_512MB | POCMR_ENABLE)
 
-/* 
+/*
  * Master window that allows the CPU to access PCI IO space.
  * This window will be setup with the third set of Outbound ATU registers
  * in the bridge.
  */
 
-#define CFG_PCI_MSTR_IO_LOCAL       0xF4000000          /* Local base */
-#define CFG_PCI_MSTR_IO_BUS         0xF4000000          /* PCI base   */
-#define CFG_CPU_PCI_IO_START        PCI_MSTR_IO_LOCAL
-#define CFG_PCI_MSTR_IO_SIZE        0x04000000          /* 64MB */
-#define CFG_POCMR2_MASK_ATTRIB      (POCMR_MASK_64MB | POCMR_ENABLE | POCMR_PCI_IO)
+#define CFG_PCI_MSTR_IO_LOCAL	    0xF4000000			/* Local base */
+#define CFG_PCI_MSTR_IO_BUS	    0xF4000000			/* PCI base   */
+#define CFG_CPU_PCI_IO_START	    PCI_MSTR_IO_LOCAL
+#define CFG_PCI_MSTR_IO_SIZE	    0x04000000			/* 64MB */
+#define CFG_POCMR2_MASK_ATTRIB	    (POCMR_MASK_64MB | POCMR_ENABLE | POCMR_PCI_IO)
 
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition, whole device */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		""
+#define MTDPARTS_DEFAULT	""
+*/
 
 #endif /* __CONFIG_H */

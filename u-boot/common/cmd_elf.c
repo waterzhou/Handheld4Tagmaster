@@ -17,8 +17,6 @@
 #include <command.h>
 #include <linux/ctype.h>
 #include <net.h>
-
-#include <cmd_elf.h>
 #include <elf.h>
 
 
@@ -28,6 +26,8 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #endif
 
+int valid_elf_image (unsigned long addr);
+unsigned long load_elf_image (unsigned long addr);
 
 /* ======================================================================
  * Interpreter command to boot an arbitrary ELF image from memory.
@@ -78,10 +78,8 @@ int do_bootelf (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
  * ====================================================================== */
 int do_bootvx ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-#if defined(CONFIG_WALNUT405)	|| \
-    defined(CONFIG_CPCI405)	|| \
-    defined(CONFIG_OCRTC)	|| \
-    defined(CONFIG_ORSG)
+#if defined(CONFIG_WALNUT)	|| \
+    defined(CFG_VXWORKS_MAC_PTR)
 	DECLARE_GLOBAL_DATA_PTR;
 #endif
 
@@ -103,7 +101,7 @@ int do_bootvx ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	if ((tmp = getenv ("loadaddr")) != NULL) {
 		addr = simple_strtoul (tmp, NULL, 16);
 	} else {
-		printf ("No load address provided\n");
+		puts ("No load address provided\n");
 		return 1;
 	}
 
@@ -123,24 +121,21 @@ int do_bootvx ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	 * This will vary from board to board
 	 */
 
-#if defined(CONFIG_WALNUT405)
+#if defined(CONFIG_WALNUT)
 	tmp = (char *) CFG_NVRAM_BASE_ADDR + 0x500;
 	memcpy ((char *) tmp, (char *) &gd->bd->bi_enetaddr[3], 3);
-#elif defined(CONFIG_CPCI405)
-	tmp = (char *) CFG_NVRAM_BASE_ADDR + CFG_NVRAM_VXWORKS_OFFS;
-	memcpy ((char *) tmp, (char *) &gd->bd->bi_enetaddr[0], 6);
-#elif defined(CONFIG_OCRTC) || defined(CONFIG_ORSG)
-	tmp = (char *) CFG_ETHERNET_MAC_ADDR;
+#elif defined(CFG_VXWORKS_MAC_PTR)
+	tmp = (char *) CFG_VXWORKS_MAC_PTR;
 	memcpy ((char *) tmp, (char *) &gd->bd->bi_enetaddr[0], 6);
 #else
-	printf ("## Ethernet MAC address not copied to NV RAM\n");
+	puts ("## Ethernet MAC address not copied to NV RAM\n");
 #endif
 
-        /*
-         * Use bootaddr to find the location in memory that VxWorks
-         * will look for the bootline string. The default value for
-         * PowerPC is LOCAL_MEM_LOCAL_ADRS + BOOT_LINE_OFFSET which
-         * defaults to 0x4200
+	/*
+	 * Use bootaddr to find the location in memory that VxWorks
+	 * will look for the bootline string. The default value for
+	 * PowerPC is LOCAL_MEM_LOCAL_ADRS + BOOT_LINE_OFFSET which
+	 * defaults to 0x4200
 	 */
 
 	if ((tmp = getenv ("bootaddr")) == NULL)
@@ -148,10 +143,10 @@ int do_bootvx ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	else
 		bootaddr = simple_strtoul (tmp, NULL, 16);
 
-        /*
-         * Check to see if the bootline is defined in the 'bootargs'
-         * parameter. If it is not defined, we may be able to
-         * construct the info
+	/*
+	 * Check to see if the bootline is defined in the 'bootargs'
+	 * parameter. If it is not defined, we may be able to
+	 * construct the info
 	 */
 
 	if ((bootline = getenv ("bootargs")) != NULL) {
@@ -194,27 +189,27 @@ int do_bootvx ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		flush_cache (bootaddr, MAX(strlen(build_buf), 255));
 #else
 
-                /*
-                 * I'm not sure what the device should be for other
-                 * PPC flavors, the hostname and ipaddr should be ok
-                 * to just copy
+		/*
+		 * I'm not sure what the device should be for other
+		 * PPC flavors, the hostname and ipaddr should be ok
+		 * to just copy
 		 */
 
-		printf ("No bootargs defined\n");
+		puts ("No bootargs defined\n");
 		return 1;
 #endif
 	}
 
-        /*
-         * If the data at the load address is an elf image, then
-         * treat it like an elf image. Otherwise, assume that it is a
-         * binary image
+	/*
+	 * If the data at the load address is an elf image, then
+	 * treat it like an elf image. Otherwise, assume that it is a
+	 * binary image
 	 */
 
 	if (valid_elf_image (addr)) {
 		addr = load_elf_image (addr);
 	} else {
-		printf ("## Not an ELF image, assuming binary\n");
+		puts ("## Not an ELF image, assuming binary\n");
 		/* leave addr as load_addr */
 	}
 
@@ -224,7 +219,7 @@ int do_bootvx ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	((void (*)(void)) addr) ();
 
-	printf ("## vxWorks terminated\n");
+	puts ("## vxWorks terminated\n");
 	return 1;
 }
 
@@ -321,4 +316,16 @@ unsigned long load_elf_image (unsigned long addr)
 }
 
 /* ====================================================================== */
+U_BOOT_CMD(
+	bootelf,      2,      0,      do_bootelf,
+	"bootelf - Boot from an ELF image in memory\n",
+	" [address] - load address of ELF image.\n"
+);
+
+U_BOOT_CMD(
+	bootvx,      2,      0,      do_bootvx,
+	"bootvx  - Boot vxWorks from an ELF image\n",
+	" [address] - load address of vxWorks ELF image.\n"
+);
+
 #endif	/* CFG_CMD_ELF */

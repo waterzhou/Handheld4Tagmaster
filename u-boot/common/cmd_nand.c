@@ -4,12 +4,15 @@
  * (c) 1999 Machine Vision Holdings, Inc.
  * (c) 1999, 2000 David Woodhouse <dwmw2@infradead.org>
  *
+ * Added 16-bit nand support
+ * (C) 2004 Texas Instruments
  */
 
 #include <common.h>
 #include <command.h>
 #include <malloc.h>
 #include <asm/io.h>
+#include <watchdog.h>
 
 #ifdef CONFIG_SHOW_BOOT_PROGRESS
 # include <status_led.h>
@@ -23,6 +26,12 @@
 #include <linux/mtd/nand.h>
 #include <linux/mtd/nand_ids.h>
 #include <jffs2/jffs2.h>
+
+#ifdef CONFIG_OMAP1510
+void archflashwp(void *archdata, int wp);
+#endif
+
+#define ROUND_DOWN(value,boundary)      ((value) & (~((boundary)-1)))
 
 /*
  * Definition of the out of band configuration structure
@@ -52,21 +61,22 @@ struct nand_oob_config {
 #define	 ALLOW_ERASE_BAD_DEBUG 0
 
 #define CONFIG_MTD_NAND_ECC  /* enable ECC */
-/* #define CONFIG_MTD_NAND_ECC_JFFS2 */
+#define CONFIG_MTD_NAND_ECC_JFFS2
 
 /* bits for nand_rw() `cmd'; or together as needed */
 #define NANDRW_READ	0x01
 #define NANDRW_WRITE	0x00
 #define NANDRW_JFFS2	0x02
+#define NANDRW_JFFS2_SKIP	0x04
 
 /*
  * Function Prototypes
  */
 static void nand_print(struct nand_chip *nand);
-static int nand_rw (struct nand_chip* nand, int cmd,
+int nand_rw (struct nand_chip* nand, int cmd,
 	    size_t start, size_t len,
 	    size_t * retlen, u_char * buf);
-static int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean);
+int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean);
 static int nand_read_ecc(struct nand_chip *nand, size_t start, size_t len,
 		 size_t * retlen, u_char *buf, u_char *ecc_code);
 static int nand_write_ecc (struct nand_chip* nand, size_t to, size_t len,
@@ -76,6 +86,7 @@ static int nand_read_oob(struct nand_chip* nand, size_t ofs, size_t len,
 		 size_t * retlen, u_char * buf);
 static int nand_write_oob(struct nand_chip* nand, size_t ofs, size_t len,
 		 size_t * retlen, const u_char * buf);
+static int NanD_WaitReady(struct nand_chip *nand, int ale_wait);
 #ifdef CONFIG_MTD_NAND_ECC
 static int nand_correct_data (u_char *dat, u_char *read_ecc, u_char *calc_ecc);
 static void nand_calculate_ecc (const u_char *dat, u_char *ecc_code);
@@ -98,7 +109,7 @@ int do_nand (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	printf ("Usage:\n%s\n", cmdtp->usage);
 	return 1;
     case 2:
-        if (strcmp(argv[1],"info") == 0) {
+	if (strcmp(argv[1],"info") == 0) {
 		int i;
 
 		putc ('\n');
@@ -189,23 +200,37 @@ int do_nand (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			/* read out-of-band data */
 			if (cmd & NANDRW_READ) {
 				ret = nand_read_oob(nand_dev_desc + curr_device,
-						    off, size, &total,
+						    off, size, (size_t *)&total,
 						    (u_char*)addr);
 			}
 			else {
 				ret = nand_write_oob(nand_dev_desc + curr_device,
-						     off, size, &total,
+						     off, size, (size_t *)&total,
 						     (u_char*)addr);
 			}
 			return ret;
 		}
 		else if (cmdtail && !strncmp(cmdtail, ".jffs2", 2))
 			cmd |= NANDRW_JFFS2;	/* skip bad blocks */
+		else if (cmdtail && !strncmp(cmdtail, ".jffs2s", 2)) {
+			cmd |= NANDRW_JFFS2;	/* skip bad blocks (on read too) */
+			if (cmd & NANDRW_READ)
+				cmd |= NANDRW_JFFS2_SKIP;	/* skip bad blocks (on read too) */
+		}
 #ifdef SXNI855T
 		/* need ".e" same as ".j" for compatibility with older units */
 		else if (cmdtail && !strcmp(cmdtail, ".e"))
 			cmd |= NANDRW_JFFS2;	/* skip bad blocks */
 #endif
+#ifdef CFG_NAND_SKIP_BAD_DOT_I
+		/* need ".i" same as ".jffs2s" for compatibility with older units (esd) */
+		/* ".i" for image -> read skips bad block (no 0xff) */
+		else if (cmdtail && !strcmp(cmdtail, ".i")) {
+			cmd |= NANDRW_JFFS2;	/* skip bad blocks (on read too) */
+			if (cmd & NANDRW_READ)
+				cmd |= NANDRW_JFFS2_SKIP;	/* skip bad blocks (on read too) */
+		}
+#endif /* CFG_NAND_SKIP_BAD_DOT_I */
 		else if (cmdtail) {
 			printf ("Usage:\n%s\n", cmdtp->usage);
 			return 1;
@@ -216,10 +241,10 @@ int do_nand (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			curr_device, off, size);
 
 		ret = nand_rw(nand_dev_desc + curr_device, cmd, off, size,
-			     &total, (u_char*)addr);
+			     (size_t *)&total, (u_char*)addr);
 
-		printf ("%d bytes %s: %s\n", total,
-			(cmd & NANDRW_READ) ? "read" : "write",
+		printf (" %d bytes %s: %s\n", total,
+			(cmd & NANDRW_READ) ? "read" : "written",
 			ret ? "ERROR" : "OK");
 
 		return ret;
@@ -246,6 +271,21 @@ int do_nand (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return rcode;
     }
 }
+
+U_BOOT_CMD(
+	nand,	5,	1,	do_nand,
+	"nand    - NAND sub-system\n",
+	"info  - show available NAND devices\n"
+	"nand device [dev] - show or set current device\n"
+	"nand read[.jffs2[s]]  addr off size\n"
+	"nand write[.jffs2] addr off size - read/write `size' bytes starting\n"
+	"    at offset `off' to/from memory address `addr'\n"
+	"nand erase [clean] [off size] - erase `size' bytes from\n"
+	"    offset `off' (entire device if not specified)\n"
+	"nand bad - show bad blocks\n"
+	"nand read.oob addr off size - read out-of-band data\n"
+	"nand write.oob addr off size - read out-of-band data\n"
+);
 
 int do_nandboot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -348,15 +388,22 @@ int do_nandboot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return rcode;
 }
 
+U_BOOT_CMD(
+	nboot,	4,	1,	do_nandboot,
+	"nboot   - boot from NAND device\n",
+	"loadAddr dev\n"
+);
+
 /* returns 0 if block containing pos is OK:
  *		valid erase block and
  *		not marked bad, or no bad mark position is specified
  * returns 1 if marked bad or otherwise invalid
  */
-int check_block(struct nand_chip* nand, unsigned long pos)
+int check_block (struct nand_chip *nand, unsigned long pos)
 {
-	int retlen;
+	size_t retlen;
 	uint8_t oob_data;
+	uint16_t oob_data16[6];
 	int page0 = pos & (-nand->erasesize);
 	int page1 = page0 + nand->oobblock;
 	int badpos = oob_config.badblock_pos;
@@ -367,16 +414,25 @@ int check_block(struct nand_chip* nand, unsigned long pos)
 	if (badpos < 0)
 		return 0;	/* no way to check, assume OK */
 
-	/* Note - bad block marker can be on first or second page */
-	if (nand_read_oob(nand, page0 + badpos, 1, &retlen, &oob_data) ||
-	    oob_data != 0xff ||
-	    nand_read_oob(nand, page1 + badpos, 1, &retlen, &oob_data) ||
-	    oob_data != 0xff)
-		return 1;
+	if (nand->bus16) {
+		if (nand_read_oob(nand, (page0 + 0), 12, &retlen, (uint8_t *)oob_data16)
+		    || (oob_data16[2] & 0xff00) != 0xff00)
+			return 1;
+		if (nand_read_oob(nand, (page1 + 0), 12, &retlen, (uint8_t *)oob_data16)
+		    || (oob_data16[2] & 0xff00) != 0xff00)
+			return 1;
+	} else {
+		/* Note - bad block marker can be on first or second page */
+		if (nand_read_oob(nand, page0 + badpos, 1, &retlen, (unsigned char *)&oob_data)
+		    || oob_data != 0xff
+		    || nand_read_oob (nand, page1 + badpos, 1, &retlen, (unsigned char *)&oob_data)
+		    || oob_data != 0xff)
+			return 1;
+	}
 
 	return 0;
 }
-	
+
 /* print bad blocks in NAND flash */
 static void nand_print_bad(struct nand_chip* nand)
 {
@@ -393,12 +449,13 @@ static void nand_print_bad(struct nand_chip* nand)
  *	1: NANDRW_READ			read, fail on bad block
  *	2: NANDRW_WRITE | NANDRW_JFFS2	write, skip bad blocks
  *	3: NANDRW_READ | NANDRW_JFFS2	read, data all 0xff for bad blocks
+ *      7: NANDRW_READ | NANDRW_JFFS2 | NANDRW_JFFS2_SKIP read, skip bad blocks
  */
-static int nand_rw (struct nand_chip* nand, int cmd,
+int nand_rw (struct nand_chip* nand, int cmd,
 	    size_t start, size_t len,
 	    size_t * retlen, u_char * buf)
 {
-	int noecc, ret = 0, n, total = 0;
+	int ret = 0, n, total = 0;
 	char eccbuf[6];
 	/* eblk (once set) is the start of the erase block containing the
 	 * data being processed.
@@ -422,13 +479,14 @@ static int nand_rw (struct nand_chip* nand, int cmd,
 						--len;
 					}
 					continue;
-				}
-				else if (cmd == (NANDRW_WRITE | NANDRW_JFFS2)) {
+				} else if (cmd == (NANDRW_READ | NANDRW_JFFS2 | NANDRW_JFFS2_SKIP)) {
+					start += erasesize;
+					continue;
+				} else if (cmd == (NANDRW_WRITE | NANDRW_JFFS2)) {
 					/* skip bad block */
 					start += erasesize;
 					continue;
-				}
-				else {
+				} else {
 					ret = 1;
 					break;
 				}
@@ -436,17 +494,19 @@ static int nand_rw (struct nand_chip* nand, int cmd,
 		}
 		/* The ECC will not be calculated correctly if
 		   less than 512 is written or read */
-		noecc = (start != (start | 0x1ff) + 1) ||	(len < 0x200);
-		if (cmd & NANDRW_READ)
+		/* Is request at least 512 bytes AND it starts on a proper boundry */
+		if((start != ROUND_DOWN(start, 0x200)) || (len < 0x200))
+			printf("Warning block writes should be at least 512 bytes and start on a 512 byte boundry\n");
+
+		if (cmd & NANDRW_READ) {
 			ret = nand_read_ecc(nand, start,
 					   min(len, eblk + erasesize - start),
-					   &n, (u_char*)buf,
-					   noecc ? NULL : eccbuf);
-		else
+					   (size_t *)&n, (u_char*)buf, (u_char *)eccbuf);
+		} else {
 			ret = nand_write_ecc(nand, start,
 					    min(len, eblk + erasesize - start),
-					    &n, (u_char*)buf,
-					    noecc ? NULL : eccbuf);
+					    (size_t *)&n, (u_char*)buf, (u_char *)eccbuf);
+		}
 
 		if (ret)
 			break;
@@ -473,7 +533,7 @@ static void nand_print(struct nand_chip *nand)
 		       nand->totlen >> 20, nand->erasesize >> 10);
 	}
 	else {
-		printf("%s at 0x%lx (", nand->chips_name, nand->IO_ADDR); 
+		printf("%s at 0x%lx (", nand->chips_name, nand->IO_ADDR);
 		print_size(nand->totlen, ", ");
 		print_size(nand->erasesize, " sector)\n");
 	}
@@ -481,19 +541,19 @@ static void nand_print(struct nand_chip *nand)
 
 /* ------------------------------------------------------------------------- */
 
-/* This function is needed to avoid calls of the __ashrdi3 function. */
-#if 0
-static int shr(int val, int shift)
-{
-	return val >> shift;
-}
-#endif
-static int NanD_WaitReady(struct nand_chip *nand)
+static int NanD_WaitReady(struct nand_chip *nand, int ale_wait)
 {
 	/* This is inline, to optimise the common case, where it's ready instantly */
 	int ret = 0;
-	NAND_WAIT_READY(nand);
 
+#ifdef NAND_NO_RB	/* in config file, shorter delays currently wrap accesses */
+	if(ale_wait)
+		NAND_WAIT_READY(nand);	/* do the worst case 25us wait */
+	else
+		udelay(10);
+#else	/* has functional r/b signal */
+	NAND_WAIT_READY(nand);
+#endif
 	return ret;
 }
 
@@ -512,7 +572,16 @@ static inline int NanD_Command(struct nand_chip *nand, unsigned char command)
 	/* Lower the CLE line */
 	NAND_CTL_CLRCLE(nandptr);
 
-	return NanD_WaitReady(nand);
+#ifdef NAND_NO_RB
+	if(command == NAND_CMD_RESET){
+		u_char ret_val;
+		NanD_Command(nand, NAND_CMD_STATUS);
+		do {
+			ret_val = READ_NAND(nandptr);/* wait till ready */
+		} while((ret_val & 0x40) != 0x40);
+	}
+#endif
+	return NanD_WaitReady(nand, 0);
 }
 
 /* NanD_Address: Set the current address for the flash chip */
@@ -544,15 +613,17 @@ static int NanD_Address(struct nand_chip *nand, int numbytes, unsigned long ofs)
 
 	ofs = ofs >> nand->page_shift;
 
-	if (numbytes == ADDR_PAGE || numbytes == ADDR_COLUMN_PAGE)
-		for (i = 0; i < nand->pageadrlen; i++, ofs = ofs >> 8)
+	if (numbytes == ADDR_PAGE || numbytes == ADDR_COLUMN_PAGE) {
+		for (i = 0; i < nand->pageadrlen; i++, ofs = ofs >> 8) {
 			WRITE_NAND_ADDRESS(ofs, nandptr);
+		}
+	}
 
 	/* Lower the ALE line */
 	NAND_CTL_CLRALE(nandptr);
 
 	/* Wait for the chip to respond */
-	return NanD_WaitReady(nand);
+	return NanD_WaitReady(nand, 1);
 }
 
 /* NanD_SelectChip: Select a given flash chip within the current floor */
@@ -560,7 +631,7 @@ static int NanD_Address(struct nand_chip *nand, int numbytes, unsigned long ofs)
 static inline int NanD_SelectChip(struct nand_chip *nand, int chip)
 {
 	/* Wait for it to be ready */
-	return NanD_WaitReady(nand);
+	return NanD_WaitReady(nand, 0);
 }
 
 /* NanD_IdentChip: Identify a given NAND chip given {floor,chip} */
@@ -599,10 +670,13 @@ static int NanD_IdentChip(struct nand_chip *nand, int floor, int chip)
 
 	id = READ_NAND(nand->IO_ADDR);
 
-        NAND_DISABLE_CE(nand);  /* set pin high */
-	/* No response - return failure */
+	NAND_DISABLE_CE(nand);  /* set pin high */
+
+#ifdef NAND_DEBUG
+	printf("NanD_Command (ReadID) got %x %x\n", mfr, id);
+#endif
 	if (mfr == 0xff || mfr == 0) {
-		printf("NanD_Command (ReadID) got %d %d\n", mfr, id);
+		/* No response - return failure */
 		return 0;
 	}
 
@@ -611,11 +685,12 @@ static int NanD_IdentChip(struct nand_chip *nand, int floor, int chip)
 	 * contain _one_ type of flash part, although that's not a
 	 * hardware restriction. */
 	if (nand->mfr) {
-		if (nand->mfr == mfr && nand->id == id)
+		if (nand->mfr == mfr && nand->id == id) {
 			return 1;	/* This is another the same the first */
-		else
+		} else {
 			printf("Flash chip at floor %d, chip %d is different:\n",
 			       floor, chip);
+		}
 	}
 
 	/* Print and store the manufacturer and ID codes. */
@@ -643,13 +718,11 @@ static int NanD_IdentChip(struct nand_chip *nand, int floor, int chip)
 					nand->oobsize = 16;
 					nand->page_shift = 9;
 				}
-				nand->pageadrlen =
-				    nand_flash_ids[i].pageadrlen;
-				nand->erasesize =
-				    nand_flash_ids[i].erasesize;
-				nand->chips_name =
-				    nand_flash_ids[i].name;
-				return 1;
+				nand->pageadrlen = nand_flash_ids[i].pageadrlen;
+				nand->erasesize  = nand_flash_ids[i].erasesize;
+				nand->chips_name = nand_flash_ids[i].name;
+				nand->bus16	 = nand_flash_ids[i].bus16;
+ 				return 1;
 			}
 			return 0;
 		}
@@ -695,7 +768,9 @@ static void NanD_ScanChips(struct nand_chip *nand)
 
 	/* If there are none at all that we recognise, bail */
 	if (!nand->numchips) {
-		puts ("No flash chips recognised.\n");
+#ifdef NAND_DEBUG
+		puts ("No NAND flash chips recognised.\n");
+#endif
 		return;
 	}
 
@@ -730,33 +805,74 @@ static void NanD_ScanChips(struct nand_chip *nand)
 }
 
 /* we need to be fast here, 1 us per read translates to 1 second per meg */
-static void NanD_ReadBuf(struct nand_chip *nand, u_char *data_buf, int cntr)
+static void NanD_ReadBuf (struct nand_chip *nand, u_char * data_buf, int cntr)
 {
 	unsigned long nandptr = nand->IO_ADDR;
 
-	while (cntr >= 16) {
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		*data_buf++ = READ_NAND(nandptr);
-		cntr -= 16;
-	}
+	NanD_Command (nand, NAND_CMD_READ0);
 
-	while (cntr > 0) {
-		*data_buf++ = READ_NAND(nandptr);
-		cntr--;
+	if (nand->bus16) {
+		u16 val;
+
+		while (cntr >= 16) {
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			cntr -= 16;
+		}
+
+		while (cntr > 0) {
+			val = READ_NAND (nandptr);
+			*data_buf++ = val & 0xff;
+			*data_buf++ = val >> 8;
+			cntr -= 2;
+		}
+	} else {
+		while (cntr >= 16) {
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			*data_buf++ = READ_NAND (nandptr);
+			cntr -= 16;
+		}
+
+		while (cntr > 0) {
+			*data_buf++ = READ_NAND (nandptr);
+			cntr--;
+		}
 	}
 }
 
@@ -777,7 +893,8 @@ static int nand_read_ecc(struct nand_chip *nand, size_t start, size_t len,
 
 	/* Do not allow reads past end of device */
 	if ((start + len) > nand->totlen) {
-		printf ("%s: Attempt read beyond end of device %x %x %x\n", __FUNCTION__, (uint) start, (uint) len, (uint) nand->totlen);
+		printf ("%s: Attempt read beyond end of device %x %x %x\n",
+			__FUNCTION__, (uint) start, (uint) len, (uint) nand->totlen);
 		*retlen = 0;
 		return -1;
 	}
@@ -798,25 +915,33 @@ static int nand_read_ecc(struct nand_chip *nand, size_t start, size_t len,
 	/* Loop until all data read */
 	while (*retlen < len) {
 
-
 #ifdef CONFIG_MTD_NAND_ECC
-
 		/* Do we have this page in cache ? */
 		if (nand->cache_page == page)
 			goto readdata;
 		/* Send the read command */
 		NanD_Command(nand, NAND_CMD_READ0);
-                NanD_Address(nand, ADDR_COLUMN_PAGE, (page << nand->page_shift) + col);
+		if (nand->bus16) {
+ 			NanD_Address(nand, ADDR_COLUMN_PAGE,
+				     (page << nand->page_shift) + (col >> 1));
+		} else {
+ 			NanD_Address(nand, ADDR_COLUMN_PAGE,
+				     (page << nand->page_shift) + col);
+		}
+
 		/* Read in a page + oob data */
 		NanD_ReadBuf(nand, nand->data_buf, nand->oobblock + nand->oobsize);
 
 		/* copy data into cache, for read out of cache and if ecc fails */
-		if (nand->data_cache)
-			memcpy (nand->data_cache, nand->data_buf, nand->oobblock + nand->oobsize);
+		if (nand->data_cache) {
+			memcpy (nand->data_cache, nand->data_buf,
+				nand->oobblock + nand->oobsize);
+		}
 
 		/* Pick the ECC bytes out of the oob data */
-		for (j = 0; j < 6; j++)
+		for (j = 0; j < 6; j++) {
 			ecc_code[j] = nand->data_buf[(nand->oobblock + oob_config.ecc_pos[j])];
+		}
 
 		/* Calculate the ECC and verify it */
 		/* If block was not written with ECC, skip ECC */
@@ -873,7 +998,14 @@ readdata:
 #else
 		/* Send the read command */
 		NanD_Command(nand, NAND_CMD_READ0);
-                NanD_Address(nand, ADDR_COLUMN_PAGE, (page << nand->page_shift) + col);
+		if (nand->bus16) {
+			NanD_Address(nand, ADDR_COLUMN_PAGE,
+				     (page << nand->page_shift) + (col >> 1));
+		} else {
+			NanD_Address(nand, ADDR_COLUMN_PAGE,
+				     (page << nand->page_shift) + col);
+		}
+
 		/* Read the data directly into the return buffer */
 		if ((*retlen + (nand->oobblock - col)) >= len) {
 			NanD_ReadBuf(nand, buf + *retlen, len - *retlen);
@@ -910,8 +1042,9 @@ static int nand_write_page (struct nand_chip *nand,
 {
 
 	int i;
-#ifdef CONFIG_MTD_NAND_ECC
 	unsigned long nandptr = nand->IO_ADDR;
+
+#ifdef CONFIG_MTD_NAND_ECC
 #ifdef CONFIG_MTD_NAND_VERIFY_WRITE
 	int ecc_bytes = (nand->oobblock == 512) ? 6 : 3;
 #endif
@@ -927,28 +1060,53 @@ static int nand_write_page (struct nand_chip *nand,
 
 	/* Read back previous written data, if col > 0 */
 	if (col) {
-		NanD_Command(nand, NAND_CMD_READ0);
-		NanD_Address(nand, ADDR_COLUMN_PAGE, (page << nand->page_shift) + col);
-		for (i = 0; i < col; i++)
-			nand->data_buf[i] = READ_NAND (nandptr);
+		NanD_Command (nand, NAND_CMD_READ0);
+		if (nand->bus16) {
+			NanD_Address (nand, ADDR_COLUMN_PAGE,
+				      (page << nand->page_shift) + (col >> 1));
+		} else {
+			NanD_Address (nand, ADDR_COLUMN_PAGE,
+				      (page << nand->page_shift) + col);
+		}
+
+		if (nand->bus16) {
+			u16 val;
+
+			for (i = 0; i < col; i += 2) {
+				val = READ_NAND (nandptr);
+				nand->data_buf[i] = val & 0xff;
+				nand->data_buf[i + 1] = val >> 8;
+			}
+		} else {
+			for (i = 0; i < col; i++)
+				nand->data_buf[i] = READ_NAND (nandptr);
+		}
 	}
 
 	/* Calculate and write the ECC if we have enough data */
 	if ((col < nand->eccsize) && (last >= nand->eccsize)) {
 		nand_calculate_ecc (&nand->data_buf[0], &(ecc_code[0]));
-		for (i = 0; i < 3; i++)
-			nand->data_buf[(nand->oobblock + oob_config.ecc_pos[i])] = ecc_code[i];
-		if (oob_config.eccvalid_pos != -1)
-			nand->data_buf[nand->oobblock + oob_config.eccvalid_pos] = 0xf0;
+		for (i = 0; i < 3; i++) {
+			nand->data_buf[(nand->oobblock +
+					oob_config.ecc_pos[i])] = ecc_code[i];
+		}
+		if (oob_config.eccvalid_pos != -1) {
+			nand->data_buf[nand->oobblock +
+				       oob_config.eccvalid_pos] = 0xf0;
+		}
 	}
 
 	/* Calculate and write the second ECC if we have enough data */
 	if ((nand->oobblock == 512) && (last == nand->oobblock)) {
 		nand_calculate_ecc (&nand->data_buf[256], &(ecc_code[3]));
-		for (i = 3; i < 6; i++)
-			nand->data_buf[(nand->oobblock + oob_config.ecc_pos[i])] = ecc_code[i];
-		if (oob_config.eccvalid_pos != -1)
-			nand->data_buf[nand->oobblock + oob_config.eccvalid_pos] &= 0x0f;
+		for (i = 3; i < 6; i++) {
+			nand->data_buf[(nand->oobblock +
+					oob_config.ecc_pos[i])] = ecc_code[i];
+		}
+		if (oob_config.eccvalid_pos != -1) {
+			nand->data_buf[nand->oobblock +
+				       oob_config.eccvalid_pos] &= 0x0f;
+		}
 	}
 #endif
 	/* Prepad for partial page programming !!! */
@@ -960,21 +1118,44 @@ static int nand_write_page (struct nand_chip *nand,
 		nand->data_buf[i] = 0xff;
 
 	/* Send command to begin auto page programming */
-	NanD_Command(nand, NAND_CMD_READ0);
-	NanD_Command(nand, NAND_CMD_SEQIN);
-	NanD_Address(nand, ADDR_COLUMN_PAGE, (page << nand->page_shift) + col);
+	NanD_Command (nand, NAND_CMD_READ0);
+	NanD_Command (nand, NAND_CMD_SEQIN);
+	if (nand->bus16) {
+		NanD_Address (nand, ADDR_COLUMN_PAGE,
+			      (page << nand->page_shift) + (col >> 1));
+	} else {
+		NanD_Address (nand, ADDR_COLUMN_PAGE,
+			      (page << nand->page_shift) + col);
+	}
 
 	/* Write out complete page of data */
-	for (i = 0; i < (nand->oobblock + nand->oobsize); i++)
-		WRITE_NAND(nand->data_buf[i], nand->IO_ADDR);
+	if (nand->bus16) {
+		for (i = 0; i < (nand->oobblock + nand->oobsize); i += 2) {
+			WRITE_NAND (nand->data_buf[i] +
+				    (nand->data_buf[i + 1] << 8),
+				    nand->IO_ADDR);
+		}
+	} else {
+		for (i = 0; i < (nand->oobblock + nand->oobsize); i++)
+			WRITE_NAND (nand->data_buf[i], nand->IO_ADDR);
+	}
 
 	/* Send command to actually program the data */
-	NanD_Command(nand, NAND_CMD_PAGEPROG);
-	NanD_Command(nand, NAND_CMD_STATUS);
+	NanD_Command (nand, NAND_CMD_PAGEPROG);
+	NanD_Command (nand, NAND_CMD_STATUS);
+#ifdef NAND_NO_RB
+	{
+		u_char ret_val;
 
+		do {
+			ret_val = READ_NAND (nandptr);	/* wait till ready */
+		} while ((ret_val & 0x40) != 0x40);
+	}
+#endif
 	/* See if device thinks it succeeded */
-	if (READ_NAND(nand->IO_ADDR) & 0x01) {
-		printf ("%s: Failed write, page 0x%08x, ", __FUNCTION__, page);
+	if (READ_NAND (nand->IO_ADDR) & 0x01) {
+		printf ("%s: Failed write, page 0x%08x, ", __FUNCTION__,
+			page);
 		return -1;
 	}
 #ifdef CONFIG_MTD_NAND_VERIFY_WRITE
@@ -993,16 +1174,34 @@ static int nand_write_page (struct nand_chip *nand,
 
 	/* Send command to read back the page */
 	if (col < nand->eccsize)
-		NanD_Command(nand, NAND_CMD_READ0);
+		NanD_Command (nand, NAND_CMD_READ0);
 	else
-		NanD_Command(nand, NAND_CMD_READ1);
-	NanD_Address(nand, ADDR_COLUMN_PAGE, (page << nand->page_shift) + col);
+		NanD_Command (nand, NAND_CMD_READ1);
+	if (nand->bus16) {
+		NanD_Address (nand, ADDR_COLUMN_PAGE,
+			      (page << nand->page_shift) + (col >> 1));
+	} else {
+		NanD_Address (nand, ADDR_COLUMN_PAGE,
+			      (page << nand->page_shift) + col);
+	}
 
 	/* Loop through and verify the data */
-	for (i = col; i < last; i++) {
-		if (nand->data_buf[i] != readb (nand->IO_ADDR)) {
-			printf ("%s: Failed write verify, page 0x%08x ", __FUNCTION__, page);
-			return -1;
+	if (nand->bus16) {
+		for (i = col; i < last; i = +2) {
+			if ((nand->data_buf[i] +
+			     (nand->data_buf[i + 1] << 8)) != READ_NAND (nand->IO_ADDR)) {
+				printf ("%s: Failed write verify, page 0x%08x ",
+					__FUNCTION__, page);
+				return -1;
+			}
+		}
+	} else {
+		for (i = col; i < last; i++) {
+			if (nand->data_buf[i] != READ_NAND (nand->IO_ADDR)) {
+				printf ("%s: Failed write verify, page 0x%08x ",
+					__FUNCTION__, page);
+				return -1;
+			}
 		}
 	}
 
@@ -1011,19 +1210,38 @@ static int nand_write_page (struct nand_chip *nand,
 	 * We also want to check that the ECC bytes wrote
 	 * correctly for the same reasons stated above.
 	 */
-	NanD_Command(nand, NAND_CMD_READOOB);
-	NanD_Address(nand, ADDR_COLUMN_PAGE, (page << nand->page_shift) + col);
-	for (i = 0; i < nand->oobsize; i++)
-		nand->data_buf[i] = readb (nand->IO_ADDR);
+	NanD_Command (nand, NAND_CMD_READOOB);
+	if (nand->bus16) {
+		NanD_Address (nand, ADDR_COLUMN_PAGE,
+			      (page << nand->page_shift) + (col >> 1));
+	} else {
+		NanD_Address (nand, ADDR_COLUMN_PAGE,
+			      (page << nand->page_shift) + col);
+	}
+	if (nand->bus16) {
+		for (i = 0; i < nand->oobsize; i += 2) {
+			u16 val;
+
+			val = READ_NAND (nand->IO_ADDR);
+			nand->data_buf[i] = val & 0xff;
+			nand->data_buf[i + 1] = val >> 8;
+		}
+	} else {
+		for (i = 0; i < nand->oobsize; i++) {
+			nand->data_buf[i] = READ_NAND (nand->IO_ADDR);
+		}
+	}
 	for (i = 0; i < ecc_bytes; i++) {
 		if ((nand->data_buf[(oob_config.ecc_pos[i])] != ecc_code[i]) && ecc_code[i]) {
 			printf ("%s: Failed ECC write "
-			       "verify, page 0x%08x, " "%6i bytes were succesful\n", __FUNCTION__, page, i);
+				"verify, page 0x%08x, "
+				"%6i bytes were succesful\n",
+				__FUNCTION__, page, i);
 			return -1;
 		}
 	}
-#endif
-#endif
+#endif	/* CONFIG_MTD_NAND_ECC */
+#endif	/* CONFIG_MTD_NAND_VERIFY_WRITE */
 	return 0;
 }
 
@@ -1048,7 +1266,14 @@ static int nand_write_ecc (struct nand_chip* nand, size_t to, size_t len,
 	*retlen = 0;
 
 	/* Select the NAND device */
-	NAND_ENABLE_CE(nand);  /* set pin low */
+#ifdef CONFIG_OMAP1510
+	archflashwp(0,0);
+#endif
+#ifdef CFG_NAND_WP
+	NAND_WP_OFF();
+#endif
+
+    	NAND_ENABLE_CE(nand);  /* set pin low */
 
 	/* Check the WP bit */
 	NanD_Command(nand, NAND_CMD_STATUS);
@@ -1065,12 +1290,15 @@ static int nand_write_ecc (struct nand_chip* nand, size_t to, size_t len,
 			nand->cache_page = -1;
 
 		/* Write data into buffer */
-		if ((col + len) >= nand->oobblock)
-			for (i = col, cnt = 0; i < nand->oobblock; i++, cnt++)
+		if ((col + len) >= nand->oobblock) {
+			for (i = col, cnt = 0; i < nand->oobblock; i++, cnt++) {
 				nand->data_buf[i] = buf[(*retlen + cnt)];
-		else
-			for (i = col, cnt = 0; cnt < (len - *retlen); i++, cnt++)
+			}
+		} else {
+			for (i = col, cnt = 0; cnt < (len - *retlen); i++, cnt++) {
 				nand->data_buf[i] = buf[(*retlen + cnt)];
+			}
+		}
 		/* We use the same function for write and writev !) */
 		ret = nand_write_page (nand, page, col, i, ecc_code);
 		if (ret)
@@ -1092,6 +1320,12 @@ static int nand_write_ecc (struct nand_chip* nand, size_t to, size_t len,
 out:
 	/* De-select the NAND device */
 	NAND_DISABLE_CE(nand);  /* set pin high */
+#ifdef CONFIG_OMAP1510
+    	archflashwp(0,1);
+#endif
+#ifdef CFG_NAND_WP
+	NAND_WP_ON();
+#endif
 
 	return ret;
 }
@@ -1119,7 +1353,13 @@ static int nand_read_oob(struct nand_chip* nand, size_t ofs, size_t len,
 
 	NAND_ENABLE_CE(nand);  /* set pin low */
 	NanD_Command(nand, NAND_CMD_READOOB);
-	NanD_Address(nand, ADDR_COLUMN_PAGE, ofs);
+	if (nand->bus16) {
+ 		NanD_Address(nand, ADDR_COLUMN_PAGE,
+			     ((ofs >> nand->page_shift) << nand->page_shift) +
+ 				((ofs & (nand->oobblock - 1)) >> 1));
+	} else {
+		NanD_Address(nand, ADDR_COLUMN_PAGE, ofs);
+	}
 
 	/* treat crossing 8-byte OOB data for 2M x 8bit devices */
 	/* Note: datasheet says it should automaticaly wrap to the */
@@ -1136,11 +1376,11 @@ static int nand_read_oob(struct nand_chip* nand, size_t ofs, size_t len,
 
 	*retlen = len;
 	/* Reading the full OOB data drops us off of the end of the page,
-         * causing the flash device to go into busy mode, so we need
-         * to wait until ready 11.4.1 and Toshiba TC58256FT nands */
+	 * causing the flash device to go into busy mode, so we need
+	 * to wait until ready 11.4.1 and Toshiba TC58256FT nands */
 
-	ret = NanD_WaitReady(nand);
-        NAND_DISABLE_CE(nand);  /* set pin high */
+	ret = NanD_WaitReady(nand, 1);
+	NAND_DISABLE_CE(nand);  /* set pin high */
 
 	return ret;
 
@@ -1169,7 +1409,13 @@ static int nand_write_oob(struct nand_chip* nand, size_t ofs, size_t len,
 
 	/* issue the Read2 command to set the pointer to the Spare Data Area. */
 	NanD_Command(nand, NAND_CMD_READOOB);
-	NanD_Address(nand, ADDR_COLUMN_PAGE, ofs);
+	if (nand->bus16) {
+ 		NanD_Address(nand, ADDR_COLUMN_PAGE,
+			     ((ofs >> nand->page_shift) << nand->page_shift) +
+ 				((ofs & (nand->oobblock - 1)) >> 1));
+	} else {
+ 		NanD_Address(nand, ADDR_COLUMN_PAGE, ofs);
+	}
 
 	/* update address for 2M x 8bit devices. OOB starts on the second */
 	/* page to maintain compatibility with nand_read_ecc. */
@@ -1182,7 +1428,13 @@ static int nand_write_oob(struct nand_chip* nand, size_t ofs, size_t len,
 
 	/* issue the Serial Data In command to initial the Page Program process */
 	NanD_Command(nand, NAND_CMD_SEQIN);
-	NanD_Address(nand, ADDR_COLUMN_PAGE, ofs);
+	if (nand->bus16) {
+ 		NanD_Address(nand, ADDR_COLUMN_PAGE,
+			     ((ofs >> nand->page_shift) << nand->page_shift) +
+ 				((ofs & (nand->oobblock - 1)) >> 1));
+	} else {
+ 		NanD_Address(nand, ADDR_COLUMN_PAGE, ofs);
+	}
 
 	/* treat crossing 8-byte OOB data for 2M x 8bit devices */
 	/* Note: datasheet says it should automaticaly wrap to the */
@@ -1194,8 +1446,13 @@ static int nand_write_oob(struct nand_chip* nand, size_t ofs, size_t len,
 
 		NanD_Command(nand, NAND_CMD_PAGEPROG);
 		NanD_Command(nand, NAND_CMD_STATUS);
-		/* NanD_WaitReady() is implicit in NanD_Command */
-
+#ifdef NAND_NO_RB
+   		{ u_char ret_val;
+			do {
+				ret_val = READ_NAND(nandptr); /* wait till ready */
+			} while ((ret_val & 0x40) != 0x40);
+		}
+#endif
 		if (READ_NAND(nandptr) & 1) {
 			puts ("Error programming oob data\n");
 			/* There was an error */
@@ -1207,13 +1464,24 @@ static int nand_write_oob(struct nand_chip* nand, size_t ofs, size_t len,
 		NanD_Address(nand, ADDR_COLUMN_PAGE, ofs & (~0x1ff));
 	}
 
-	for (i = len256; i < len; i++)
-		WRITE_NAND(buf[i], nandptr);
+	if (nand->bus16) {
+		for (i = len256; i < len; i += 2) {
+			WRITE_NAND(buf[i] + (buf[i+1] << 8), nandptr);
+		}
+	} else {
+		for (i = len256; i < len; i++)
+			WRITE_NAND(buf[i], nandptr);
+	}
 
 	NanD_Command(nand, NAND_CMD_PAGEPROG);
 	NanD_Command(nand, NAND_CMD_STATUS);
-	/* NanD_WaitReady() is implicit in NanD_Command */
-
+#ifdef NAND_NO_RB
+	{	u_char ret_val;
+		do {
+			ret_val = READ_NAND(nandptr); /* wait till ready */
+		} while ((ret_val & 0x40) != 0x40);
+	}
+#endif
 	if (READ_NAND(nandptr) & 1) {
 		puts ("Error programming oob data\n");
 		/* There was an error */
@@ -1228,7 +1496,7 @@ static int nand_write_oob(struct nand_chip* nand, size_t ofs, size_t len,
 
 }
 
-static int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean)
+int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean)
 {
 	/* This is defined as a structure so it will work on any system
 	 * using native endian jffs2 (the default).
@@ -1244,14 +1512,20 @@ static int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean)
 
 	if (ofs & (nand->erasesize-1) || len & (nand->erasesize-1)) {
 		printf ("Offset and size must be sector aligned, erasesize = %d\n",
-                        (int) nand->erasesize);
+			(int) nand->erasesize);
 		return -1;
 	}
 
 	nandptr = nand->IO_ADDR;
 
 	/* Select the NAND device */
-	NAND_ENABLE_CE(nand);  /* set pin low */
+#ifdef CONFIG_OMAP1510
+	archflashwp(0,0);
+#endif
+#ifdef CFG_NAND_WP
+	NAND_WP_OFF();
+#endif
+    NAND_ENABLE_CE(nand);  /* set pin low */
 
 	/* Check the WP bit */
 	NanD_Command(nand, NAND_CMD_STATUS);
@@ -1287,6 +1561,13 @@ static int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean)
 
 			NanD_Command(nand, NAND_CMD_STATUS);
 
+#ifdef NAND_NO_RB
+			{	u_char ret_val;
+				do {
+					ret_val = READ_NAND(nandptr); /* wait till ready */
+				} while ((ret_val & 0x40) != 0x40);
+			}
+#endif
 			if (READ_NAND(nandptr) & 1) {
 				printf ("%s: Error erasing at 0x%lx\n",
 					__FUNCTION__, (long)ofs);
@@ -1305,13 +1586,12 @@ static int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean)
 				if (nand->page256) {
 					p = NAND_JFFS2_OOB8_FSDAPOS;
 					l = NAND_JFFS2_OOB8_FSDALEN;
-				}
-				else {
+				} else {
 					p = NAND_JFFS2_OOB16_FSDAPOS;
 					l = NAND_JFFS2_OOB16_FSDALEN;
 				}
 
-				ret = nand_write_oob(nand, ofs + p, l, &n,
+				ret = nand_write_oob(nand, ofs + p, l, (size_t *)&n,
 						     (u_char *)&clean_marker);
 				/* quit here if write failed */
 				if (ret)
@@ -1325,6 +1605,12 @@ static int nand_erase(struct nand_chip* nand, size_t ofs, size_t len, int clean)
 out:
 	/* De-select the NAND device */
 	NAND_DISABLE_CE(nand);  /* set pin high */
+#ifdef CONFIG_OMAP1510
+    	archflashwp(0,1);
+#endif
+#ifdef CFG_NAND_WP
+	NAND_WP_ON();
+#endif
 
 	return ret;
 }
@@ -1334,7 +1620,7 @@ static inline int nandcheck(unsigned long potential, unsigned long physadr)
 	return 0;
 }
 
-void nand_probe(unsigned long physadr)
+unsigned long nand_probe(unsigned long physadr)
 {
 	struct nand_chip *nand = NULL;
 	int i = 0, ChipID = 1;
@@ -1360,10 +1646,12 @@ void nand_probe(unsigned long physadr)
 
 	for (i=0; i<CFG_MAX_NAND_DEVICE; i++) {
 		if (nand_dev_desc[i].ChipID == NAND_ChipID_UNKNOWN) {
-			nand = nand_dev_desc + i;
+			nand = &nand_dev_desc[i];
 			break;
 		}
 	}
+	if (!nand)
+		return (0);
 
 	memset((char *)nand, 0, sizeof(struct nand_chip));
 
@@ -1375,7 +1663,7 @@ void nand_probe(unsigned long physadr)
 		/* no chips found, clean up and quit */
 		memset((char *)nand, 0, sizeof(struct nand_chip));
 		nand->ChipID = NAND_ChipID_UNKNOWN;
-		return;
+		return (0);
 	}
 
 	nand->ChipID = ChipID;
@@ -1385,8 +1673,10 @@ void nand_probe(unsigned long physadr)
 	nand->data_buf = malloc (nand->oobblock + nand->oobsize);
 	if (!nand->data_buf) {
 		puts ("Cannot allocate memory for data structures.\n");
-		return;
+		return (0);
 	}
+
+	return (nand->totlen);
 }
 
 #ifdef CONFIG_MTD_NAND_ECC
@@ -1394,22 +1684,38 @@ void nand_probe(unsigned long physadr)
  * Pre-calculated 256-way 1 byte column parity
  */
 static const u_char nand_ecc_precalc_table[] = {
-	0x00, 0x55, 0x56, 0x03, 0x59, 0x0c, 0x0f, 0x5a, 0x5a, 0x0f, 0x0c, 0x59, 0x03, 0x56, 0x55, 0x00,
-	0x65, 0x30, 0x33, 0x66, 0x3c, 0x69, 0x6a, 0x3f, 0x3f, 0x6a, 0x69, 0x3c, 0x66, 0x33, 0x30, 0x65,
-	0x66, 0x33, 0x30, 0x65, 0x3f, 0x6a, 0x69, 0x3c, 0x3c, 0x69, 0x6a, 0x3f, 0x65, 0x30, 0x33, 0x66,
-	0x03, 0x56, 0x55, 0x00, 0x5a, 0x0f, 0x0c, 0x59, 0x59, 0x0c, 0x0f, 0x5a, 0x00, 0x55, 0x56, 0x03,
-	0x69, 0x3c, 0x3f, 0x6a, 0x30, 0x65, 0x66, 0x33, 0x33, 0x66, 0x65, 0x30, 0x6a, 0x3f, 0x3c, 0x69,
-	0x0c, 0x59, 0x5a, 0x0f, 0x55, 0x00, 0x03, 0x56, 0x56, 0x03, 0x00, 0x55, 0x0f, 0x5a, 0x59, 0x0c,
-	0x0f, 0x5a, 0x59, 0x0c, 0x56, 0x03, 0x00, 0x55, 0x55, 0x00, 0x03, 0x56, 0x0c, 0x59, 0x5a, 0x0f,
-	0x6a, 0x3f, 0x3c, 0x69, 0x33, 0x66, 0x65, 0x30, 0x30, 0x65, 0x66, 0x33, 0x69, 0x3c, 0x3f, 0x6a,
-	0x6a, 0x3f, 0x3c, 0x69, 0x33, 0x66, 0x65, 0x30, 0x30, 0x65, 0x66, 0x33, 0x69, 0x3c, 0x3f, 0x6a,
-	0x0f, 0x5a, 0x59, 0x0c, 0x56, 0x03, 0x00, 0x55, 0x55, 0x00, 0x03, 0x56, 0x0c, 0x59, 0x5a, 0x0f,
-	0x0c, 0x59, 0x5a, 0x0f, 0x55, 0x00, 0x03, 0x56, 0x56, 0x03, 0x00, 0x55, 0x0f, 0x5a, 0x59, 0x0c,
-	0x69, 0x3c, 0x3f, 0x6a, 0x30, 0x65, 0x66, 0x33, 0x33, 0x66, 0x65, 0x30, 0x6a, 0x3f, 0x3c, 0x69,
-	0x03, 0x56, 0x55, 0x00, 0x5a, 0x0f, 0x0c, 0x59, 0x59, 0x0c, 0x0f, 0x5a, 0x00, 0x55, 0x56, 0x03,
-	0x66, 0x33, 0x30, 0x65, 0x3f, 0x6a, 0x69, 0x3c, 0x3c, 0x69, 0x6a, 0x3f, 0x65, 0x30, 0x33, 0x66,
-	0x65, 0x30, 0x33, 0x66, 0x3c, 0x69, 0x6a, 0x3f, 0x3f, 0x6a, 0x69, 0x3c, 0x66, 0x33, 0x30, 0x65,
-	0x00, 0x55, 0x56, 0x03, 0x59, 0x0c, 0x0f, 0x5a, 0x5a, 0x0f, 0x0c, 0x59, 0x03, 0x56, 0x55, 0x00
+	0x00, 0x55, 0x56, 0x03, 0x59, 0x0c, 0x0f, 0x5a,
+	0x5a, 0x0f, 0x0c, 0x59, 0x03, 0x56, 0x55, 0x00,
+	0x65, 0x30, 0x33, 0x66, 0x3c, 0x69, 0x6a, 0x3f,
+	0x3f, 0x6a, 0x69, 0x3c, 0x66, 0x33, 0x30, 0x65,
+	0x66, 0x33, 0x30, 0x65, 0x3f, 0x6a, 0x69, 0x3c,
+	0x3c, 0x69, 0x6a, 0x3f, 0x65, 0x30, 0x33, 0x66,
+	0x03, 0x56, 0x55, 0x00, 0x5a, 0x0f, 0x0c, 0x59,
+	0x59, 0x0c, 0x0f, 0x5a, 0x00, 0x55, 0x56, 0x03,
+	0x69, 0x3c, 0x3f, 0x6a, 0x30, 0x65, 0x66, 0x33,
+	0x33, 0x66, 0x65, 0x30, 0x6a, 0x3f, 0x3c, 0x69,
+	0x0c, 0x59, 0x5a, 0x0f, 0x55, 0x00, 0x03, 0x56,
+	0x56, 0x03, 0x00, 0x55, 0x0f, 0x5a, 0x59, 0x0c,
+	0x0f, 0x5a, 0x59, 0x0c, 0x56, 0x03, 0x00, 0x55,
+	0x55, 0x00, 0x03, 0x56, 0x0c, 0x59, 0x5a, 0x0f,
+	0x6a, 0x3f, 0x3c, 0x69, 0x33, 0x66, 0x65, 0x30,
+	0x30, 0x65, 0x66, 0x33, 0x69, 0x3c, 0x3f, 0x6a,
+	0x6a, 0x3f, 0x3c, 0x69, 0x33, 0x66, 0x65, 0x30,
+	0x30, 0x65, 0x66, 0x33, 0x69, 0x3c, 0x3f, 0x6a,
+	0x0f, 0x5a, 0x59, 0x0c, 0x56, 0x03, 0x00, 0x55,
+	0x55, 0x00, 0x03, 0x56, 0x0c, 0x59, 0x5a, 0x0f,
+	0x0c, 0x59, 0x5a, 0x0f, 0x55, 0x00, 0x03, 0x56,
+	0x56, 0x03, 0x00, 0x55, 0x0f, 0x5a, 0x59, 0x0c,
+	0x69, 0x3c, 0x3f, 0x6a, 0x30, 0x65, 0x66, 0x33,
+	0x33, 0x66, 0x65, 0x30, 0x6a, 0x3f, 0x3c, 0x69,
+	0x03, 0x56, 0x55, 0x00, 0x5a, 0x0f, 0x0c, 0x59,
+	0x59, 0x0c, 0x0f, 0x5a, 0x00, 0x55, 0x56, 0x03,
+	0x66, 0x33, 0x30, 0x65, 0x3f, 0x6a, 0x69, 0x3c,
+	0x3c, 0x69, 0x6a, 0x3f, 0x65, 0x30, 0x33, 0x66,
+	0x65, 0x30, 0x33, 0x66, 0x3c, 0x69, 0x6a, 0x3f,
+	0x3f, 0x6a, 0x69, 0x3c, 0x66, 0x33, 0x30, 0x65,
+	0x00, 0x55, 0x56, 0x03, 0x59, 0x0c, 0x0f, 0x5a,
+	0x5a, 0x0f, 0x0c, 0x59, 0x03, 0x56, 0x55, 0x00
 };
 
 
@@ -1502,8 +1808,7 @@ static int nand_correct_data (u_char *dat, u_char *read_ecc, u_char *calc_ecc)
 	if ((d1 | d2 | d3) == 0) {
 		/* No errors */
 		return 0;
-	}
-	else {
+	} else {
 		a = (d1 ^ (d1 >> 1)) & 0x55;
 		b = (d2 ^ (d2 >> 1)) & 0x55;
 		c = (d3 ^ (d3 >> 1)) & 0x54;
@@ -1575,5 +1880,19 @@ static int nand_correct_data (u_char *dat, u_char *read_ecc, u_char *calc_ecc)
 	/* Should never happen */
 	return -1;
 }
+
 #endif
+
+#ifdef CONFIG_JFFS2_NAND
+
+int read_jffs2_nand(size_t start, size_t len,
+		    size_t * retlen, u_char * buf, int nanddev)
+{
+	return nand_rw(nand_dev_desc + nanddev, NANDRW_READ | NANDRW_JFFS2,
+		       start, len, retlen, buf);
+}
+
+#endif /* CONFIG_JFFS2_NAND */
+
+
 #endif /* (CONFIG_COMMANDS & CFG_CMD_NAND) */

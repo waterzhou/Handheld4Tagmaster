@@ -91,7 +91,7 @@ const uint sdram_table[] =
 
 int checkboard (void)
 {
-	unsigned char *s = getenv ("serial#");
+	unsigned char *s = (unsigned char *)getenv ("serial#");
 
 	puts ("Board: TTTech C2MON ");
 
@@ -155,7 +155,7 @@ long int initdram (int board_type)
 	 * try 8 column mode
 	 */
 	size8 = dram_size (CFG_MAMR_8COL,
-			   (ulong *)SDRAM_BASE2_PRELIM,
+			   SDRAM_BASE2_PRELIM,
 			   SDRAM_MAX_SIZE);
 
 	udelay (1000);
@@ -164,7 +164,7 @@ long int initdram (int board_type)
 	 * try 9 column mode
 	 */
 	size9 = dram_size (CFG_MAMR_9COL,
-			   (ulong *) SDRAM_BASE2_PRELIM,
+			   SDRAM_BASE2_PRELIM,
 			   SDRAM_MAX_SIZE);
 
 	if (size8 < size9) {		/* leave configuration at 9 columns */
@@ -227,40 +227,8 @@ static long int dram_size (long int mamr_value, long int *base,
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	volatile long int *addr;
-	ulong cnt, val;
-	ulong save[32];			/* to make test non-destructive */
-	unsigned char i = 0;
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;	/* pointer arith! */
-
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	save[i] = *addr;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = base + cnt;	/* pointer arith! */
-
-		val = *addr;
-		*addr = save[--i];
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (get_ram_size(base, maxsize));
 }

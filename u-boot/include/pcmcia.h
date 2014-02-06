@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000
+ * (C) Copyright 2000-2004
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -40,10 +40,10 @@
 					/* The RPX series use SLOT_B	*/
 #if defined(CONFIG_RPXCLASSIC) || defined(CONFIG_RPXLITE)
 # define CONFIG_PCMCIA_SLOT_B
-#elif defined(CONFIG_ADS)		/* The ADS  board use SLOT_A	*/
+#elif defined(CONFIG_ADS)		/* The ADS  board uses SLOT_A	*/
 # define CONFIG_PCMCIA_SLOT_A
 #elif defined(CONFIG_FADS)		/* The FADS series are a mess	*/
-# if defined(CONFIG_MPC860T) || defined(CONFIG_MPC860) || defined(CONFIG_MPC821)
+# if defined(CONFIG_MPC86x) || defined(CONFIG_MPC821)
 #  define CONFIG_PCMCIA_SLOT_A
 # else
 #  define CONFIG_PCMCIA_SLOT_B
@@ -64,6 +64,10 @@
 # define CONFIG_PCMCIA_SLOT_B
 #elif defined(CONFIG_ATC)		/* The ATC use SLOT_A	*/
 # define CONFIG_PCMCIA_SLOT_A
+#elif defined(CONFIG_NETTA)
+# define CONFIG_PCMCIA_SLOT_A
+#elif defined(CONFIG_UC100)		/* The UC100 use SLOT_B	        */
+# define CONFIG_PCMCIA_SLOT_B
 #else
 # error "PCMCIA Slot not configured"
 #endif

@@ -106,7 +106,7 @@
 
 /* #define CONFIG_TULIP */
 /* #define CONFIG_EEPRO100 */
-#define CONFIG_NATSEMI  
+#define CONFIG_NATSEMI
 
 #define PCI_ENET0_IOADDR		0x80000000
 #define PCI_ENET0_MEMADDR		0x80000000
@@ -114,6 +114,8 @@
 #define PCI_ENET1_MEMADDR		0x81000000
 #define PCI_ENET2_IOADDR		0x82000000
 #define PCI_ENET2_MEMADDR		0x82000000
+#define PCI_ENET3_IOADDR		0x83000000
+#define PCI_ENET3_MEMADDR		0x83000000
 
 
 /*-----------------------------------------------------------------------
@@ -318,7 +320,5 @@
  */
 #define BOOTFLAG_COLD		0x01	/* Normal Power-On: Boot from FLASH	*/
 #define BOOTFLAG_WARM		0x02	/* Software reboot			*/
-
-
 
 #endif	/* __CONFIG_H */

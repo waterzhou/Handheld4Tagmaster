@@ -57,7 +57,7 @@ extern void zuma_mbox_init(void);
 
 /* Unfortunately, we cant change it while we are in flash, so we initialize it
  * to the "final" value. This means that any debug_led calls before
- * board_pre_init wont work right (like in cpu_init_f).
+ * board_early_init_f wont work right (like in cpu_init_f).
  * See also my_remap_gt_regs below. (NTL)
  */
 
@@ -182,11 +182,11 @@ gt_cpu_config(void)
 }
 
 /*
- * board_pre_init.
+ * board_early_init_f.
  *
  * set up gal. device mappings, etc.
  */
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	uchar sram_boot = 0;
 
@@ -218,18 +218,18 @@ int board_pre_init (void)
 
 	/* ----- DEVICE BUS SETTINGS ------ */
 
-        /*
+	/*
 	 * EVB
-         * 0 - SRAM
-         * 1 - RTC
-         * 2 - UART
-         * 3 - Flash
-         * boot - BootCS
+	 * 0 - SRAM
+	 * 1 - RTC
+	 * 2 - UART
+	 * 3 - Flash
+	 * boot - BootCS
 	 *
 	 * Zuma
 	 * 0 - Flash
 	 * boot - BootCS
-         */
+	 */
 
 	/*
 	 * the dual 7450 module requires burst access to the boot
@@ -237,7 +237,7 @@ int board_pre_init (void)
 	 * on-board sram on the eval board, and updates the correct
 	 * registers to boot from the sram. (device0)
 	 */
-#ifdef CONFIG_ZUMA_V2
+#if defined(CONFIG_ZUMA_V2) || defined(CONFIG_P3G4)
 	/* Zuma has no SRAM */
 	sram_boot = 0;
 #else
@@ -265,6 +265,7 @@ int board_pre_init (void)
 	GT_REG_WRITE(DEVICE_BANK2PARAMETERS, CFG_DEV2_PAR);
 #endif
 
+#ifdef CONFIG_EVB64260
 #ifdef CFG_32BIT_BOOT_PAR
 	/* detect if we are booting from the 32 bit flash */
 	if (GTREGREAD(DEVICE_BOOT_BANK_PARAMETERS) & (0x3 << 20)) {
@@ -279,6 +280,11 @@ int board_pre_init (void)
 #else
 	/* 8 bit boot flash only */
 	GT_REG_WRITE(DEVICE_BOOT_BANK_PARAMETERS, CFG_8BIT_BOOT_PAR);
+#endif
+#else /* CONFIG_EVB64260 not defined */
+		/* We are booting from 16-bit flash.
+		 */
+	GT_REG_WRITE(DEVICE_BOOT_BANK_PARAMETERS, CFG_16BIT_BOOT_PAR);
 #endif
 
 	gt_cpu_config();
@@ -329,7 +335,7 @@ after_reloc(ulong dest_addr)
 	}
 
 	/* now, jump to the main U-Boot board init code */
-	board_init_r (gd, dest_addr);
+	board_init_r ((gd_t *)gd, dest_addr);
 
 	/* NOTREACHED */
 }
@@ -351,41 +357,41 @@ checkboard (void)
 void
 debug_led(int led, int mode)
 {
-#ifndef CONFIG_ZUMA_V2
-        volatile int *addr = NULL;
-        int dummy;
+#if !defined(CONFIG_ZUMA_V2) && !defined(CONFIG_P3G4)
+	volatile int *addr = NULL;
+	int dummy;
 
-        if (mode == 1) {
-                switch (led) {
-                case 0:
-                        addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x08000);
-                        break;
+	if (mode == 1) {
+		switch (led) {
+		case 0:
+			addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x08000);
+			break;
 
-                case 1:
-                        addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x0c000);
-                        break;
+		case 1:
+			addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x0c000);
+			break;
 
-                case 2:
-                        addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x10000);
-                        break;
-                }
-        } else if (mode == 0) {
-                switch (led) {
-                case 0:
-                        addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x14000);
-                        break;
+		case 2:
+			addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x10000);
+			break;
+		}
+	} else if (mode == 0) {
+		switch (led) {
+		case 0:
+			addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x14000);
+			break;
 
-                case 1:
-                        addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x18000);
-                        break;
+		case 1:
+			addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x18000);
+			break;
 
-                case 2:
-                        addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x1c000);
-                        break;
-                }
-        }
+		case 2:
+			addr = (int *)((unsigned int)CFG_DEV1_SPACE | 0x1c000);
+			break;
+		}
+	}
 	WRITE_CHAR(addr, 0);
-        dummy = *addr;
+	dummy = *addr;
 #endif /* CONFIG_ZUMA_V2 */
 }
 
@@ -436,4 +442,3 @@ display_mem_map(void)
     printf(" BOOT:  base - 0x%08x\tsize - %dM bytes\twidth - %d bits\n",
 	   base, size>>20, width);
 }
-

@@ -24,7 +24,6 @@
 #include <common.h>
 #include <command.h>
 #include <ide.h>
-#include <cmd_disk.h>
 
 #undef	PART_DEBUG
 
@@ -34,7 +33,11 @@
 #define PRINTF(fmt,args...)
 #endif
 
-#if (CONFIG_COMMANDS & CFG_CMD_IDE) || (CONFIG_COMMANDS & CFG_CMD_SCSI)
+#if ((CONFIG_COMMANDS & CFG_CMD_IDE)	|| \
+     (CONFIG_COMMANDS & CFG_CMD_SCSI)	|| \
+     (CONFIG_COMMANDS & CFG_CMD_USB)	|| \
+     defined(CONFIG_MMC) || \
+     defined(CONFIG_SYSTEMACE) )
 
 /* ------------------------------------------------------------------------- */
 /*
@@ -42,7 +45,11 @@
  */
 void dev_print (block_dev_desc_t *dev_desc)
 {
-	ulong lba512; /* number of blocks if 512bytes block size */
+#ifdef CONFIG_LBA48
+	uint64_t lba512; /* number of blocks if 512bytes block size */
+#else
+	lbaint_t lba512;
+#endif
 
 	if (dev_desc->type==DEV_TYPE_UNKNOWN) {
 		puts ("not available\n");
@@ -80,9 +87,11 @@ void dev_print (block_dev_desc_t *dev_desc)
 	puts ("\n");
 	if ((dev_desc->lba * dev_desc->blksz)>0L) {
 		ulong mb, mb_quot, mb_rem, gb, gb_quot, gb_rem;
+		lbaint_t lba;
 
-		lba512 = (dev_desc->lba * (dev_desc->blksz/512));
+		lba = dev_desc->lba;
 
+		lba512 = (lba * (dev_desc->blksz/512));
 		mb = (10 * lba512) / 2048;	/* 2048 = (1024 * 1024) / 512 MB */
 		/* round to 1 digit */
 		mb_quot	= mb / 10;
@@ -91,23 +100,38 @@ void dev_print (block_dev_desc_t *dev_desc)
 		gb = mb / 1024;
 		gb_quot	= gb / 10;
 		gb_rem	= gb - (10 * gb_quot);
-
+#ifdef CONFIG_LBA48
+		if (dev_desc->lba48)
+			printf ("            Supports 48-bit addressing\n");
+#endif
+#if defined(CFG_64BIT_LBA) && defined(CFG_64BIT_VSPRINTF)
+		printf ("            Capacity: %ld.%ld MB = %ld.%ld GB (%qd x %ld)\n",
+			mb_quot, mb_rem,
+			gb_quot, gb_rem,
+			lba,
+			dev_desc->blksz);
+#else
 		printf ("            Capacity: %ld.%ld MB = %ld.%ld GB (%ld x %ld)\n",
 			mb_quot, mb_rem,
 			gb_quot, gb_rem,
-			dev_desc->lba,
+			(ulong)lba,
 			dev_desc->blksz);
+#endif
 	} else {
 		puts ("            Capacity: not available\n");
 	}
 }
+#endif	/* CFG_CMD_IDE || CFG_CMD_SCSI || CFG_CMD_USB || CONFIG_MMC */
 
-
+#if ((CONFIG_COMMANDS & CFG_CMD_IDE)	|| \
+     (CONFIG_COMMANDS & CFG_CMD_SCSI)	|| \
+     (CONFIG_COMMANDS & CFG_CMD_USB)	|| \
+     defined(CONFIG_SYSTEMACE)          )
 
 #if defined(CONFIG_MAC_PARTITION) || \
     defined(CONFIG_DOS_PARTITION) || \
     defined(CONFIG_ISO_PARTITION) || \
-    defined(CONFIG_AMIGA_PARTITION) 
+    defined(CONFIG_AMIGA_PARTITION)
 
 void init_part (block_dev_desc_t * dev_desc)
 {

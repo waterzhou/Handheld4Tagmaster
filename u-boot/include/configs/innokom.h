@@ -31,12 +31,6 @@
 #define __CONFIG_H
 
 /*
- * If we are developing, we might want to start U-Boot from ram
- * so we MUST NOT initialize critical regs like mem-timing ...
- */
-#define CONFIG_INIT_CRITICAL		/* undef for developing */
-
-/*
  * High Level Configuration Options
  * (easy to change)
  */
@@ -82,11 +76,10 @@
  */
 
 /*
- * Size of malloc() pool; this lives below the uppermost 128 KiB which are
- * used for the RAM copy of the uboot code
- *
+ * Size of malloc() pool
  */
 #define CFG_MALLOC_LEN		(256*1024)
+#define CFG_GBL_DATA_SIZE	128		/* size in bytes reserved for initial data */
 
 #define CFG_LONGHELP				/* undef to save memory         */
 #define CFG_PROMPT		"uboot> "	/* Monitor Command Prompt       */
@@ -113,7 +106,7 @@
 
 #define CFG_MONITOR_LEN		0x20000		/* 128 KiB */
 
-                                                /* valid baudrates */
+						/* valid baudrates */
 #define CFG_BAUDRATE_TABLE      { 9600, 19200, 38400, 57600, 115200 }
 
 /*
@@ -141,6 +134,7 @@
 #define CONFIG_SMC91111_BASE		0x14000000 /* chip select 5         */
 #undef  CONFIG_SMC_USE_32_BIT		           /* 16 bit bus access     */
 #undef  CONFIG_SMC_91111_EXT_PHY		   /* we use internal phy   */
+#define CONFIG_SMC_AUTONEG_TIMEOUT	10	   /* timeout 10 seconds    */
 #undef  CONFIG_SHOW_ACTIVITY
 #define CONFIG_NET_RETRY_COUNT		10	   /* # of retries          */
 
@@ -170,14 +164,42 @@
 
 #define CFG_FLASH_BASE          PHYS_FLASH_1
 
-
 /*
- * JFFS2 Partitions
+ * JFFS2 partitions
+ *
  */
-#define CFG_JFFS_CUSTOM_PART	1		/* see board/innokom/flash.c */
-#define CONFIG_MTD_INNOKOM_16MB 1		/* development flash         */	
-#undef  CONFIG_MTD_INNOKOM_64MB			/* production flash          */
+/* development flash */
+#define CONFIG_MTD_INNOKOM_16MB	1
+#undef CONFIG_MTD_INNOKOM_64MB
 
+/* production flash */
+/*
+#define CONFIG_MTD_INNOKOM_64MB	1
+#undef CONFIG_MTD_INNOKOM_16MB
+*/
+
+/* No command line, one static partition, whole device */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support */
+/* Note: fake mtd_id used, no linux mtd map file */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor0=innokom-0"
+*/
+
+/* development flash */
+/*
+#define MTDPARTS_DEFAULT	"mtdparts=innokom-0:256k(uboot),768k(kernel),8m(user),7m(data)"
+*/
+
+/* production flash */
+/*
+#define MTDPARTS_DEFAULT	"mtdparts=innokom-0:256k(uboot),768k(kernel),16256k(user1),16256k(user2),32m(data)"
+*/
 
 /*
  * GPIO settings

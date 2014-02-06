@@ -42,10 +42,11 @@
 #define CONFIG_CONS_INDEX	1
 
 
-#define REMOVE_COMMANDS         ( CFG_CMD_AUTOSCRIPT | \
- 				  CFG_CMD_LOADS | \
- 				  CFG_CMD_ENV | \
- 				  CFG_CMD_FLASH )
+#define REMOVE_COMMANDS         ( CFG_CMD_AUTOSCRIPT	| \
+ 				  CFG_CMD_LOADS		| \
+ 				  CFG_CMD_ENV		| \
+ 				  CFG_CMD_FLASH		| \
+				  CFG_CMD_IMLS		)
 
 #define CONFIG_COMMANDS		( (CONFIG_CMD_DFL & ~REMOVE_COMMANDS) |\
 				  CFG_CMD_PCI |\
@@ -67,8 +68,8 @@
 #define CONFIG_BOOTCOMMAND \
 			"setenv verify y;" \
        			"setenv bootargs console=ttyS0,19200 mem=31M quiet " \
-			"root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " \
-			"ip=$(ipaddr):$(serverip)::$(netmask):pn62:eth0:off;" \
+			"root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " \
+			"ip=${ipaddr}:${serverip}::${netmask}:pn62:eth0:off;" \
 			"loadp 100000; bootm"
 			/* "tftpboot 100000 uImage; bootm" */
 #else
@@ -77,7 +78,7 @@
 			"setenv verify n;" \
        			"setenv bootargs console=ttyS0,19200 mem=31M quiet " \
 			"root=/dev/ram rw " \
-			"ip=$(ipaddr):$(serverip)::$(netmask):pn62:eth0:off;" \
+			"ip=${ipaddr}:${serverip}::${netmask}:pn62:eth0:off;" \
 			"loadp 200000; bootm"
 #endif
 
@@ -100,6 +101,8 @@
 #define CONFIG_PRAM		1024		/* reserve 1 MB protected RAM	*/
 
 #define CONFIG_MISC_INIT_R	1		/* call misc_init_r() on init	*/
+
+#define CONFIG_HAS_ETH1		1		/* add support for eth1addr	*/
 
 #define CONFIG_SHOW_BOOT_PROGRESS 1		/* Show boot progress on LEDs   */
 

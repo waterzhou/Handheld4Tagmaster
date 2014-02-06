@@ -27,7 +27,6 @@
 
 #include <common.h>
 #include <command.h>
-#include <cmd_immap.h>
 
 #if (CONFIG_COMMANDS & CFG_CMD_IMMAP) && \
     (defined(CONFIG_8xx) || defined(CONFIG_8260))
@@ -35,6 +34,7 @@
 #if defined(CONFIG_8xx)
 #include <asm/8xx_immap.h>
 #include <commproc.h>
+#include <asm/iopin_8xx.h>
 #elif defined(CONFIG_8260)
 #include <asm/immap_8260.h>
 #include <asm/cpm_8260.h>
@@ -108,7 +108,7 @@ do_memcinfo (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #if defined(CONFIG_8xx)
 	printf (" MCR   = %08x\n", memctl->memc_mcr);
 #elif defined(CONFIG_8260)
-	printf ("\n");
+	putc ('\n');
 #endif
 	printf ("MAMR  = %08x MBMR  = %08x",
 		memctl->memc_mamr, memctl->memc_mbmr);
@@ -317,16 +317,24 @@ do_iopinfo (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 int
 do_iopset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-#if defined(CONFIG_8260)
 	uint rcode = 0;
+	iopin_t iopin;
 	static uint port = 0;
 	static uint pin = 0;
 	static uint value = 0;
-	static enum { DIR, PAR, SOR, ODR, DAT } cmd = DAT;
-	iopin_t iopin;
+	static enum {
+		DIR,
+		PAR,
+		SOR,
+		ODR,
+		DAT,
+#if defined(CONFIG_8xx)
+		INT
+#endif
+	} cmd = DAT;
 
 	if (argc != 5) {
-		printf ("iopset PORT PIN CMD VALUE\n");
+		puts ("iopset PORT PIN CMD VALUE\n");
 		return 1;
 	}
 	port = argv[1][0] - 'A';
@@ -357,6 +365,11 @@ do_iopset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	case 's':
 		cmd = SOR;
 		break;
+#if defined(CONFIG_8xx)
+	case 'i':
+		cmd = INT;
+		break;
+#endif
 	default:
 		printf ("iopset: unknown command %s\n", argv[3]);
 		rcode = 1;
@@ -370,6 +383,7 @@ do_iopset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	if (rcode == 0) {
 		iopin.port = port;
 		iopin.pin = pin;
+		iopin.flag = 0;
 		switch (cmd) {
 		case DIR:
 			if (value)
@@ -401,14 +415,18 @@ do_iopset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			else
 				iopin_set_low (&iopin);
 			break;
+#if defined(CONFIG_8xx)
+		case INT:
+			if (value)
+				iopin_set_falledge (&iopin);
+			else
+				iopin_set_anyedge (&iopin);
+			break;
+#endif
 		}
 
 	}
 	return rcode;
-#else
-	unimplemented (cmdtp, flag, argc, argv);
-	return 0;
-#endif
 }
 
 int
@@ -530,7 +548,7 @@ do_i2cinfo (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	printf ("I2CER = %02x I2CMR = %02x\n", i2c->i2c_i2cer, i2c->i2c_i2cmr);
 
 	if (iip == NULL)
-		printf ("i2c parameter ram not allocated\n");
+		puts ("i2c parameter ram not allocated\n");
 	else {
 		printf ("RBASE = %08x TBASE = %08x\n",
 			iip->iic_rbase, iip->iic_tbase);
@@ -592,4 +610,112 @@ do_mccinfo (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	unimplemented (cmdtp, flag, argc, argv);
 	return 0;
 }
+
+/***************************************************/
+
+U_BOOT_CMD(
+	siuinfo,	1,	1,	do_siuinfo,
+	"siuinfo - print System Interface Unit (SIU) registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	memcinfo,	1,	1,	do_memcinfo,
+	"memcinfo- print Memory Controller registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	sitinfo,	1,	1,	do_sitinfo,
+	"sitinfo - print System Integration Timers (SIT) registers\n",
+	NULL
+);
+
+#ifdef CONFIG_8260
+U_BOOT_CMD(
+	icinfo,	1,	1,	do_icinfo,
+	"icinfo  - print Interrupt Controller registers\n",
+	NULL
+);
+#endif
+
+U_BOOT_CMD(
+	carinfo,	1,	1,	do_carinfo,
+	"carinfo - print Clocks and Reset registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	iopinfo,	1,	1,	do_iopinfo,
+	"iopinfo - print I/O Port registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	iopset,	5,	0,	do_iopset,
+	"iopset  - set I/O Port registers\n",
+	"PORT PIN CMD VALUE\nPORT: A-D, PIN: 0-31, CMD: [dat|dir|odr|sor], VALUE: 0|1"
+);
+
+U_BOOT_CMD(
+	dmainfo,	1,	1,	do_dmainfo,
+	"dmainfo - print SDMA/IDMA registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	fccinfo,	1,	1,	do_fccinfo,
+	"fccinfo - print FCC registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	brginfo,	1,	1,	do_brginfo,
+	"brginfo - print Baud Rate Generator (BRG) registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	i2cinfo,	1,	1,	do_i2cinfo,
+	"i2cinfo - print I2C registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	sccinfo,	1,	1,	do_sccinfo,
+	"sccinfo - print SCC registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	smcinfo,	1,	1,	do_smcinfo,
+	"smcinfo - print SMC registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	spiinfo,	1,	1,	do_spiinfo,
+	"spiinfo - print Serial Peripheral Interface (SPI) registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	muxinfo,	1,	1,	do_muxinfo,
+	"muxinfo - print CPM Multiplexing registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	siinfo,	1,	1,	do_siinfo,
+	"siinfo  - print Serial Interface (SI) registers\n",
+	NULL
+);
+
+U_BOOT_CMD(
+	mccinfo,	1,	1,	do_mccinfo,
+	"mccinfo - print MCC registers\n",
+	NULL
+);
+
+
 #endif	/* CFG_CMD_IMMAP && (CONFIG_8xx || CONFIG_8260) */

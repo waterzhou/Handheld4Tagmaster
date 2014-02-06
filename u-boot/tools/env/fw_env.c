@@ -106,6 +106,9 @@ static uchar default_environment[] = {
 #ifdef	CONFIG_ETH2ADDR
 	"eth2addr=" MK_STR (CONFIG_ETH2ADDR) "\0"
 #endif
+#ifdef	CONFIG_ETH3ADDR
+	"eth3addr=" MK_STR (CONFIG_ETH3ADDR) "\0"
+#endif
 #ifdef	CONFIG_ETHPRIME
 	"ethprime=" CONFIG_ETHPRIME "\0"
 #endif
@@ -308,6 +311,7 @@ int fw_setenv (int argc, char *argv[])
 	 * Delete any existing definition
 	 */
 	if (oldval) {
+#if 0
 		/*
 		 * Ethernet Address and serial# can be set only once
 		 */
@@ -316,6 +320,7 @@ int fw_setenv (int argc, char *argv[])
 			fprintf (stderr, "Can't overwrite \"%s\"\n", name);
 			return (EROFS);
 		}
+#endif
 
 		if (*++nxt == '\0') {
 			*env = '\0';
@@ -723,7 +728,7 @@ static int parse_config ()
 	if (HaveRedundEnv && stat (DEVNAME (1), &st)) {
 		fprintf (stderr,
 			"Cannot access MTD device %s: %s\n",
-			DEVNAME (2), strerror (errno));
+			DEVNAME (1), strerror (errno));
 		return 1;
 	}
 	return 0;

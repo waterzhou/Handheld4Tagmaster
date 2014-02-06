@@ -29,6 +29,10 @@
 #ifdef	CONFIG_MPC8260			/* only valid for MPC8260 */
 #include <ioports.h>
 #endif
+#ifdef CONFIG_AT91RM9200DK		/* need this for the at91rm9200dk */
+#include <asm/io.h>
+#include <asm/arch/hardware.h>
+#endif
 #include <i2c.h>
 
 #if defined(CONFIG_SOFT_I2C)
@@ -267,10 +271,10 @@ static uchar read_byte(int ack)
 void i2c_init (int speed, int slaveaddr)
 {
 	/*
-         * WARNING: Do NOT save speed in a static variable: if the
-         * I2C routines are called before RAM is initialized (to read
-         * the DIMM SPD, for instance), RAM won't be usable and your
-         * system will crash.
+	 * WARNING: Do NOT save speed in a static variable: if the
+	 * I2C routines are called before RAM is initialized (to read
+	 * the DIMM SPD, for instance), RAM won't be usable and your
+	 * system will crash.
 	 */
 	send_reset ();
 }
@@ -395,7 +399,7 @@ int  i2c_write(uchar chip, uint addr, int alen, uchar *buffer, int len)
  */
 uchar i2c_reg_read(uchar i2c_addr, uchar reg)
 {
-	char buf;
+	uchar buf;
 
 	i2c_read(i2c_addr, reg, 1, &buf, 1);
 

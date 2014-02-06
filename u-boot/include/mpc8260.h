@@ -34,8 +34,12 @@
 #define CPU_ID_STR	"MPC8255"
 #endif
 #ifndef CPU_ID_STR
+#if defined(CONFIG_MPC8272_FAMILY)
+#define CPU_ID_STR	"MPC8272"
+#else
 #define CPU_ID_STR	"MPC8260"
 #endif
+#endif /* !CPU_ID_STR */
 
 /*-----------------------------------------------------------------------
  * Exception offsets (PowerPC standard)
@@ -288,6 +292,10 @@
 /*-----------------------------------------------------------------------
  * SCCR - System Clock Control Register					 9-8
  */
+#define SCCR_PCI_MODE	0x00000100	/* PCI Mode	*/
+#define SCCR_PCI_MODCK	0x00000080	/* Value of PCI_MODCK pin	*/
+#define SCCR_PCIDF_MSK	0x00000078	/* PCI division factor	*/
+#define SCCR_PCIDF_SHIFT 3
 #define SCCR_CLPD	0x00000004	/* CPM Low Power Disable	*/
 #define SCCR_DFBRG_MSK	0x00000003	/* Division factor of BRGCLK Mask */
 #define SCCR_DFBRG_SHIFT 0
@@ -300,14 +308,15 @@
 /*-----------------------------------------------------------------------
  * SCMR - System Clock Mode Register					 9-9
  */
-#define SCMR_CORECNF_MSK 0x1f000000	/* Core Configuration Mask	*/
+#define SCMR_CORECNF_MSK   0x1f000000	/* Core Configuration Mask	*/
 #define SCMR_CORECNF_SHIFT 24
-#define SCMR_BUSDF_MSK	0x00f00000	/* 60x Bus Division Factor Mask	*/
-#define SCMR_BUSDF_SHIFT 20
-#define SCMR_CPMDF_MSK	0x000f0000	/* CPM Division Factor Mask	*/
-#define SCMR_CPMDF_SHIFT 16
-#define SCMR_PLLDF	0x00001000	/* PLL Pre-divider Value	*/
-#define SCMR_PLLMF_MSK	0x00000fff	/* PLL Multiplication Factor Mask*/
+#define SCMR_BUSDF_MSK	   0x00f00000	/* 60x Bus Division Factor Mask	*/
+#define SCMR_BUSDF_SHIFT   20
+#define SCMR_CPMDF_MSK	   0x000f0000	/* CPM Division Factor Mask	*/
+#define SCMR_CPMDF_SHIFT   16
+#define SCMR_PLLDF	   0x00001000	/* PLL Pre-divider Value	*/
+#define SCMR_PLLMF_MSK	   0x00000fff	/* PLL Multiplication Factor Mask*/
+#define SCMR_PLLMF_MSKH7   0x0000000f	/* for HiP7 processors */
 #define SCMR_PLLMF_SHIFT 0
 
 

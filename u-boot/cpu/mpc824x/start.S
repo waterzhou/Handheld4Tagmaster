@@ -202,7 +202,6 @@ in_flash:
 	bl	board_init_f	/* run 1st part of board init code (from Flash) */
 
 
-
 	.globl	_start_of_vectors
 _start_of_vectors:
 
@@ -260,74 +259,7 @@ ProgramCheck:
 	STD_EXCEPTION(EXC_OFF_DECR, Decrementer, timer_interrupt)
 	STD_EXCEPTION(0xa00, Trap_0a, UnknownException)
 	STD_EXCEPTION(0xb00, Trap_0b, UnknownException)
-
-	. = 0xc00
-/*
- * r0 - SYSCALL number
- * r3-... arguments
- */
-SystemCall:
-	addis	r11,r0,0		/* get functions table addr */
-	ori	r11,r11,0		/* Note: this code is patched in trap_init */
-	addis	r12,r0,0		/* get number of functions */
-	ori	r12,r12,0
-
-	cmplw	0, r0, r12
-	bge	1f
-
-	rlwinm	r0,r0,2,0,31		/* fn_addr = fn_tbl[r0] */
-	add	r11,r11,r0
-	lwz	r11,0(r11)
-
-	li	r20,0xd00-4		/* Get stack pointer */
-	lwz	r12,0(r20)
-	subi	r12,r12,12		/* Adjust stack pointer */
-	li	r0,0xc00+_end_back-SystemCall
-	cmplw	0, r0, r12		/* Check stack overflow */
-	bgt	1f
-	stw	r12,0(r20)
-
-	mflr	r0
-	stw	r0,0(r12)
-	mfspr	r0,SRR0
-	stw	r0,4(r12)
-	mfspr	r0,SRR1
-	stw	r0,8(r12)
-
-	li	r12,0xc00+_back-SystemCall
-	mtlr	r12
-	mtspr	SRR0,r11
-
-1:	SYNC
-	rfi
-
-_back:
-
-	mfmsr	r11			/* Disable interrupts */
-	li	r12,0
-	ori	r12,r12,MSR_EE
-	andc	r11,r11,r12
-	SYNC				/* Some chip revs need this... */
-	mtmsr	r11
-	SYNC
-
-	li	r12,0xd00-4		/* restore regs */
-	lwz	r12,0(r12)
-
-	lwz	r11,0(r12)
-	mtlr	r11
-	lwz	r11,4(r12)
-	mtspr	SRR0,r11
-	lwz	r11,8(r12)
-	mtspr	SRR1,r11
-
-	addi	r12,r12,12		/* Adjust stack pointer */
-	li	r20,0xd00-4
-	stw	r12,0(r20)
-
-	SYNC
-	rfi
-_end_back:
+	STD_EXCEPTION(0xc00, SystemCall, UnknownException)
 
 	STD_EXCEPTION(EXC_OFF_TRACE, SingleStep, UnknownException)
 
@@ -594,11 +526,26 @@ relocate_code:
 	stwu	r0,-4(r7)
 	bdnz	3b
 
+4:
+#if !defined(CONFIG_BMW)
+/* Unlock the data cache and invalidate locked area */
+	xor	r0, r0, r0
+	mtspr	1011, r0
+	lis	r4, CFG_INIT_RAM_ADDR@h
+	ori	r4, r4, CFG_INIT_RAM_ADDR@l
+	li	r0, 128
+	mtctr	r0
+41:
+	dcbi	r0, r4
+	addi	r4, r4, 32
+	bdnz	41b
+#endif
+
 /*
  * Now flush the cache: note that we must start from a cache aligned
  * address. Otherwise we might miss one cache line.
  */
-4:	cmpwi	r6,0
+	cmpwi	r6,0
 	add	r5,r3,r5
 	beq	7f		/* Always flush prefetch queue in any case */
 	subi	r0,r6,1
@@ -840,5 +787,3 @@ setup_bats:
 	blt	1b
 
 	blr
-
-

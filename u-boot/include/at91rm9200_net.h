@@ -1,7 +1,7 @@
 /*
  * Ethernet:	An implementation of the Ethernet Device Driver suite for the
  *		uClinux 2.0.38 operating system. This Driver has been developed
- *		for AT75C220 board. 
+ *		for AT75C220 board.
  *
  * NOTE:	The driver is implemented for one MAC
  *
@@ -22,7 +22,6 @@
 #include <common.h>
 #include <asm/io.h>
 #include <asm/arch/hardware.h>
-#include "dm9161.h"
 
 #define FALSE 0
 #define TRUE 1
@@ -39,7 +38,7 @@ typedef struct _AT91S_PhyOps
 	unsigned int (*IsPhyConnected)(AT91S_EMAC  *pmac);
 	unsigned char (*GetLinkSpeed)(AT91S_EMAC *pmac);
 	unsigned char (*AutoNegotiate)(AT91S_EMAC *pmac, int *);
-	
+
 } AT91S_PhyOps,*AT91PS_PhyOps;
 
 
@@ -49,11 +48,10 @@ typedef struct _AT91S_PhyOps
 /******************  function prototypes **********************/
 
 /* MII functions */
-static void at91rm9200_EmacEnableMDIO(AT91PS_EMAC p_mac);
-static void at91rm9200_EmacDisableMDIO(AT91PS_EMAC p_mac);
-static UCHAR at91rm9200_EmacReadPhy(AT91PS_EMAC p_mac, unsigned char RegisterAddress, unsigned short *pInput);
-static UCHAR at91rm9200_EmacWritePhy(AT91PS_EMAC p_mac, unsigned char RegisterAddress, unsigned short *pOutput);
-void at91rm92000_GetPhyInterface(void );
+void at91rm9200_EmacEnableMDIO(AT91PS_EMAC p_mac);
+void at91rm9200_EmacDisableMDIO(AT91PS_EMAC p_mac);
+UCHAR at91rm9200_EmacReadPhy(AT91PS_EMAC p_mac, unsigned char RegisterAddress, unsigned short *pInput);
+UCHAR at91rm9200_EmacWritePhy(AT91PS_EMAC p_mac, unsigned char RegisterAddress, unsigned short *pOutput);
+void at91rm9200_GetPhyInterface(AT91PS_PhyOps p_phyops);
 
 #endif /* AT91RM9200_ETHERNET */
-

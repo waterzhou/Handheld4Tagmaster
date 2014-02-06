@@ -26,20 +26,6 @@
 #ifndef _USB_DEFS_H_
 #define _USB_DEFS_H_
 
-
-/* Everything is aribtrary */
-#define USB_ALTSETTINGALLOC          4
-#define USB_MAXALTSETTING	           128  /* Hard limit */
-
-#define USB_MAX_DEVICE              32
-#define USB_MAXCONFIG		            8
-#define USB_MAXINTERFACES	          8
-#define USB_MAXENDPOINTS	          16
-#define USB_MAXCHILDREN  						8 	/* This is arbitrary */
-#define USB_MAX_HUB									16
-
-#define USB_CNTL_TIMEOUT 100 /* 100ms timeout */
-
 /* USB constants */
 
 /* Device and/or Interface Class codes */
@@ -187,7 +173,6 @@
 #define USB_ST_CRC_ERR          0x20	/* CRC/timeout Error */
 #define USB_ST_BIT_ERR          0x40	/* Bitstuff error */
 #define USB_ST_NOT_PROC         0x80000000L	/* Not yet processed */
-
 
 
 /*************************************************************************

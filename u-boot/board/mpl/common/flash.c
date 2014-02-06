@@ -36,9 +36,21 @@
  */
 
 #include <common.h>
+
+#if !defined(CONFIG_PATI)
 #include <ppc4xx.h>
 #include <asm/processor.h>
 #include "common_util.h"
+#if defined(CONFIG_MIP405)
+#include "../mip405/mip405.h"
+#endif
+#if defined(CONFIG_PIP405)
+#include "../pip405/pip405.h"
+#endif
+#include <405gp_pci.h>
+#else /* defined(CONFIG_PATI) */
+#include <mpc5xx.h>
+#endif
 
 flash_info_t	flash_info[CFG_MAX_FLASH_BANKS]; /* info for FLASH chips	*/
 /*-----------------------------------------------------------------------
@@ -49,41 +61,118 @@ static int write_word (flash_info_t *info, ulong dest, ulong data);
 
 void unlock_intel_sectors(flash_info_t *info,ulong addr,ulong cnt);
 
-
-#ifdef CONFIG_PIP405
 #define ADDR0           0x5555
 #define ADDR1           0x2aaa
 #define FLASH_WORD_SIZE unsigned short
-#endif
-
-#ifdef CONFIG_MIP405
-#define ADDR0           0x5555
-#define ADDR1           0x2aaa
-#define FLASH_WORD_SIZE unsigned short
-#endif
 
 #define FALSE           0
 #define TRUE            1
 
-/*-----------------------------------------------------------------------
- */
+#if !defined(CONFIG_PATI)
 
+/*-----------------------------------------------------------------------
+ * Some CS switching routines:
+ *
+ * On PIP/MIP405 we have 3 (4) possible boot mode
+ *
+ * - Boot from Flash (Flash CS = CS0, MPS CS = CS1)
+ * - Boot from MPS   (Flash CS = CS1, MPS CS = CS0)
+ * - Boot from PCI with Flash map (Flash CS = CS0, MPS CS = CS1)
+ * - Boot from PCI with MPS map   (Flash CS = CS1, MPS CS = CS0)
+ * The flash init is the first board specific routine which is called
+ * after code relocation (running from SDRAM)
+ * The first thing we do is to map the Flash CS to the Flash area and
+ * the MPS CS to the MPS area. Since the flash size is unknown at this
+ * point, we use the max flash size and the lowest flash address as base.
+ *
+ * After flash detection we adjust the size of the CS area accordingly.
+ * The board_init_r will fill in wrong values in the board init structure,
+ * but this will be fixed in the misc_init_r routine:
+ * bd->bi_flashstart=0-flash_info[0].size
+ * bd->bi_flashsize=flash_info[0].size-CFG_MONITOR_LEN
+ * bd->bi_flashoffset=0
+ *
+ */
+int get_boot_mode(void)
+{
+	unsigned long pbcr;
+	int res = 0;
+	pbcr = mfdcr (strap);
+	if ((pbcr & PSR_ROM_WIDTH_MASK) == 0)
+		/* boot via MPS or MPS mapping */
+		res = BOOT_MPS;
+	if(pbcr & PSR_ROM_LOC)
+		/* boot via PCI.. */
+		res |= BOOT_PCI;
+	 return res;
+}
+
+/* Map the flash high (in boot area)
+   This code can only be executed from SDRAM (after relocation).
+*/
+void setup_cs_reloc(void)
+{
+	int mode;
+	/* Since we are relocated, we can set-up the CS finaly
+	 * but first of all, switch off PCI mapping (in case it was a PCI boot) */
+	out32r(PMM0MA,0L);
+	icache_enable (); /* we are relocated */
+	/* get boot mode */
+	mode=get_boot_mode();
+	/* we map the flash high in every case */
+	/* first findout on which cs the flash is */
+	if(mode & BOOT_MPS) {
+		/* map flash high on CS1 and MPS on CS0 */
+		mtdcr (ebccfga, pb0ap);
+		mtdcr (ebccfgd, MPS_AP);
+		mtdcr (ebccfga, pb0cr);
+		mtdcr (ebccfgd, MPS_CR);
+		/* we use the default values (max values) for the flash
+		 * because its real size is not yet known */
+		mtdcr (ebccfga, pb1ap);
+		mtdcr (ebccfgd, FLASH_AP);
+		mtdcr (ebccfga, pb1cr);
+		mtdcr (ebccfgd, FLASH_CR_B);
+	}
+	else {
+		/* map flash high on CS0 and MPS on CS1 */
+		mtdcr (ebccfga, pb1ap);
+		mtdcr (ebccfgd, MPS_AP);
+		mtdcr (ebccfga, pb1cr);
+		mtdcr (ebccfgd, MPS_CR);
+		/* we use the default values (max values) for the flash
+		 * because its real size is not yet known */
+		mtdcr (ebccfga, pb0ap);
+		mtdcr (ebccfgd, FLASH_AP);
+		mtdcr (ebccfga, pb0cr);
+		mtdcr (ebccfgd, FLASH_CR_B);
+	}
+}
+
+#endif /* #if !defined(CONFIG_PATI) */
 
 unsigned long flash_init (void)
 {
-	unsigned long size_b0, size_b1;
+	unsigned long size_b0;
 	int i;
+
+#if !defined(CONFIG_PATI)
+	unsigned long size_b1,flashcr,size_reg;
+	int mode;
+	extern char version_string;
+	char *p=&version_string;
 
 	/* Since we are relocated, we can set-up the CS finally */
 	setup_cs_reloc();
 	/* get and display boot mode */
-	i=get_boot_mode();
-	if(i & BOOT_PCI)
-		printf("(PCI Boot %s Map) ",(i & BOOT_MPS) ?
+	mode=get_boot_mode();
+	if(mode & BOOT_PCI)
+		printf("(PCI Boot %s Map) ",(mode & BOOT_MPS) ?
 			"MPS" : "Flash");
 	else
-		printf("(%s Boot) ",(i & BOOT_MPS) ?
+		printf("(%s Boot) ",(mode & BOOT_MPS) ?
 			"MPS" : "Flash");
+#endif /* #if !defined(CONFIG_PATI) */
 	/* Init: no FLASHes known */
 	for (i=0; i<CFG_MAX_FLASH_BANKS; ++i) {
 		flash_info[i].flash_id = FLASH_UNKNOWN;
@@ -91,7 +180,7 @@ unsigned long flash_init (void)
 
 	/* Static FLASH Bank configuration here - FIXME XXX */
 
-	size_b0 = flash_get_size((vu_long *)FLASH_BASE0_PRELIM, &flash_info[0]);
+	size_b0 = flash_get_size((vu_long *)CFG_MONITOR_BASE, &flash_info[0]);
 
 	if (flash_info[0].flash_id == FLASH_UNKNOWN) {
 		printf ("## Unknown FLASH on Bank 0 - Size = 0x%08lx = %ld MB\n",
@@ -105,10 +194,51 @@ unsigned long flash_init (void)
 			CFG_MONITOR_BASE+monitor_flash_len-1,
 			&flash_info[0]);
 #endif
+#if !defined(CONFIG_PATI)
+	/* protect reset vector */
+	flash_info[0].protect[flash_info[0].sector_count-1] = 1;
 	size_b1 = 0 ;
 	flash_info[0].size = size_b0;
+	/* set up flash cs according to the size */
+	size_reg=(flash_info[0].size >>20);
+	switch (size_reg) {
+		case 0:
+		case 1: i=0; break; /* <= 1MB */
+		case 2: i=1; break; /* = 2MB */
+		case 4: i=2; break; /* = 4MB */
+		case 8: i=3; break; /* = 8MB */
+		case 16: i=4; break; /* = 16MB */
+		case 32: i=5; break; /* = 32MB */
+		case 64: i=6; break; /* = 64MB */
+		case 128: i=7; break; /*= 128MB */
+		default:
+			printf("\n #### ERROR, wrong size %ld MByte reset board #####\n",size_reg);
+			while(1);
+	}
+	if(mode & BOOT_MPS) {
+		/* flash is on CS1 */
+		mtdcr(ebccfga, pb1cr);
+		flashcr = mfdcr (ebccfgd);
+		/* we map the flash high in every case */
+		flashcr&=0x0001FFFF; /* mask out address bits */
+		flashcr|= ((0-flash_info[0].size) & 0xFFF00000); /* start addr */
+		flashcr|= (i << 17); /* size addr */
+		mtdcr(ebccfga, pb1cr);
+		mtdcr(ebccfgd, flashcr);
+	}
+	else {
+		/* flash is on CS0 */
+		mtdcr(ebccfga, pb0cr);
+		flashcr = mfdcr (ebccfgd);
+		/* we map the flash high in every case */
+		flashcr&=0x0001FFFF; /* mask out address bits */
+		flashcr|= ((0-flash_info[0].size) & 0xFFF00000); /* start addr */
+		flashcr|= (i << 17); /* size addr */
+		mtdcr(ebccfga, pb0cr);
+		mtdcr(ebccfgd, flashcr);
+	}
 #if 0
-	/* include this if you want to test if
+	/* enable this (PIP405/MIP405 only) if you want to test if
 	   the relocation has be done ok.
 	   This will disable both Chipselects */
 	mtdcr (ebccfga, pb0cr);
@@ -117,6 +247,23 @@ unsigned long flash_init (void)
 	mtdcr (ebccfgd, 0L);
 	printf("CS0 & CS1 switched off for test\n");
 #endif
+	/* patch version_string */
+	for(i=0;i<0x100;i++) {
+		if(*p=='\n') {
+			*p=0;
+			break;
+		}
+		p++;
+	}
+#else /* #if !defined(CONFIG_PATI) */
+#ifdef	CFG_ENV_IS_IN_FLASH
+	/* ENV protection ON by default */
+	flash_protect(FLAG_PROTECT_SET,
+		      CFG_ENV_ADDR,
+		      CFG_ENV_ADDR+CFG_ENV_SECT_SIZE-1,
+		      &flash_info[0]);
+#endif
+#endif /* #if !defined(CONFIG_PATI) */
 	return (size_b0);
 }
 
@@ -169,6 +316,8 @@ void flash_print_info  (flash_info_t *info)
 				break;
 	case FLASH_INTEL320T:	printf ("TE28F320C3 (32 Mbit, top sector size)\n");
 				break;
+	case FLASH_AM640U:	printf ("AM29LV640U (64 Mbit, uniform sector size)\n");
+				break;
 	default:		printf ("Unknown Chip Type\n");
 				break;
 	}
@@ -209,7 +358,8 @@ void flash_print_info  (flash_info_t *info)
 
 
 /*-----------------------------------------------------------------------
- */
+
+*/
 
 /*
  * The following code cannot be run from FLASH!
@@ -218,7 +368,7 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 {
 	short i;
 	FLASH_WORD_SIZE value;
-	ulong base = (ulong)addr;
+	ulong base;
 	volatile FLASH_WORD_SIZE *addr2 = (FLASH_WORD_SIZE *)addr;
 
 	/* Write auto select command: read Manufacturer ID */
@@ -248,10 +398,10 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		return (0);			/* no or unknown flash	*/
 	}
 	value = addr2[1];			/* device ID		*/
-	/*	printf("Device value %x\n",value); */
+	/*	printf("Device value %x\n",value); 		    */
 	switch (value) {
 	case (FLASH_WORD_SIZE)AMD_ID_F040B:
-	        info->flash_id += FLASH_AM040;
+		info->flash_id += FLASH_AM040;
 		info->sector_count = 8;
 		info->size = 0x0080000; /* => 512 ko */
 		break;
@@ -290,12 +440,17 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		info->sector_count = 35;
 		info->size = 0x00200000;
 		break;				/* => 2 MB		*/
-#if 0	/* enable when device IDs are available */
 	case (FLASH_WORD_SIZE)AMD_ID_LV320T:
 		info->flash_id += FLASH_AM320T;
 		info->sector_count = 67;
 		info->size = 0x00400000;
 		break;				/* => 4 MB		*/
+	case (FLASH_WORD_SIZE)AMD_ID_LV640U:
+		info->flash_id += FLASH_AM640U;
+		info->sector_count = 128;
+		info->size = 0x00800000;
+		break;				/* => 8 MB		*/
+#if 0	/* enable when device IDs are available */
 
 	case (FLASH_WORD_SIZE)AMD_ID_LV320B:
 		info->flash_id += FLASH_AM320B;
@@ -326,10 +481,12 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		return (0);			/* => no or unknown flash */
 
 	}
-
+	/* base address calculation */
+	base=0-info->size;
 	/* set up sector start address table */
 	if (((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_SST) ||
-	     (info->flash_id  == FLASH_AM040)){
+	     (info->flash_id  == FLASH_AM040) ||
+	     (info->flash_id  == FLASH_AM640U)){
 		for (i = 0; i < info->sector_count; i++)
 			info->start[i] = base + (i * 0x00010000);
 	}
@@ -400,7 +557,7 @@ int wait_for_DQ7(flash_info_t *info, int sect)
 	while ((addr[0] & (FLASH_WORD_SIZE)0x00800080) != (FLASH_WORD_SIZE)0x00800080) {
 		if ((now = get_timer(start)) > CFG_FLASH_ERASE_TOUT) {
 			printf ("Timeout\n");
-			return -1;
+			return ERR_TIMOUT;
 		}
 		/* show that we're waiting */
 		if ((now - last) > 1000) {  /* every second */
@@ -408,12 +565,12 @@ int wait_for_DQ7(flash_info_t *info, int sect)
 			last = now;
 		}
 	}
-	return 0;
+	return ERR_OK;
 }
 
 int intel_wait_for_DQ7(flash_info_t *info, int sect)
 {
-	ulong start, now, last;
+	ulong start, now, last, status;
 	volatile FLASH_WORD_SIZE *addr = (FLASH_WORD_SIZE *)(info->start[sect]);
 
 	start = get_timer (0);
@@ -421,7 +578,7 @@ int intel_wait_for_DQ7(flash_info_t *info, int sect)
 	while ((addr[0] & (FLASH_WORD_SIZE)0x00800080) != (FLASH_WORD_SIZE)0x00800080) {
 		if ((now = get_timer(start)) > CFG_FLASH_ERASE_TOUT) {
 			printf ("Timeout\n");
-			return -1;
+			return ERR_TIMOUT;
 		}
 		/* show that we're waiting */
 		if ((now - last) > 1000) {  /* every second */
@@ -429,8 +586,11 @@ int intel_wait_for_DQ7(flash_info_t *info, int sect)
 			last = now;
 		}
 	}
-	addr[0]=(FLASH_WORD_SIZE)0x00500050;
-	return 0;
+	status = addr[0] & (FLASH_WORD_SIZE)0x00280028;
+	/* clear status register */
+	addr[0] = (FLASH_WORD_SIZE)0x00500050;
+	/* check status for block erase fail and VPP low */
+	return (status == 0 ? ERR_OK : ERR_NOT_ERASED);
 }
 
 /*-----------------------------------------------------------------------
@@ -441,7 +601,7 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 	volatile FLASH_WORD_SIZE *addr = (FLASH_WORD_SIZE *)(info->start[0]);
 	volatile FLASH_WORD_SIZE *addr2;
 	int flag, prot, sect, l_sect;
-	int i;
+	int i, rcode = 0;
 
 
 	if ((s_first < 0) || (s_first > s_last)) {
@@ -491,16 +651,16 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 				addr2[0] = (FLASH_WORD_SIZE)0x00500050;  /* block erase */
 				for (i=0; i<50; i++)
 					udelay(1000);  /* wait 1 ms */
-				wait_for_DQ7(info, sect);
+				rcode |= wait_for_DQ7(info, sect);
 			}
 			else {
-		  		if((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_INTEL){
+				if((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_INTEL){
 					addr2[0] = (FLASH_WORD_SIZE)0x00600060;  /* unlock sector */
 					addr2[0] = (FLASH_WORD_SIZE)0x00D000D0;  /* sector erase */
 					intel_wait_for_DQ7(info, sect);
 					addr2[0] = (FLASH_WORD_SIZE)0x00200020;  /* sector erase */
 					addr2[0] = (FLASH_WORD_SIZE)0x00D000D0;  /* sector erase */
-					intel_wait_for_DQ7(info, sect);
+					rcode |= intel_wait_for_DQ7(info, sect);
 				}
 				else {
 					addr[ADDR0] = (FLASH_WORD_SIZE)0x00AA00AA;
@@ -509,7 +669,7 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 					addr[ADDR0] = (FLASH_WORD_SIZE)0x00AA00AA;
 					addr[ADDR1] = (FLASH_WORD_SIZE)0x00550055;
 					addr2[0] = (FLASH_WORD_SIZE)0x00300030;  /* sector erase */
-					wait_for_DQ7(info, sect);
+					rcode |= wait_for_DQ7(info, sect);
 				}
 			}
 			l_sect = sect;
@@ -545,8 +705,10 @@ DONE:
 	addr = (FLASH_WORD_SIZE *)info->start[0];
 	addr[0] = (FLASH_WORD_SIZE)0x00F000F0;	/* reset bank */
 
-	printf (" done\n");
-	return 0;
+	if (!rcode)
+	    printf (" done\n");
+
+	return rcode;
 }
 
 
@@ -659,7 +821,7 @@ static int write_word (flash_info_t *info, ulong dest, ulong data)
 {
 	volatile FLASH_WORD_SIZE *addr2 = (FLASH_WORD_SIZE *)(info->start[0]);
 	volatile FLASH_WORD_SIZE *dest2 = (FLASH_WORD_SIZE *)dest;
- 	volatile FLASH_WORD_SIZE *data2 = (FLASH_WORD_SIZE *)&data;
+	volatile FLASH_WORD_SIZE *data2 = (FLASH_WORD_SIZE *)&data;
 	ulong start;
 	int flag;
 	int i;
@@ -708,7 +870,7 @@ static int write_word (flash_info_t *info, ulong dest, ulong data)
 			while ((dest2[i] & (FLASH_WORD_SIZE)0x00800080) !=
 				(data2[i] & (FLASH_WORD_SIZE)0x00800080)) {
 				if (get_timer(start) > CFG_FLASH_WRITE_TOUT) {
-        				return (1);
+					return (1);
 				}
 			}
 		}

@@ -238,26 +238,26 @@
 /* Define a command string that is automatically executed when no character
  * is read on the console interface withing "Boot Delay" after reset.
  */
-#define CONFIG_BOOT_ROOT_INITRD 0	/* Use ram disk for the root file system */
-#define CONFIG_BOOT_ROOT_NFS	1	/* Use a NFS mounted root file system */
+#undef	CONFIG_BOOT_ROOT_INITRD 	/* Use ram disk for the root file system */
+#define	CONFIG_BOOT_ROOT_NFS		/* Use a NFS mounted root file system */
 
-#if CONFIG_BOOT_ROOT_INITRD
+#ifdef CONFIG_BOOT_ROOT_INITRD
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
 	"setenv bootargs root=/dev/ram0 rw " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_INITRD */
 
-#if CONFIG_BOOT_ROOT_NFS
+#ifdef CONFIG_BOOT_ROOT_NFS
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_NFS */
 
@@ -297,6 +297,7 @@
 
 #define CONFIG_MPC8260		1	/* This is an MPC8260 CPU   */
 #define CONFIG_PPMC8260		1	/* on an Wind River PPMC8260 Board  */
+#define CONFIG_CPM2		1	/* Has a CPM2 */
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -445,6 +446,7 @@
  */
 
 #define CFG_FLASH_CFI		1	/* Flash is CFI conformant		*/
+#define CFG_FLASH_CFI_DRIVER	1	/* Use the common driver		*/
 #define CFG_MAX_FLASH_SECT	128	/* max number of sectors on one chip	*/
 #define CFG_MAX_FLASH_BANKS	1	/* max number of memory banks		*/
 #define CFG_FLASH_INCREMENT	0	/* there is only one bank		*/

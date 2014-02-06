@@ -16,12 +16,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, 
+ * Foundation,
  */
 
 /*
  * File:		cpu_init.c
- * 
+ *
  * Discription:		Contains initialisation functions to setup
  *    			the cpu properly
  *
@@ -32,7 +32,7 @@
 #include <watchdog.h>
 
 /*
- * Setup essential cpu registers to run 
+ * Setup essential cpu registers to run
  */
 void cpu_init_f (volatile immap_t * immr)
 {
@@ -45,7 +45,7 @@ void cpu_init_f (volatile immap_t * immr)
 
 #if defined(CONFIG_WATCHDOG)
 	reset_5xx_watchdog (immr);
-#endif 
+#endif
 
 	/* SIUMCR - contains debug pin configuration */
 	immr->im_siu_conf.sc_siumcr |= CFG_SIUMCR;
@@ -56,14 +56,16 @@ void cpu_init_f (volatile immap_t * immr)
 
 	/* Full IMB bus speed */
 	immr->im_uimb.uimb_umcr = CFG_UMCR;
-	
+
 	/* Time base and decrementer will be enables (TBE) */
 	/* in init_timebase() in time.c called from board_init_f(). */
- 
+
 	/* Initialize the PIT. Unlock PISCRK */
 	immr->im_sitk.sitk_piscrk = KAPWR_KEY;
 	immr->im_sit.sit_piscr = CFG_PISCR;
 
+#if !defined(CONFIG_PATI)
+	/* PATI sest PLL in start.S */
 	/* PLL (CPU clock) settings */
 	immr->im_clkrstk.cark_plprcrk = KAPWR_KEY;
 
@@ -80,6 +82,8 @@ void cpu_init_f (volatile immap_t * immr)
 	reg |= CFG_PLPRCR;			/* reset control bits   */
 #endif
 	immr->im_clkrst.car_plprcr = reg;
+
+#endif /* !defined(CONFIG_PATI) */
 
 	/* System integration timers. CFG_MASK has EBDF configuration */
 	immr->im_clkrstk.cark_sccrk = KAPWR_KEY;

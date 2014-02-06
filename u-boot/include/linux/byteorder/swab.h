@@ -34,7 +34,7 @@
 		(__u64)(((__u64)(x) & (__u64)0x000000000000ff00ULL) << 40) | \
 		(__u64)(((__u64)(x) & (__u64)0x0000000000ff0000ULL) << 24) | \
 		(__u64)(((__u64)(x) & (__u64)0x00000000ff000000ULL) <<  8) | \
-	        (__u64)(((__u64)(x) & (__u64)0x000000ff00000000ULL) >>  8) | \
+		(__u64)(((__u64)(x) & (__u64)0x000000ff00000000ULL) >>  8) | \
 		(__u64)(((__u64)(x) & (__u64)0x0000ff0000000000ULL) >> 24) | \
 		(__u64)(((__u64)(x) & (__u64)0x00ff000000000000ULL) >> 40) | \
 		(__u64)(((__u64)(x) & (__u64)0xff00000000000000ULL) >> 56) ))
@@ -96,48 +96,48 @@
 #endif /* OPTIMIZE */
 
 
-extern __inline__ __const__ __u16 __fswab16(__u16 x)
+static __inline__ __attribute__((const)) __u16 __fswab16(__u16 x)
 {
 	return __arch__swab16(x);
 }
-extern __inline__ __u16 __swab16p(__u16 *x)
+static __inline__ __u16 __swab16p(__u16 *x)
 {
 	return __arch__swab16p(x);
 }
-extern __inline__ void __swab16s(__u16 *addr)
+static __inline__ void __swab16s(__u16 *addr)
 {
 	__arch__swab16s(addr);
 }
 
-extern __inline__ __const__ __u32 __fswab32(__u32 x)
+static __inline__ __attribute__((const)) __u32 __fswab32(__u32 x)
 {
 	return __arch__swab32(x);
 }
-extern __inline__ __u32 __swab32p(__u32 *x)
+static __inline__ __u32 __swab32p(__u32 *x)
 {
 	return __arch__swab32p(x);
 }
-extern __inline__ void __swab32s(__u32 *addr)
+static __inline__ void __swab32s(__u32 *addr)
 {
 	__arch__swab32s(addr);
 }
 
 #ifdef __BYTEORDER_HAS_U64__
-extern __inline__ __const__ __u64 __fswab64(__u64 x)
+static __inline__ __attribute__((const)) __u64 __fswab64(__u64 x)
 {
 #  ifdef __SWAB_64_THRU_32__
 	__u32 h = x >> 32;
-        __u32 l = x & ((1ULL<<32)-1);
-        return (((__u64)__swab32(l)) << 32) | ((__u64)(__swab32(h)));
+	__u32 l = x & ((1ULL<<32)-1);
+	return (((__u64)__swab32(l)) << 32) | ((__u64)(__swab32(h)));
 #  else
 	return __arch__swab64(x);
 #  endif
 }
-extern __inline__ __u64 __swab64p(__u64 *x)
+static __inline__ __u64 __swab64p(__u64 *x)
 {
 	return __arch__swab64p(x);
 }
-extern __inline__ void __swab64s(__u64 *addr)
+static __inline__ void __swab64s(__u64 *addr)
 {
 	__arch__swab64s(addr);
 }

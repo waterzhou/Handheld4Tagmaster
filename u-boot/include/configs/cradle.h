@@ -29,12 +29,6 @@
 #define __CONFIG_H
 
 /*
- * If we are developing, we might want to start armboot from ram
- * so we MUST NOT initialize critical regs like mem-timing ...
- */
-#define CONFIG_INIT_CRITICAL            /* undef for developing */
-
-/*
  * High Level Configuration Options
  * (easy to change)
  */
@@ -47,6 +41,7 @@
  * Size of malloc() pool
  */
 #define CFG_MALLOC_LEN		(CFG_ENV_SIZE + 128*1024)
+#define CFG_GBL_DATA_SIZE	128	/* size in bytes reserved for initial data */
 
 /*
  * Hardware drivers
@@ -100,7 +95,7 @@
 #define CFG_HZ                  3686400         /* incrementer freq: 3.6864 MHz */
 #define CFG_CPUSPEED            0x141           /* set core clock to 200/200/100 MHz */
 
-                                                /* valid baudrates */
+						/* valid baudrates */
 #define CFG_BAUDRATE_TABLE      { 9600, 19200, 38400, 57600, 115200 }
 
 /*
@@ -305,7 +300,7 @@
 #else
 #define CFG_MDCNFG_VAL      0x00001aa1  /* FIXME can DTC be 01?     */
 #define CFG_MDMRS_VAL       0x00000000
-#define CFG_MDREFR_VAL      0x00403018  /* Initial setting, individual bits set in memsetup.S */
+#define CFG_MDREFR_VAL      0x00403018  /* Initial setting, individual bits set in lowlevel_init.S */
 #endif
 
 /*

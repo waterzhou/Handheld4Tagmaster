@@ -22,7 +22,6 @@ Skeleton NIC driver for Etherboot
 
 #include <common.h>
 #include <malloc.h>
-#include <cmd_bsp.h>
 #include <galileo/gt64260R.h>
 #include <galileo/core.h>
 #include <asm/cache.h>
@@ -86,12 +85,17 @@ static const char ether_port_phy_addr[3]={0,1,2};
 static const char ether_port_phy_addr[3]={4,5,6};
 #endif
 
+/* MII PHY access routines are common for all i/f, use gal_ent0 */
+#define GT6426x_MII_DEVNAME	"gal_enet0"
+
+int gt6426x_miiphy_read(char *devname, unsigned char phy,
+		unsigned char reg, unsigned short *val);
 
 static inline unsigned short
 miiphy_read_ret(unsigned short phy, unsigned short reg)
 {
     unsigned short val;
-    miiphy_read(phy,reg,&val);
+    gt6426x_miiphy_read(GT6426x_MII_DEVNAME,phy,reg,&val);
     return val;
 }
 
@@ -117,12 +121,12 @@ static void gt6426x_handle_SMI(struct eth_dev_s *p, unsigned int icr)
     printf("SMI interrupt: ");
 
     if(icr&0x20000000) {
-    	printf("SMI done\n");
+	printf("SMI done\n");
     }
 #endif
 
     if(icr&0x10000000) {
-        unsigned int psr;
+	unsigned int psr;
 	psr=GTREGREAD(ETHERNET0_PORT_STATUS_REGISTER + p->reg_base);
 #ifdef DEBUG
 	printf("PHY state change:\n"
@@ -134,7 +138,7 @@ static void gt6426x_handle_SMI(struct eth_dev_s *p, unsigned int icr)
 
 #ifdef CONFIG_INTEL_LXT97X /* non-standard mii reg (intel lxt972a) */
 	{
-        unsigned short mii_11;
+	unsigned short mii_11;
 	mii_11=miiphy_read_ret(ether_port_phy_addr[p->dev],0x11);
 
 	printf(" mii:%s:%s:%s:%s %s:%s %s\n",
@@ -183,7 +187,7 @@ gt6426x_eth_receive(struct eth_dev_s *p,unsigned int icr)
 	 */
 
 	/* let the upper layer handle the packet */
-	NetReceive (eth_data, eth_len);
+	NetReceive ((uchar *)eth_data, eth_len);
 
 	rx->buff_size_byte_count = GT6426x_ETH_BUF_SIZE<<16;
 
@@ -267,7 +271,7 @@ gt6426x_eth_transmit(void *v, volatile char *p, unsigned int s)
 #endif
 	memcpy(dev->eth_tx_buffer, (char *) p, s);
 
-	tx->buff_pointer = dev->eth_tx_buffer;
+	tx->buff_pointer = (uchar *)dev->eth_tx_buffer;
 	tx->bytecount_reserved = ((__u16)s) << 16;
 
 	/*    31 - own
@@ -340,8 +344,8 @@ gt6426x_eth_disable(void *v)
 MII utilities - write: write to an MII register via SMI
 ***************************************************************************/
 int
-miiphy_write(unsigned char phy, unsigned char reg,
-    unsigned short data)
+gt6426x_miiphy_write(char *devname, unsigned char phy,
+		unsigned char reg, unsigned short data)
 {
     unsigned int temp= (reg<<21) | (phy<<16) | data;
 
@@ -355,8 +359,8 @@ miiphy_write(unsigned char phy, unsigned char reg,
 MII utilities - read: read from an MII register via SMI
 ***************************************************************************/
 int
-miiphy_read(unsigned char phy, unsigned char reg,
-			unsigned short *val)
+gt6426x_miiphy_read(char *devname, unsigned char phy,
+		unsigned char reg, unsigned short *val)
 {
     unsigned int temp= (reg<<21) | (phy<<16) | 1<<26;
 
@@ -381,7 +385,7 @@ static void
 gt6426x_dump_mii(bd_t *bis, unsigned short phy)
 {
 	printf("mii reg 0 - 3:   %04x %04x %04x %04x\n",
- 		miiphy_read_ret(phy, 0x0),
+		miiphy_read_ret(phy, 0x0),
 		miiphy_read_ret(phy, 0x1),
 		miiphy_read_ret(phy, 0x2),
 		miiphy_read_ret(phy, 0x3)
@@ -445,7 +449,7 @@ check_phy_state(struct eth_dev_s *p)
 		if ((psr & 0x3) != want) {
 			printf("MII: GT thinks %x, PHY thinks %x, restarting autoneg..\n",
 					psr & 0x3, want);
-			miiphy_write(ether_port_phy_addr[p->dev],0,
+			miiphy_write(GT6426x_MII_DEVNAME,ether_port_phy_addr[p->dev],0,
 					miiphy_read_ret(ether_port_phy_addr[p->dev],0) | (1<<9));
 			udelay(10000);	/* the EVB's GT takes a while to notice phy
 					   went down and up */
@@ -491,7 +495,7 @@ gt6426x_eth_probe(void *v, bd_t *bis)
 	   led 2: 0xc=link/rxact
 	   led 3: 0x2=rxact (N/C)
 	   strch: 0,2=30 ms, enable */
-	miiphy_write(ether_port_phy_addr[p->dev], 20, 0x1c22);
+	miiphy_write(GT6426x_MII_DEVNAME,ether_port_phy_addr[p->dev], 20, 0x1c22);
 
 	/* 2.7ns port rise time */
 	/*miiphy_write(ether_port_phy_addr[p->dev], 30, 0x0<<10); */
@@ -584,7 +588,7 @@ gt6426x_eth_probe(void *v, bd_t *bis)
 
 	/* Initialize Rx Side */
 	for (temp = 0; temp < NR; temp++) {
-		p->eth_rx_desc[temp].buff_pointer = p->eth_rx_buffer[temp];
+		p->eth_rx_desc[temp].buff_pointer = (uchar *)p->eth_rx_buffer[temp];
 		p->eth_rx_desc[temp].buff_size_byte_count = GT6426x_ETH_BUF_SIZE<<16;
 
 		/* GT96100 Owner */
@@ -720,7 +724,8 @@ gt6426x_eth_initialize(bd_t *bis)
 		dev->send = (void*)gt6426x_eth_transmit;
 		dev->recv = (void*)gt6426x_eth_poll;
 
-		dev->priv = (void*)p = calloc( sizeof(*p), 1 );
+		p = calloc( sizeof(*p), 1 );
+		dev->priv = (void*)p;
 		if (!p)
 		{
 			printf( "%s: %s allocation failure, %s\n",
@@ -792,6 +797,11 @@ gt6426x_eth_initialize(bd_t *bis)
 
 
 		eth_register(dev);
+#if defined(CONFIG_MII) || (CONFIG_COMMANDS & CFG_CMD_MII)
+		miiphy_register(dev->name,
+				gt6426x_miiphy_read, gt6426x_miiphy_write);
+#endif
 	}
+
 }
 #endif /* CFG_CMD_NET && CONFIG_NET_MULTI */

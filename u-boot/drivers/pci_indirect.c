@@ -12,7 +12,7 @@
 #include <common.h>
 
 #ifdef CONFIG_PCI
-#ifndef __I386__
+#if (!defined(__I386__) && !defined(CONFIG_IXDP425))
 
 #include <asm/processor.h>
 #include <asm/io.h>
@@ -20,6 +20,15 @@
 
 #define cfg_read(val, addr, type, op)	*val = op((type)(addr))
 #define cfg_write(val, addr, type, op)	op((type *)(addr), (val))
+
+#ifdef CONFIG_IXP425
+extern unsigned char	in_8 (volatile unsigned *addr);
+extern unsigned short	in_le16 (volatile unsigned *addr);
+extern unsigned		in_le32 (volatile unsigned *addr);
+extern void		out_8 (volatile unsigned *addr, char val);
+extern void		out_le16 (volatile unsigned *addr, unsigned short val);
+extern void		out_le32 (volatile unsigned *addr, unsigned int val);
+#endif	/* CONFIG_IXP425 */
 
 #if defined(CONFIG_MPC8260)
 #define INDIRECT_PCI_OP(rw, size, type, op, mask)			 \
@@ -29,6 +38,30 @@ indirect_##rw##_config_##size(struct pci_controller *hose, 		 \
 {									 \
 	out_le32(hose->cfg_addr, dev | (offset & 0xfc) | 0x80000000); 	 \
 	sync();								 \
+	cfg_##rw(val, hose->cfg_data + (offset & mask), type, op);	 \
+	return 0;    					 		 \
+}
+#elif defined(CONFIG_E500)
+#define INDIRECT_PCI_OP(rw, size, type, op, mask)                        \
+static int                                                               \
+indirect_##rw##_config_##size(struct pci_controller *hose,               \
+			      pci_dev_t dev, int offset, type val)       \
+{                                                                        \
+	*(hose->cfg_addr) = dev | (offset & 0xfc) | 0x80000000;          \
+	sync();                                                          \
+	cfg_##rw(val, hose->cfg_data + (offset & mask), type, op);       \
+	return 0;                                                        \
+}
+#elif defined(CONFIG_440GX) || defined(CONFIG_440EP) || defined(CONFIG_440GR)
+#define INDIRECT_PCI_OP(rw, size, type, op, mask)			 \
+static int								 \
+indirect_##rw##_config_##size(struct pci_controller *hose, 		 \
+			      pci_dev_t dev, int offset, type val)	 \
+{									 \
+	if (PCI_BUS(dev) > 0)                                            \
+		out_le32(hose->cfg_addr, dev | (offset & 0xfc) | 0x80000001); \
+	else                                                             \
+		out_le32(hose->cfg_addr, dev | (offset & 0xfc) | 0x80000000); \
 	cfg_##rw(val, hose->cfg_data + (offset & mask), type, op);	 \
 	return 0;    					 		 \
 }
@@ -85,5 +118,5 @@ void pci_setup_indirect(struct pci_controller* hose, u32 cfg_addr, u32 cfg_data)
 	hose->cfg_data = (unsigned char *) cfg_data;
 }
 
-#endif
-#endif
+#endif	/* !__I386__ && !CONFIG_IXDP425 */
+#endif	/* CONFIG_PCI */

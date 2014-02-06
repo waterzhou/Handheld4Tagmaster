@@ -42,16 +42,19 @@
 static char *cpu_warning = "\n         " \
 	"*** Warning: CPU Core has Silicon Bugs -- Check the Errata ***";
 
-#if ((defined(CONFIG_MPC860) || defined(CONFIG_MPC855)) && \
+#if ((defined(CONFIG_MPC86x) || defined(CONFIG_MPC855)) && \
      !defined(CONFIG_MPC862))
-# ifdef CONFIG_MPC855
-#  define	ID_STR	"PC855"
-# else
-#  define	ID_STR	"PC860"
-# endif
 
 static int check_CPU (long clock, uint pvr, uint immr)
 {
+	char *id_str =
+# if defined(CONFIG_MPC855)
+	"PC855";
+# elif defined(CONFIG_MPC860P)
+	"PC860P";
+# else
+	NULL;
+# endif
 	volatile immap_t *immap = (immap_t *) (immr & 0xFFFF0000);
 	uint k, m;
 	char buf[32];
@@ -67,8 +70,12 @@ static int check_CPU (long clock, uint pvr, uint immr)
 	k = (immr << 16) | *((ushort *) & immap->im_cpm.cp_dparam[0xB0]);
 	m = 0;
 
+	/*
+	 * Some boards use sockets so different CPUs can be used.
+	 * We have to check chip version in run time.
+	 */
 	switch (k) {
-	case 0x00020001: pre = 'p'; suf = ""; break;
+	case 0x00020001: pre = 'P'; suf = ""; break;
 	case 0x00030001: suf = ""; break;
 	case 0x00120003: suf = "A"; break;
 	case 0x00130003: suf = "A3"; break;
@@ -76,32 +83,64 @@ static int check_CPU (long clock, uint pvr, uint immr)
 	case 0x00200004: suf = "B"; break;
 
 	case 0x00300004: suf = "C"; break;
-	case 0x00310004: suf = "C1"; m = 1;
-		break;
+	case 0x00310004: suf = "C1"; m = 1; break;
 
 	case 0x00200064: mid = "SR"; suf = "B"; break;
 	case 0x00300065: mid = "SR"; suf = "C"; break;
 	case 0x00310065: mid = "SR"; suf = "C1"; m = 1; break;
 	case 0x05010000: suf = "D3"; m = 1; break;
 	case 0x05020000: suf = "D4"; m = 1; break;
-
 		/* this value is not documented anywhere */
 	case 0x40000000: pre = 'P'; suf = "D"; m = 1; break;
+		/* MPC866P/MPC866T/MPC859T/MPC859DSL/MPC852T */
+	case 0x08000003: pre = 'M'; suf = ""; m = 1;
+		if (id_str == NULL)
+			id_str =
+# if defined(CONFIG_MPC852T)
+		"PC852T";
+# elif defined(CONFIG_MPC859T)
+		"PC859T";
+# elif defined(CONFIG_MPC859DSL)
+		"PC859DSL";
+# elif defined(CONFIG_MPC866T)
+		"PC866T";
+# else
+		"PC866x"; /* Unknown chip from MPC866 family */
+# endif
+		break;
+	case 0x09000000: pre = 'M'; mid = suf = ""; m = 1;
+		if (id_str == NULL)
+			id_str = "PC885"; /* 870/875/880/885 */
+		break;
 
 	default: suf = NULL; break;
 	}
 
+	if (id_str == NULL)
+		id_str = "PC86x";	/* Unknown 86x chip */
 	if (suf)
-		printf ("%c" ID_STR "%sZPnn%s", pre, mid, suf);
+		printf ("%c%s%sZPnn%s", pre, id_str, mid, suf);
 	else
-		printf ("unknown M" ID_STR " (0x%08x)", k);
+		printf ("unknown M%s (0x%08x)", id_str, k);
 
-	printf (" at %s MHz:", strmhz (buf, clock));
 
-	printf (" %u kB I-Cache", checkicache () >> 10);
-	printf (" %u kB D-Cache", checkdcache () >> 10);
+#if defined(CFG_8xx_CPUCLK_MIN) && defined(CFG_8xx_CPUCLK_MAX)
+	printf (" at %s MHz [%d.%d...%d.%d MHz]\n       ",
+		strmhz (buf, clock),
+		CFG_8xx_CPUCLK_MIN / 1000000,
+		((CFG_8xx_CPUCLK_MIN % 1000000) + 50000) / 100000,
+		CFG_8xx_CPUCLK_MAX / 1000000,
+		((CFG_8xx_CPUCLK_MAX % 1000000) + 50000) / 100000
+	);
+#else
+	printf (" at %s MHz: ", strmhz (buf, clock));
+#endif
+	printf ("%u kB I-Cache %u kB D-Cache",
+		checkicache () >> 10,
+		checkdcache () >> 10
+	);
 
-	/* lets check and see if we're running on a 860T (or P?) */
+	/* do we have a FEC (860T/P or 852/859/866/885)? */
 
 	immap->im_cpm.cp_fec.fec_addr_low = 0x12345678;
 	if (immap->im_cpm.cp_fec.fec_addr_low == 0x12345678) {
@@ -113,6 +152,12 @@ static int check_CPU (long clock, uint pvr, uint immr)
 	}
 
 	putc ('\n');
+
+#ifdef DEBUG
+	if(clock != measure_gclk()) {
+	    printf ("clock %ldHz != %dHz\n", clock, measure_gclk());
+	}
+#endif
 
 	return 0;
 }
@@ -145,10 +190,17 @@ static int check_CPU (long clock, uint pvr, uint immr)
 	default: suf = NULL; break;
 	}
 
+#ifndef CONFIG_MPC857
 	if (suf)
 		printf ("%cPC862%sZPnn%s", pre, mid, suf);
 	else
 		printf ("unknown MPC862 (0x%08x)", k);
+#else
+	if (suf)
+		printf ("%cPC857TZPnn%s", pre, suf); /* only 857T tested right now! */
+	else
+		printf ("unknown MPC857 (0x%08x)", k);
+#endif
 
 	printf (" at %s MHz:", strmhz (buf, clock));
 
@@ -316,7 +368,7 @@ int checkicache (void)
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
 	u32 cacheon = rd_ic_cst () & IDC_ENABLED;
 
-#ifdef CONFIG_IP860
+#ifdef CONFIG_IP86x
 	u32 k = memctl->memc_br1 & ~0x00007fff;	/* probe in flash memoryarea */
 #else
 	u32 k = memctl->memc_br0 & ~0x00007fff;	/* probe in flash memoryarea */
@@ -363,7 +415,7 @@ int checkdcache (void)
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
 	u32 cacheon = rd_dc_cst () & IDC_ENABLED;
 
-#ifdef CONFIG_IP860
+#ifdef CONFIG_IP86x
 	u32 k = memctl->memc_br1 & ~0x00007fff;	/* probe in flash memoryarea */
 #else
 	u32 k = memctl->memc_br0 & ~0x00007fff;	/* probe in flash memoryarea */
@@ -411,8 +463,9 @@ void upmconfig (uint upm, uint * table, uint size)
 
 /* ------------------------------------------------------------------------- */
 
-int do_reset (cmd_tbl_t * cmdtp, bd_t * bd, int flag, int argc,
-			  char *argv[])
+#ifndef CONFIG_LWMON
+
+int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	ulong msr, addr;
 
@@ -446,29 +499,77 @@ int do_reset (cmd_tbl_t * cmdtp, bd_t * bd, int flag, int argc,
 	return 1;
 }
 
+#else	/* CONFIG_LWMON */
+
+/*
+ * On the LWMON board, the MCLR reset input of the PIC's on the board
+ * uses a 47K/1n RC combination which has a 47us time  constant.  The
+ * low  signal on the HRESET pin of the CPU is only 512 clocks = 8 us
+ * and thus too short to reset the external hardware. So we  use  the
+ * watchdog to reset the board.
+ */
+int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	/* prevent triggering the watchdog */
+	disable_interrupts ();
+
+	/* make sure the watchdog is running */
+	reset_8xx_watchdog ((immap_t *) CFG_IMMR);
+
+	/* wait for watchdog reset */
+	while (1) {};
+
+	/* NOTREACHED */
+	return 1;
+}
+
+#endif	/* CONFIG_LWMON */
+
 /* ------------------------------------------------------------------------- */
 
 /*
  * Get timebase clock frequency (like cpu_clk in Hz)
  *
- * See table 15-5 pp. 15-16, and SCCR[RTSEL] pp. 15-27.
+ * See sections 14.2 and 14.6 of the User's Manual
  */
 unsigned long get_tbclk (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
-	volatile immap_t *immr = (volatile immap_t *) CFG_IMMR;
-	ulong oscclk, factor;
+	uint immr = get_immr (0);	/* Return full IMMR contents */
+	volatile immap_t *immap = (volatile immap_t *)(immr & 0xFFFF0000);
+	ulong oscclk, factor, pll;
 
-	if (immr->im_clkrst.car_sccr & SCCR_TBS) {
+	if (immap->im_clkrst.car_sccr & SCCR_TBS) {
 		return (gd->cpu_clk / 16);
 	}
 
-	factor = (((CFG_PLPRCR) & PLPRCR_MF_MSK) >> PLPRCR_MF_SHIFT) + 1;
+	pll = immap->im_clkrst.car_plprcr;
+
+#define PLPRCR_val(a) ((pll & PLPRCR_ ## a ## _MSK) >> PLPRCR_ ## a ## _SHIFT)
+
+	/*
+	 * For newer PQ1 chips (MPC866/87x/88x families), PLL multiplication
+	 * factor is calculated as follows:
+	 *
+	 *		     MFN
+	 *	     MFI + -------
+	 *		   MFD + 1
+	 * factor =  -----------------
+	 *	     (PDF + 1) * 2^S
+	 *
+	 * For older chips, it's just MF field of PLPRCR plus one.
+	 */
+	if ((immr & 0x0FFF) >= MPC8xx_NEW_CLK) { /* MPC866/87x/88x series */
+		factor = (PLPRCR_val(MFI) + PLPRCR_val(MFN)/(PLPRCR_val(MFD)+1))/
+			(PLPRCR_val(PDF)+1) / (1<<PLPRCR_val(S));
+	} else {
+		factor = PLPRCR_val(MF)+1;
+	}
 
 	oscclk = gd->cpu_clk / factor;
 
-	if ((immr->im_clkrst.car_sccr & SCCR_RTSEL) == 0 || factor > 2) {
+	if ((immap->im_clkrst.car_sccr & SCCR_RTSEL) == 0 || factor > 2) {
 		return (oscclk / 4);
 	}
 	return (oscclk / 16);
@@ -485,6 +586,9 @@ void watchdog_reset (void)
 	if (re_enable)
 		enable_interrupts ();
 }
+#endif /* CONFIG_WATCHDOG */
+
+#if defined(CONFIG_WATCHDOG) || defined(CONFIG_LWMON)
 
 void reset_8xx_watchdog (volatile immap_t * immr)
 {
@@ -497,6 +601,17 @@ void reset_8xx_watchdog (volatile immap_t * immr)
 	 * had to be handled exactly the same.)
 	 */
 # define WATCHDOG_BIT	0x0100
+	immr->im_ioport.iop_papar &= ~(WATCHDOG_BIT);	/* GPIO     */
+	immr->im_ioport.iop_padir |= WATCHDOG_BIT;	/* Output   */
+	immr->im_ioport.iop_paodr &= ~(WATCHDOG_BIT);	/* active output */
+
+	immr->im_ioport.iop_padat ^= WATCHDOG_BIT;	/* Toggle WDI   */
+# elif defined(CONFIG_KUP4K) || defined(CONFIG_KUP4X)
+	/*
+	 * The KUP4 boards uses a TPS3705 Watchdog
+	 * with the trigger pin connected to port PA.5
+	 */
+# define WATCHDOG_BIT	0x0400
 	immr->im_ioport.iop_papar &= ~(WATCHDOG_BIT);	/* GPIO     */
 	immr->im_ioport.iop_padir |= WATCHDOG_BIT;	/* Output   */
 	immr->im_ioport.iop_paodr &= ~(WATCHDOG_BIT);	/* active output */

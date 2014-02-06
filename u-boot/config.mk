@@ -59,6 +59,9 @@ endif
 ifdef	CPU
 sinclude $(TOPDIR)/cpu/$(CPU)/config.mk	# include  CPU	specific rules
 endif
+ifdef	SOC
+sinclude $(TOPDIR)/cpu/$(CPU)/$(SOC)/config.mk	# include  SoC	specific rules
+endif
 ifdef	VENDOR
 BOARDDIR = $(VENDOR)/$(BOARD)
 else
@@ -83,6 +86,12 @@ HOSTCFLAGS	= -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 HOSTSTRIP	= strip
 
 #########################################################################
+#
+# Option checker (courtesy linux kernel) to ensure
+# only supported compiler options are used
+#
+cc-option = $(shell if $(CC) $(CFLAGS) $(1) -S -o /dev/null -xc /dev/null \
+		> /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
 
 #
 # Include the make variables (CC, etc...)
@@ -102,7 +111,7 @@ RELFLAGS= $(PLATFORM_RELFLAGS)
 DBGFLAGS= -g #-DDEBUG
 OPTFLAGS= -Os #-fomit-frame-pointer
 ifndef LDSCRIPT
-#LDSCRIPT := board/$(BOARDDIR)/u-boot.lds.debug
+#LDSCRIPT := $(TOPDIR)/board/$(BOARDDIR)/u-boot.lds.debug
 LDSCRIPT := $(TOPDIR)/board/$(BOARDDIR)/u-boot.lds
 endif
 OBJCFLAGS += --gap-fill=0xff
@@ -112,14 +121,22 @@ gccincdir := $(shell $(CC) -print-file-name=include)
 CPPFLAGS := $(DBGFLAGS) $(OPTFLAGS) $(RELFLAGS)		\
 	-D__KERNEL__ -DTEXT_BASE=$(TEXT_BASE)		\
 	-I$(TOPDIR)/include				\
-	-fno-builtin -nostdinc -isystem $(gccincdir)	\
-	-pipe $(PLATFORM_CPPFLAGS)
+	-fno-builtin -ffreestanding -nostdinc -isystem	\
+	$(gccincdir) -pipe $(PLATFORM_CPPFLAGS)
 
 ifdef BUILD_TAG
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes \
 	-DBUILD_TAG='"$(BUILD_TAG)"'
 else
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes
+endif
+
+# avoid trigraph warnings while parsing pci.h (produced by NIOS gcc-2.9)
+# this option have to be placed behind -Wall -- that's why it is here
+ifeq ($(ARCH),nios)
+ifeq ($(findstring 2.9,$(shell $(CC) --version)),2.9)
+CFLAGS := $(CPPFLAGS) -Wall -Wno-trigraphs
+endif
 endif
 
 AFLAGS_DEBUG := -Wa,-gstabs
@@ -148,6 +165,10 @@ else
 #BFD_ROOT_DIR =		/usr/pkg/cross		# NetBSD/i386
 BFD_ROOT_DIR =		/opt/powerpc
 endif
+endif
+
+ifeq ($(PCI_CLOCK),PCI_66M)
+CFLAGS := $(CFLAGS) -DPCI_66M
 endif
 
 #########################################################################

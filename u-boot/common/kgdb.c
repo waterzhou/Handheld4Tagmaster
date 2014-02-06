@@ -144,7 +144,7 @@ mem2hex(char *mem, char *buf, int count)
 	}
 	*buf = 0;
 	longjmp_on_fault = 0;
-	return buf;
+	return (unsigned char *)buf;
 }
 
 /* convert the hex array pointed to by buf into binary to be placed in mem
@@ -353,7 +353,7 @@ handle_exception (struct pt_regs *regs)
 		*ptr++ = hexchars[rp->num >> 4];
 		*ptr++ = hexchars[rp->num & 0xf];
 		*ptr++ = ':';
-		ptr = mem2hex((char *)&rp->val, ptr, 4);
+		ptr = (char *)mem2hex((char *)&rp->val, ptr, 4);
 		*ptr++ = ';';
 	}
 
@@ -364,7 +364,7 @@ handle_exception (struct pt_regs *regs)
 		printf("kgdb: remcomOutBuffer: %s\n", remcomOutBuffer);
 #endif
 
-	putpacket(remcomOutBuffer);
+	putpacket((unsigned char *)&remcomOutBuffer);
 
 	while (1) {
 		volatile int errnum;
@@ -508,7 +508,7 @@ handle_exception (struct pt_regs *regs)
 #endif
 
 		/* reply to the request */
-		putpacket(remcomOutBuffer);
+		putpacket((unsigned char *)&remcomOutBuffer);
 
 	} /* while(1) */
 }
@@ -548,7 +548,7 @@ kgdb_output_string (const char* s, unsigned int count)
 
 	buffer[0] = 'O';
 	mem2hex ((char *)s, &buffer[1], count);
-	putpacket(buffer);
+	putpacket((unsigned char *)&buffer);
 
 	return 1;
 }
@@ -573,6 +573,20 @@ do_kgdb(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
     return 0;
 }
 
+U_BOOT_CMD(
+	kgdb, CFG_MAXARGS, 1,	do_kgdb,
+	"kgdb    - enter gdb remote debug mode\n",
+	"[arg0 arg1 .. argN]\n"
+	"    - executes a breakpoint so that kgdb mode is\n"
+	"      entered via the exception handler. To return\n"
+	"      to the monitor, the remote gdb debugger must\n"
+	"      execute a \"continue\" or \"quit\" command.\n"
+	"\n"
+	"      if a program is loaded by the remote gdb, any args\n"
+	"      passed to the kgdb command are given to the loaded\n"
+	"      program if it is executed (see the \"hello_world\"\n"
+	"      example program in the U-Boot examples directory)."
+);
 #else
 
 int kgdb_not_configured = 1;

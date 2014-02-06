@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000-2002
+ * (C) Copyright 2000-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -51,7 +51,7 @@
 #undef	CONFIG_8xx_CONS_NONE
 #define CONFIG_BAUDRATE		115200	/* console baudrate in bps	*/
 #if 0
-#define CONFIG_BOOTDELAY	-1	/* autoboot disabled		*/
+#define CONFIG_BOOTDELAY	0	/* immediate boot		*/
 #else
 #define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 #endif
@@ -63,8 +63,8 @@
 #undef	CONFIG_BOOTARGS
 #define CONFIG_BOOTCOMMAND							\
 	"bootp; " 								\
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " 	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; " 	\
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " 	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; " 	\
 	"bootm"
 
 #undef	CONFIG_SCC1_ENET
@@ -76,14 +76,6 @@
 #define	CONFIG_MISC_INIT_R		/* have misc_init_r() function	*/
 
 #undef	CONFIG_WATCHDOG			/* watchdog disabled		*/
-
-#if 0
-#ifdef CONFIG_LCD
-# undef	 CONFIG_STATUS_LED		/* disturbs display		*/
-#else
-# define CONFIG_STATUS_LED	1	/* Status LED enabled		*/
-#endif	/* CONFIG_LCD */
-#endif
 
 #define	CONFIG_CAN_DRIVER		/* CAN Driver support enabled	*/
 
@@ -121,12 +113,15 @@
 
 #define CONFIG_COMMANDS	      ( CONFIG_CMD_DFL	| \
 				CFG_CMD_BMP	| \
-				CFG_CMD_DHCP	| \
+				CFG_CMD_BSP	| \
 				CFG_CMD_DATE	| \
+				CFG_CMD_DHCP	| \
 				CFG_CMD_I2C	| \
 				CFG_CMD_IDE	| \
+				CFG_CMD_JFFS2	| \
+				CFG_CMD_NFS	| \
 				CFG_CMD_PCMCIA	| \
-				CFG_CMD_BSP	)
+				CFG_CMD_SNTP	)
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -134,6 +129,9 @@
 /*
  * Miscellaneous configurable options
  */
+#define CFG_DEVICE_NULLDEV	1	/* we need the null device	*/
+#define CFG_CONSOLE_IS_IN_ENV	1	/* must set console from env	*/
+
 #define	CFG_LONGHELP			/* undef to save memory		*/
 #define	CFG_PROMPT	"=> "		/* Monitor Command Prompt	*/
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
@@ -153,6 +151,23 @@
 #define	CFG_HZ		1000		/* decrementer freq: 1 ms ticks	*/
 
 #define CFG_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
+
+/*
+ * JFFS2 partitions
+ */
+/* No command line, one static partition
+ * use all the space starting at offset 3MB*/
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00300000
+
+/* mtdparts command line support */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor0=r360-0"
+#define MTDPARTS_DEFAULT	"mtdparts=r360-0:-@3m(user)"
+*/
 
 /*
  * Low Level Configuration Settings

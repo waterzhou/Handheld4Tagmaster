@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2001
+ * (C) Copyright 2001-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -30,10 +30,13 @@
 
 /*
  * Imported from global configuration:
- *	CONFIG_L2_CACHE
+ *	CONFIG_MPC8255
+ *	CONFIG_MPC8265
+ *	CONFIG_200MHz
  *	CONFIG_266MHz
  *	CONFIG_300MHz
- *	CONFIG_MPC8255
+ *	CONFIG_L2_CACHE
+ *	CONFIG_BUSMODE_60x
  */
 
 /*
@@ -49,40 +52,37 @@
 #define CONFIG_TQM8260		200	/* ...on a TQM8260 module Rev.200	*/
 #endif
 
-/* Define 60x busmode only if your TQM8260 has L2 cache! */
-#ifdef CONFIG_L2_CACHE
-#  define CONFIG_BUSMODE_60x	1	/* bus mode: 60x			*/
-#else
-#  undef  CONFIG_BUSMODE_60x		/* bus mode: 8260			*/
-#endif
-
-/* The board with 300MHz CPU doesn't have L2 cache, but works in 60x bus mode */
-#ifdef CONFIG_300MHz
-#  define CONFIG_BUSMODE_60x
-#endif
+#define CONFIG_CPM2		1	/* Has a CPM2 */
 
 #define CONFIG_82xx_CONS_SMC1	1	/* console on SMC1			*/
 
 #define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 
-#define	CONFIG_CLOCKS_IN_MHZ	1	/* clocks passsed to Linux in MHz */
+#define	CONFIG_BOOTCOUNT_LIMIT
+
+#if defined(CONFIG_CONS_NONE) || defined(CONFIG_CONS_USE_EXTC)
+#define CONFIG_BAUDRATE		230400
+#else
+#define CONFIG_BAUDRATE		9600
+#endif
 
 #define CONFIG_PREBOOT	"echo;echo Type \"run flash_nfs\" to mount root filesystem over NFS;echo"
 
 #undef	CONFIG_BOOTARGS
 
 #define	CONFIG_EXTRA_ENV_SETTINGS					\
+	"netdev=eth0\0"							\
 	"nfsargs=setenv bootargs root=/dev/nfs rw "			\
-		"nfsroot=$(serverip):$(rootpath)\0"			\
+		"nfsroot=${serverip}:${rootpath}\0"			\
 	"ramargs=setenv bootargs root=/dev/ram rw\0"			\
-	"addip=setenv bootargs $(bootargs) "				\
-		"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask)"	\
-		":$(hostname):$(netdev):off panic=1\0"			\
+	"addip=setenv bootargs ${bootargs} "				\
+		"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}"	\
+		":${hostname}:${netdev}:off panic=1\0"			\
 	"flash_nfs=run nfsargs addip;"					\
-		"bootm $(kernel_addr)\0"				\
+		"bootm ${kernel_addr}\0"				\
 	"flash_self=run ramargs addip;"					\
-		"bootm $(kernel_addr) $(ramdisk_addr)\0"		\
-	"net_nfs=tftp 200000 $(bootfile);run nfsargs addip;bootm\0"	\
+		"bootm ${kernel_addr} ${ramdisk_addr}\0"		\
+	"net_nfs=tftp 200000 ${bootfile};run nfsargs addip;bootm\0"	\
 	"rootpath=/opt/eldk/ppc_82xx\0"					\
 	"bootfile=/tftpboot/TQM8260/uImage\0"				\
 	"kernel_addr=40040000\0"					\
@@ -203,9 +203,9 @@
 
 
 /* system clock rate (CLKIN) - equal to the 60x and local bus speed */
-#ifdef CONFIG_MPC8255
+#if defined(CONFIG_MPC8255) || defined(CONFIG_MPC8265)
 #  define CONFIG_8260_CLKIN	66666666	/* in Hz */
-#else	/* !CONFIG_MPC8255 */
+#else	/* !CONFIG_MPC8255 && !CONFIG_MPC8265 */
 # ifndef CONFIG_300MHz
 #  define CONFIG_8260_CLKIN	66666666	/* in Hz */
 # else
@@ -213,22 +213,21 @@
 # endif
 #endif	/* CONFIG_MPC8255 */
 
-#if defined(CONFIG_CONS_NONE) || defined(CONFIG_CONS_USE_EXTC)
-#define CONFIG_BAUDRATE		230400
-#else
-#define CONFIG_BAUDRATE		9600
-#endif
-
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
 #undef	CFG_LOADS_BAUD_CHANGE		/* don't allow baudrate change	*/
 
 #undef	CONFIG_WATCHDOG			/* watchdog disabled		*/
 
+#define	CONFIG_TIMESTAMP		/* Print image info with timestamp */
+
 #define CONFIG_BOOTP_MASK	(CONFIG_BOOTP_DEFAULT|CONFIG_BOOTP_BOOTFILESIZE)
 
-#define CONFIG_COMMANDS		(CONFIG_CMD_DFL | \
-				 CFG_CMD_I2C	| \
-				 CFG_CMD_EEPROM)
+#define CONFIG_COMMANDS	       (CONFIG_CMD_DFL	| \
+				CFG_CMD_DHCP	| \
+				CFG_CMD_I2C	| \
+				CFG_CMD_EEPROM	| \
+				CFG_CMD_NFS	| \
+				CFG_CMD_SNTP	)
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -317,9 +316,9 @@
  */
 #define	__HRCW__ALL__		(HRCW_CIP | HRCW_ISB111 | HRCW_BMS)
 
-#ifdef	CONFIG_MPC8255
+#if defined(CONFIG_MPC8255) || defined(CONFIG_MPC8265)
 #  define CFG_HRCW_MASTER	(__HRCW__ALL__ | HRCW_MODCK_H0111)
-#else	/* ! MPC8255 */
+#else	/* ! MPC8255 && !MPC8265 */
 # if defined(CONFIG_266MHz)
 #  define CFG_HRCW_MASTER	(__HRCW__ALL__ | HRCW_MODCK_H0111)
 # elif defined(CONFIG_300MHz)
@@ -394,7 +393,7 @@
  * HID1 has only read-only information - nothing to set.
  */
 #define CFG_HID0_INIT   (HID0_ICE|HID0_DCE|HID0_ICFI|HID0_DCI|\
-                                HID0_IFEM|HID0_ABE)
+				HID0_IFEM|HID0_ABE)
 #define CFG_HID0_FINAL  (HID0_IFEM|HID0_ABE)
 #define CFG_HID2        0
 
@@ -436,10 +435,10 @@
  */
 #if defined(CONFIG_WATCHDOG)
 #define CFG_SYPCR       (SYPCR_SWTC|SYPCR_BMT|SYPCR_PBME|SYPCR_LBME|\
-                         SYPCR_SWRI|SYPCR_SWP|SYPCR_SWE)
+			 SYPCR_SWRI|SYPCR_SWP|SYPCR_SWE)
 #else
 #define CFG_SYPCR       (SYPCR_SWTC|SYPCR_BMT|SYPCR_PBME|SYPCR_LBME|\
-                         SYPCR_SWRI|SYPCR_SWP)
+			 SYPCR_SWRI|SYPCR_SWP)
 #endif /* CONFIG_WATCHDOG */
 
 /*-----------------------------------------------------------------------
@@ -517,16 +516,16 @@
 /* Bank 0 - FLASH
  */
 #define CFG_BR0_PRELIM  ((CFG_FLASH_BASE & BRx_BA_MSK)  |\
-                         BRx_PS_64                      |\
-                         BRx_MS_GPCM_P                  |\
-                         BRx_V)
+			 BRx_PS_64                      |\
+			 BRx_MS_GPCM_P                  |\
+			 BRx_V)
 
 #define CFG_OR0_PRELIM  (MEG_TO_AM(CFG_FLASH_SIZE)      |\
-                         ORxG_CSNT                      |\
-                         ORxG_ACS_DIV1                  |\
-                         ORxG_SCY_3_CLK                 |\
-                         ORxG_EHTR                      |\
-                         ORxG_TRLX)
+			 ORxG_CSNT                      |\
+			 ORxG_ACS_DIV1                  |\
+			 ORxG_SCY_3_CLK                 |\
+			 ORxG_EHTR                      |\
+			 ORxG_TRLX)
 
 	/* SDRAM on TQM8260 can have either 8 or 9 columns.
 	 * The number affects configuration values.
@@ -538,9 +537,9 @@
 #define CFG_LSRT        0x20
 #ifndef CFG_RAMBOOT
 #define CFG_BR1_PRELIM  ((CFG_SDRAM_BASE & BRx_BA_MSK)  |\
-                         BRx_PS_64                      |\
-                         BRx_MS_SDRAM_P                 |\
-                         BRx_V)
+			 BRx_PS_64                      |\
+			 BRx_MS_SDRAM_P                 |\
+			 BRx_V)
 
 #define CFG_OR1_PRELIM	CFG_OR1_8COL
 
@@ -548,48 +547,48 @@
 	/* SDRAM initialization values for 8-column chips
 	 */
 #define CFG_OR1_8COL    ((~(CFG_GLOBAL_SDRAM_LIMIT-1) & ORxS_SDAM_MSK) |\
-                         ORxS_BPD_4                     |\
-                         ORxS_ROWST_PBI1_A7             |\
-                         ORxS_NUMR_12)
+			 ORxS_BPD_4                     |\
+			 ORxS_ROWST_PBI1_A7             |\
+			 ORxS_NUMR_12)
 
 #define CFG_PSDMR_8COL  (PSDMR_PBI                      |\
-                         PSDMR_SDAM_A15_IS_A5           |\
-                         PSDMR_BSMA_A12_A14             |\
-                         PSDMR_SDA10_PBI1_A8            |\
-                         PSDMR_RFRC_7_CLK               |\
-                         PSDMR_PRETOACT_2W              |\
-                         PSDMR_ACTTORW_2W               |\
-                         PSDMR_LDOTOPRE_1C              |\
-                         PSDMR_WRC_2C                   |\
-                         PSDMR_EAMUX                    |\
-                         PSDMR_CL_2)
+			 PSDMR_SDAM_A15_IS_A5           |\
+			 PSDMR_BSMA_A12_A14             |\
+			 PSDMR_SDA10_PBI1_A8            |\
+			 PSDMR_RFRC_7_CLK               |\
+			 PSDMR_PRETOACT_2W              |\
+			 PSDMR_ACTTORW_2W               |\
+			 PSDMR_LDOTOPRE_1C              |\
+			 PSDMR_WRC_2C                   |\
+			 PSDMR_EAMUX                    |\
+			 PSDMR_CL_2)
 
 	/* SDRAM initialization values for 9-column chips
 	 */
 #define CFG_OR1_9COL    ((~(CFG_GLOBAL_SDRAM_LIMIT-1) & ORxS_SDAM_MSK) |\
-                         ORxS_BPD_4                     |\
-                         ORxS_ROWST_PBI1_A5             |\
-                         ORxS_NUMR_13)
+			 ORxS_BPD_4                     |\
+			 ORxS_ROWST_PBI1_A5             |\
+			 ORxS_NUMR_13)
 
 #define CFG_PSDMR_9COL  (PSDMR_PBI                      |\
-                         PSDMR_SDAM_A16_IS_A5           |\
-                         PSDMR_BSMA_A12_A14             |\
-                         PSDMR_SDA10_PBI1_A7            |\
-                         PSDMR_RFRC_7_CLK               |\
-                         PSDMR_PRETOACT_2W              |\
-                         PSDMR_ACTTORW_2W               |\
-                         PSDMR_LDOTOPRE_1C              |\
-                         PSDMR_WRC_2C                   |\
-                         PSDMR_EAMUX                    |\
-                         PSDMR_CL_2)
+			 PSDMR_SDAM_A16_IS_A5           |\
+			 PSDMR_BSMA_A12_A14             |\
+			 PSDMR_SDA10_PBI1_A7            |\
+			 PSDMR_RFRC_7_CLK               |\
+			 PSDMR_PRETOACT_2W              |\
+			 PSDMR_ACTTORW_2W               |\
+			 PSDMR_LDOTOPRE_1C              |\
+			 PSDMR_WRC_2C                   |\
+			 PSDMR_EAMUX                    |\
+			 PSDMR_CL_2)
 
 /* Bank 2 - Local bus SDRAM
  */
 #ifdef CFG_INIT_LOCAL_SDRAM
 #define CFG_BR2_PRELIM  ((SDRAM_BASE2_PRELIM & BRx_BA_MSK) |\
-                         BRx_PS_32                      |\
-                         BRx_MS_SDRAM_L                 |\
-                         BRx_V)
+			 BRx_PS_32                      |\
+			 BRx_MS_SDRAM_L                 |\
+			 BRx_V)
 
 #define CFG_OR2_PRELIM	CFG_OR2_8COL
 
@@ -598,40 +597,40 @@
 	/* SDRAM initialization values for 8-column chips
 	 */
 #define CFG_OR2_8COL    ((~(CFG_LOCAL_SDRAM_LIMIT-1) & ORxS_SDAM_MSK) |\
-                         ORxS_BPD_4                     |\
-                         ORxS_ROWST_PBI1_A8             |\
-                         ORxS_NUMR_12)
+			 ORxS_BPD_4                     |\
+			 ORxS_ROWST_PBI1_A8             |\
+			 ORxS_NUMR_12)
 
 #define CFG_LSDMR_8COL  (PSDMR_PBI                      |\
-                         PSDMR_SDAM_A15_IS_A5           |\
-                         PSDMR_BSMA_A13_A15             |\
-                         PSDMR_SDA10_PBI1_A9            |\
-                         PSDMR_RFRC_7_CLK               |\
-                         PSDMR_PRETOACT_2W              |\
-                         PSDMR_ACTTORW_2W               |\
-                         PSDMR_BL                       |\
-                         PSDMR_LDOTOPRE_1C              |\
-                         PSDMR_WRC_2C                   |\
-                         PSDMR_CL_2)
+			 PSDMR_SDAM_A15_IS_A5           |\
+			 PSDMR_BSMA_A13_A15             |\
+			 PSDMR_SDA10_PBI1_A9            |\
+			 PSDMR_RFRC_7_CLK               |\
+			 PSDMR_PRETOACT_2W              |\
+			 PSDMR_ACTTORW_2W               |\
+			 PSDMR_BL                       |\
+			 PSDMR_LDOTOPRE_1C              |\
+			 PSDMR_WRC_2C                   |\
+			 PSDMR_CL_2)
 
 	/* SDRAM initialization values for 9-column chips
 	 */
 #define CFG_OR2_9COL    ((~(CFG_LOCAL_SDRAM_LIMIT-1) & ORxS_SDAM_MSK) |\
-                         ORxS_BPD_4                     |\
-                         ORxS_ROWST_PBI1_A6             |\
-                         ORxS_NUMR_13)
+			 ORxS_BPD_4                     |\
+			 ORxS_ROWST_PBI1_A6             |\
+			 ORxS_NUMR_13)
 
 #define CFG_LSDMR_9COL  (PSDMR_PBI                      |\
-                         PSDMR_SDAM_A16_IS_A5           |\
-                         PSDMR_BSMA_A13_A15             |\
-                         PSDMR_SDA10_PBI1_A8            |\
-                         PSDMR_RFRC_7_CLK               |\
-                         PSDMR_PRETOACT_2W              |\
-                         PSDMR_ACTTORW_2W               |\
-                         PSDMR_BL                       |\
-                         PSDMR_LDOTOPRE_1C              |\
-                         PSDMR_WRC_2C                   |\
-                         PSDMR_CL_2)
+			 PSDMR_SDAM_A16_IS_A5           |\
+			 PSDMR_BSMA_A13_A15             |\
+			 PSDMR_SDA10_PBI1_A8            |\
+			 PSDMR_RFRC_7_CLK               |\
+			 PSDMR_PRETOACT_2W              |\
+			 PSDMR_ACTTORW_2W               |\
+			 PSDMR_BL                       |\
+			 PSDMR_LDOTOPRE_1C              |\
+			 PSDMR_WRC_2C                   |\
+			 PSDMR_CL_2)
 
 #endif /* CFG_INIT_LOCAL_SDRAM */
 

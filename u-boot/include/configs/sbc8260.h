@@ -196,6 +196,7 @@
 
 #ifdef	CONFIG_ETHER_ON_FCC
 #define CONFIG_ETHER_INDEX	2	/* which SCC/FCC channel for ethernet */
+#undef	CONFIG_ETHER_LOOPBACK_TEST	/* Ethernet external loopback test */
 #define CONFIG_MII			/* MII PHY management		*/
 #define CONFIG_BITBANGMII		/* bit-bang MII PHY management	*/
 /*
@@ -284,7 +285,7 @@
 /* What should the console's baud rate be? */
 #define CONFIG_BAUDRATE		9600
 
-/* Ethernet MAC address 
+/* Ethernet MAC address
  *     Note: We are using the EST Corporation OUI (00:a0:1e:xx:xx:xx)
  *           http://standards.ieee.org/regauth/oui/index.shtml
  */
@@ -315,108 +316,112 @@
 
 /* Define this to contain any number of null terminated strings that
  * will be part of the default enviroment compiled into the boot image.
- * 
+ *
  * Variable		Usage
  * --------------       -------------------------------------------------------
- * serverip		server IP address 
+ * serverip		server IP address
  * ipaddr		my IP address
  * reprog		Reload flash with a new copy of U-Boot
  * zapenv		Erase the environment area in flash
  * root-on-initrd       Set the bootcmd variable to allow booting of an initial
  *                      ram disk.
- * root-on-nfs          Set the bootcmd variable to allow booting of a NFS 
+ * root-on-nfs          Set the bootcmd variable to allow booting of a NFS
  *                      mounted root filesystem.
- * boot-hook            Convenient stub to do something useful before the 
+ * boot-hook            Convenient stub to do something useful before the
  *                      bootm command is executed.
- * 
+ *
  * Example usage of root-on-initrd and root-on-nfs :
  *
  * Note: The lines have been wrapped to improved its readability.
  *
  * => printenv bootcmd
  * bootcmd=version;echo;bootp;setenv bootargs root=/dev/nfs rw
- * nfsroot=$(serverip):$(rootpath) 
- * ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;run boot-hook;bootm
+ * nfsroot=${serverip}:${rootpath}
+ * ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;run boot-hook;bootm
  *
  * => run root-on-initrd
  * => printenv bootcmd
  * bootcmd=version;echo;bootp;setenv bootargs root=/dev/ram0 rw
- * ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;run boot-hook;bootm
- * 
+ * ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;run boot-hook;bootm
+ *
  * => run root-on-nfs
  * => printenv bootcmd
  * bootcmd=version;echo;bootp;setenv bootargs root=/dev/nfs rw
- * nfsroot=$(serverip):$(rootpath) 
- * ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;run boot-hook;bootm
+ * nfsroot=${serverip}:${rootpath}
+ * ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;run boot-hook;bootm
  *
  */
 #define CONFIG_EXTRA_ENV_SETTINGS \
-	"serverip=192.168.123.201\0" \
-	"ipaddr=192.168.123.203\0" \
+	"serverip=192.168.123.205\0" \
+	"ipaddr=192.168.123.213\0" \
 	"reprog="\
-		"tftpboot 0x140000 /bdi2000/u-boot.bin; " \
-		"protect off 1:0; " \
-		"erase 1:0; " \
-		"cp.b 140000 40000000 $(filesize); " \
+		"bootp;" \
+		"tftpboot 0x140000 /bdi2000/u-boot.bin;" \
+		"protect off 1:0;" \
+		"erase 1:0;" \
+		"cp.b 140000 40000000 ${filesize};" \
 		"protect on 1:0\0" \
 	"zapenv="\
-		"protect off 1:1; " \
-		"erase 1:1; " \
+		"protect off 1:1;" \
+		"erase 1:1;" \
 		"protect on 1:1\0" \
 	"root-on-initrd="\
 		"setenv bootcmd "\
-		"version\\;" \
-		"echo\\;" \
-		"bootp\\;" \
+		"version;" \
+		"echo;" \
+		"bootp;" \
 		"setenv bootargs root=/dev/ram0 rw " \
-		"ip=\\$(ipaddr):\\$(serverip):\\$(gatewayip):\\$(netmask):\\$(hostname)::off\\;" \
-		"run boot-hook\\;" \
+		"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
+		"run boot-hook;" \
 		"bootm\0" \
 	"root-on-nfs="\
 		"setenv bootcmd "\
-		"version\\;" \
-		"echo\\;" \
-		"bootp\\;" \
+		"version;" \
+		"echo;" \
+		"bootp;" \
 		"setenv bootargs root=/dev/nfs rw " \
-		"nfsroot=\\$(serverip):\\$(rootpath) " \
-		"ip=\\$(ipaddr):\\$(serverip):\\$(gatewayip):\\$(netmask):\\$(hostname)::off\\;" \
-		"run boot-hook\\;" \
+		"nfsroot=${serverip}:${rootpath} " \
+		"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
+		"run boot-hook;" \
 		"bootm\0" \
-	"boot-hook=echo boot-hook\0"
+	"boot-hook=echo\0"
 
 /* Define a command string that is automatically executed when no character
  * is read on the console interface withing "Boot Delay" after reset.
  */
-#define CONFIG_BOOT_ROOT_INITRD 0	/* Use ram disk for the root file system */
-#define CONFIG_BOOT_ROOT_NFS	1	/* Use a NFS mounted root file system */
+#undef	CONFIG_BOOT_ROOT_INITRD 	/* Use ram disk for the root file system */
+#define	CONFIG_BOOT_ROOT_NFS		/* Use a NFS mounted root file system */
 
-#if CONFIG_BOOT_ROOT_INITRD
+#ifdef CONFIG_BOOT_ROOT_INITRD
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
 	"setenv bootargs root=/dev/ram0 rw " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_INITRD */
 
-#if CONFIG_BOOT_ROOT_NFS
+#ifdef CONFIG_BOOT_ROOT_NFS
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_NFS */
 
 /* Add support for a few extra bootp options like:
  *	- File size
- *	- DNS
+ *	- DNS (up to 2 servers)
+ *	- Send hostname to DHCP server
  */
 #define CONFIG_BOOTP_MASK	(CONFIG_BOOTP_DEFAULT | \
 				 CONFIG_BOOTP_BOOTFILESIZE | \
-				 CONFIG_BOOTP_DNS)
+				 CONFIG_BOOTP_DNS  | \
+				 CONFIG_BOOTP_DNS2 | \
+				 CONFIG_BOOTP_SEND_HOSTNAME)
 
 /* undef this to save memory */
 #define CFG_LONGHELP
@@ -434,27 +439,36 @@
  */
 #define CONFIG_TIMESTAMP
 
+/* If this variable is defined, an environment variable named "ver"
+ * is created by U-Boot showing the U-Boot version.
+ */
+#define CONFIG_VERSION_VARIABLE
+
 /* What U-Boot subsytems do you want enabled? */
 #ifdef CONFIG_ETHER_ON_FCC
 # define CONFIG_COMMANDS	(((CONFIG_CMD_DFL & ~(CFG_CMD_KGDB))) | \
-				CFG_CMD_ELF	| \
 				CFG_CMD_ASKENV	| \
 				CFG_CMD_ECHO	| \
+				CFG_CMD_ELF	| \
 				CFG_CMD_I2C	| \
-				CFG_CMD_SDRAM   | \
-				CFG_CMD_REGINFO | \
 				CFG_CMD_IMMAP	| \
-				CFG_CMD_MII	)
+				CFG_CMD_MII	| \
+				CFG_CMD_PING	| \
+				CFG_CMD_REGINFO | \
+				CFG_CMD_SDRAM   )
 #else
 # define CONFIG_COMMANDS	(((CONFIG_CMD_DFL & ~(CFG_CMD_KGDB))) | \
-				CFG_CMD_ELF	| \
 				CFG_CMD_ASKENV	| \
 				CFG_CMD_ECHO	| \
+				CFG_CMD_ELF	| \
 				CFG_CMD_I2C	| \
-				CFG_CMD_SDRAM   | \
+				CFG_CMD_IMMAP	| \
+				CFG_CMD_PING	| \
 				CFG_CMD_REGINFO | \
-				CFG_CMD_IMMAP	)
+				CFG_CMD_SDRAM   )
 #endif /* CONFIG_ETHER_ON_FCC */
+
+#undef CONFIG_WATCHDOG				/* disable the watchdog */
 
 /* Where do the internal registers live? */
 #define CFG_IMMR		0xF0000000
@@ -467,6 +481,7 @@
 
 #define CONFIG_MPC8260		1	/* This is an MPC8260 CPU   */
 #define CONFIG_SBC8260		1	/* on an EST SBC8260 Board  */
+#define CONFIG_CPM2		1	/* Has a CPM2 */
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -670,12 +685,22 @@
  *-----------------------------------------------------------------------
  * Watchdog & Bus Monitor Timer max, 60x Bus Monitor enable
  */
+#if defined(CONFIG_WATCHDOG)
+#define CFG_SYPCR	(SYPCR_SWTC |\
+			 SYPCR_BMT  |\
+			 SYPCR_PBME |\
+			 SYPCR_LBME |\
+			 SYPCR_SWRI |\
+			 SYPCR_SWP  |\
+			 SYPCR_SWE)
+#else
 #define CFG_SYPCR	(SYPCR_SWTC |\
 			 SYPCR_BMT  |\
 			 SYPCR_PBME |\
 			 SYPCR_LBME |\
 			 SYPCR_SWRI |\
 			 SYPCR_SWP)
+#endif	/* CONFIG_WATCHDOG */
 
 /*-----------------------------------------------------------------------
  * TMCNTSC - Time Counter Status and Control			 4-40

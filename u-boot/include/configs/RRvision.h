@@ -65,22 +65,22 @@
 	"netdev=eth0\0"							\
 	"ramargs=setenv bootargs root=/dev/ram rw\0"			\
 	"nfsargs=setenv bootargs root=/dev/nfs rw "			\
-		"nfsroot=$(serverip):$(rootpath)\0"			\
-	"addip=setenv bootargs $(bootargs) ip=$(ipaddr):$(serverip)"	\
-		":$(gatewayip):$(netmask):$(hostname):$(netdev):off\0"	\
-	"addtty=setenv bootargs $(bootargs) console=ttyS0,$(baudrate)\0"\
+		"nfsroot=${serverip}:${rootpath}\0"			\
+	"addip=setenv bootargs ${bootargs} ip=${ipaddr}:${serverip}"	\
+		":${gatewayip}:${netmask}:${hostname}:${netdev}:off\0"	\
+	"addtty=setenv bootargs ${bootargs} console=ttyS0,${baudrate}\0"\
 	"load=tftp 100000 /tftpboot/u-boot.bin\0"			\
 	"update=protect off 1:0-8;era 1:0-8;"				\
-		"cp.b 100000 40000000 $(filesize);"			\
+		"cp.b 100000 40000000 ${filesize};"			\
 		"setenv filesize;saveenv\0"				\
 	"kernel_addr=40040000\0"					\
 	"ramdisk_addr=40100000\0"					\
 	"kernel_img=/tftpboot/uImage\0"					\
-	"kernel_load=tftp 200000 $(kernel_img)\0"			\
+	"kernel_load=tftp 200000 ${kernel_img}\0"			\
 	"net_nfs=run kernel_load nfsargs addip addtty;bootm\0"		\
-	"flash_nfs=run nfsargs addip addtty;bootm $(kernel_addr)\0"	\
+	"flash_nfs=run nfsargs addip addtty;bootm ${kernel_addr}\0"	\
 	"flash_self=run ramargs addip addtty;"				\
-		"bootm $(kernel_addr) $(ramdisk_addr)\0"
+		"bootm ${kernel_addr} ${ramdisk_addr}\0"
 
 
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
@@ -100,13 +100,13 @@
 #define	CONFIG_RTC_MPC8xx		/* use internal RTC of MPC8xx	*/
 
 
-#if 1
+#ifndef CONFIG_LCD
 #define CONFIG_VIDEO		1	/* To enable the video initialization */
 
 /* Video related */
 #define CONFIG_VIDEO_LOGO			1	/* Show the logo */
-#define CONFIG_VIDEO_ENCODER_AD7176		1	/* Enable this encoder */
-#define CONFIG_VIDEO_ENCODER_AD7176_ADDR	0x2A	/* ALSB to ground */
+#define CONFIG_VIDEO_ENCODER_AD7179		1	/* Enable this encoder */
+#define CONFIG_VIDEO_ENCODER_AD7179_ADDR	0x2A	/* ALSB to ground */
 #endif
 
 /* enable I2C and select the hardware/software driver */
@@ -133,7 +133,6 @@
 			else    immr->im_cpm.cp_pbdat &= ~PB_SCL
 #define I2C_DELAY	udelay(1)	/* 1/4 I2C clock duration */
 #endif	/* CONFIG_SOFT_I2C */
-
 
 
 #define CONFIG_COMMANDS	    ( ( CONFIG_CMD_DFL	| \
@@ -345,6 +344,7 @@
  *-----------------------------------------------------------------------
  *
  */
+/*#define	CFG_DER	0x2002000F*/
 #define CFG_DER	0
 
 /*

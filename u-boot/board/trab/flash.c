@@ -39,7 +39,10 @@ flash_info_t flash_info[CFG_MAX_FLASH_BANKS];
 #define CMD_PROGRAM		0x00A000A0
 #define CMD_UNLOCK_BYPASS	0x00200020
 #define CMD_READ_MANF_ID	0x00900090
+#define CMD_UNLOCK_BYPASS_RES1	0x00900090
+#define CMD_UNLOCK_BYPASS_RES2	0x00000000
 
+#define MEM_FLASH_ADDR		(*(volatile u32 *)CFG_FLASH_BASE)
 #define MEM_FLASH_ADDR1		(*(volatile u32 *)(CFG_FLASH_BASE + (0x00000555 << 2)))
 #define MEM_FLASH_ADDR2		(*(volatile u32 *)(CFG_FLASH_BASE + (0x000002AA << 2)))
 
@@ -80,6 +83,7 @@ ulong flash_init (void)
 
 			switch (info->flash_id & FLASH_TYPEMASK) {
 			case (FLASH_AM320B & FLASH_TYPEMASK):
+			case (FLASH_MXLV320B & FLASH_TYPEMASK):
 				/* Boot sector type: 8 x 8 + N x 128 kB */
 				flashbase += (j < 8) ? 0x4000 : 0x20000;
 				break;
@@ -127,12 +131,17 @@ void flash_print_info (flash_info_t * info)
 			printf ("AMD ");		break;
 	case (FLASH_MAN_FUJ & FLASH_VENDMASK):
 			printf ("FUJITSU ");		break;
+	case (FLASH_MAN_MX  & FLASH_VENDMASK):
+			printf ("MACRONIX ");		break;
 	default:	printf ("Unknown Vendor ");	break;
 	}
 
 	switch (info->flash_id & FLASH_TYPEMASK) {
 	case (FLASH_AM320B & FLASH_TYPEMASK):
 		printf ("2x Am29LV320DB (32Mbit)\n");
+		break;
+	case (FLASH_MXLV320B & FLASH_TYPEMASK):
+		printf ("2x MX29LV320DB (32Mbit)\n");
 		break;
 	case (FLASH_AM640U & FLASH_TYPEMASK):
 		printf ("2x Am29LV640D (64Mbit)\n");
@@ -157,7 +166,7 @@ void flash_print_info (flash_info_t * info)
 	}
 	printf ("\n");
 
-  Done:
+Done:	;
 }
 
 /*-----------------------------------------------------------------------
@@ -188,6 +197,7 @@ int flash_erase (flash_info_t * info, int s_first, int s_last)
 	switch (info->flash_id & FLASH_VENDMASK) {
 	case (FLASH_MAN_AMD & FLASH_VENDMASK):	break;	/* OK */
 	case (FLASH_MAN_FUJ & FLASH_VENDMASK):	break;	/* OK */
+	case (FLASH_MAN_MX  & FLASH_VENDMASK):	break;	/* OK */
 	default:
 		debug ("## flash_erase: unknown manufacturer\n");
 		return (ERR_UNKNOWN_FLASH_VENDOR);
@@ -331,9 +341,6 @@ volatile static int write_word (flash_info_t * info, ulong dest,
 #endif
 	iflag = disable_interrupts ();
 
-	MEM_FLASH_ADDR1 = CMD_UNLOCK1;
-	MEM_FLASH_ADDR2 = CMD_UNLOCK2;
-	MEM_FLASH_ADDR1 = CMD_UNLOCK_BYPASS;
 	*addr = CMD_PROGRAM;
 	*addr = data;
 
@@ -402,6 +409,10 @@ int write_buff (flash_info_t * info, uchar * src, ulong addr, ulong cnt)
 	int l;
 	int i, rc;
 
+	MEM_FLASH_ADDR1 = CMD_UNLOCK1;
+	MEM_FLASH_ADDR2 = CMD_UNLOCK2;
+	MEM_FLASH_ADDR1 = CMD_UNLOCK_BYPASS;
+
 	wp = (addr & ~3);	/* get lower word aligned address */
 
 	/*
@@ -422,7 +433,7 @@ int write_buff (flash_info_t * info, uchar * src, ulong addr, ulong cnt)
 		}
 
 		if ((rc = write_word (info, wp, data)) != 0) {
-			return (rc);
+			goto Done;
 		}
 		wp += 4;
 	}
@@ -439,9 +450,9 @@ int write_buff (flash_info_t * info, uchar * src, ulong addr, ulong cnt)
 		else {
 			data = *((vu_long *) src);
 		}
-			
+
 		if ((rc = write_word (info, wp, data)) != 0) {
-			return (rc);
+			goto Done;
 		}
 		src += 4;
 		wp += 4;
@@ -449,7 +460,8 @@ int write_buff (flash_info_t * info, uchar * src, ulong addr, ulong cnt)
 	}
 
 	if (cnt == 0) {
-		return ERR_OK;
+		rc = ERR_OK;
+		goto Done;
 	}
 
 	/*
@@ -464,7 +476,14 @@ int write_buff (flash_info_t * info, uchar * src, ulong addr, ulong cnt)
 		data = (data >> 8) | (*(uchar *) cp << 24);
 	}
 
-	return write_word (info, wp, data);
+	rc = write_word (info, wp, data);
+
+	Done:
+
+	MEM_FLASH_ADDR = CMD_UNLOCK_BYPASS_RES1;
+	MEM_FLASH_ADDR = CMD_UNLOCK_BYPASS_RES2;
+
+	return (rc);
 }
 
 /*-----------------------------------------------------------------------
@@ -489,6 +508,9 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		break;
 	case FUJ_MANUFACT:
 		info->flash_id = FLASH_MAN_FUJ;
+		break;
+	case MX_MANUFACT:
+		info->flash_id = FLASH_MAN_MX;
 		break;
 	default:
 		info->flash_id = FLASH_UNKNOWN;
@@ -519,6 +541,14 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 
 		addr[0] = 0x00F000F0;		/* restore read mode */
 		break;				/* => 16 MB		*/
+
+	case MX_ID_LV320B:
+		info->flash_id += FLASH_MXLV320B;
+		info->sector_count = 71;
+		info->size = 0x00800000;
+
+		addr[0] = 0x00FF00FF;		/* restore read mode */
+		break;				/* =>  8 MB		*/
 
 	default:
 		debug ("## flash_init: unknown flash chip\n");

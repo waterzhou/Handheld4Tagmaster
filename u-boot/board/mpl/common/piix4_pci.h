@@ -22,7 +22,6 @@
  */
 
 
-
 #ifndef _PIIX4_PCI_H
 #define _PIIX4_PCI_H
 
@@ -144,7 +143,7 @@
 #define	PCI_CFG_PIIX4_LEGSUP	0xC0
 
 /* Function 3 Power Management */
-#define	PCI_CFG_PIIX4_PMAB		0x40
+#define	PCI_CFG_PIIX4_PMBA		0x40
 #define	PCI_CFG_PIIX4_CNTA		0x44
 #define	PCI_CFG_PIIX4_CNTB		0x48
 #define	PCI_CFG_PIIX4_GPICTL	0x4C
@@ -161,7 +160,6 @@
 #define	PCI_CFG_PIIX4_DEVRESI	0x78
 #define	PCI_CFG_PIIX4_PMMISC	0x80
 #define	PCI_CFG_PIIX4_SMBBA	0x90
-
 
 
 #endif

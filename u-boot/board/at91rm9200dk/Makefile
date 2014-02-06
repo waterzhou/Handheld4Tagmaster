@@ -25,11 +25,10 @@ include $(TOPDIR)/config.mk
 
 LIB	= lib$(BOARD).a
 
-OBJS	:= at91rm9200dk.o flash.o at45.o
-SOBJS	:=
+OBJS	:= at91rm9200dk.o at45.o flash.o
 
 $(LIB):	$(OBJS) $(SOBJS)
-	$(AR) crv $@ $^
+	$(AR) crv $@ $(OBJS) $(SOBJS)
 
 clean:
 	rm -f $(SOBJS) $(OBJS)

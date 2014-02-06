@@ -173,8 +173,9 @@
 
 #define CONFIG_MPC8260          1       /* This is an MPC8260 CPU   */
 #define CONFIG_RPXSUPER         1       /* on an Embedded Planet RPX Super Board  */
+#define CONFIG_CPM2		1	/* Has a CPM2 */
 
-#define CONFIG_BOARD_PRE_INIT	1	/* Call board_pre_init	*/
+#define CONFIG_BOARD_EARLY_INIT_F 1	/* Call board_early_init_f	*/
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -226,18 +227,18 @@
 
 /* get the HRCW ISB field from CFG_IMMR */
 #define CFG_SBC_HRCW_IMMR ( ((CFG_IMMR & 0x10000000) >> 10) |\
-                            ((CFG_IMMR & 0x01000000) >> 7)  |\
-                            ((CFG_IMMR & 0x00100000) >> 4) )
+			    ((CFG_IMMR & 0x01000000) >> 7)  |\
+			    ((CFG_IMMR & 0x00100000) >> 4) )
 
 #define CFG_HRCW_MASTER (HRCW_BPS11                           |\
-                         HRCW_DPPC11                          |\
-                         CFG_SBC_HRCW_IMMR                    |\
-                         HRCW_MMR00                           |\
-                         HRCW_LBPC11                          |\
-                         HRCW_APPC10                          |\
-                         HRCW_CS10PC00                        |\
-                         (CFG_SBC_MODCK_H & HRCW_MODCK_H1111) |\
-                         CFG_SBC_HRCW_BOOT_FLAGS)
+			 HRCW_DPPC11                          |\
+			 CFG_SBC_HRCW_IMMR                    |\
+			 HRCW_MMR00                           |\
+			 HRCW_LBPC11                          |\
+			 HRCW_APPC10                          |\
+			 HRCW_CS10PC00                        |\
+			 (CFG_SBC_MODCK_H & HRCW_MODCK_H1111) |\
+			 CFG_SBC_HRCW_BOOT_FLAGS)
 
 /* no slaves */
 #define CFG_HRCW_SLAVE1 0
@@ -358,8 +359,8 @@
  */
 
 #define CFG_SIUMCR      (SIUMCR_L2CPC01 |\
-                         SIUMCR_APPC10  |\
-                         SIUMCR_CS10PC01)
+			 SIUMCR_APPC10  |\
+			 SIUMCR_CS10PC01)
 
 
 /*-----------------------------------------------------------------------
@@ -369,11 +370,11 @@
  * Watchdog & Bus Monitor Timer max, 60x Bus Monitor enable
  */
 #define CFG_SYPCR       (SYPCR_SWTC |\
-                         SYPCR_BMT  |\
-                         SYPCR_PBME |\
-                         SYPCR_LBME |\
-                         SYPCR_SWRI |\
-                         SYPCR_SWP)
+			 SYPCR_BMT  |\
+			 SYPCR_PBME |\
+			 SYPCR_LBME |\
+			 SYPCR_SWRI |\
+			 SYPCR_SWP)
 
 /*-----------------------------------------------------------------------
  * TMCNTSC - Time Counter Status and Control                     4-40
@@ -382,9 +383,9 @@
  * and enable Time Counter
  */
 #define CFG_TMCNTSC     (TMCNTSC_SEC |\
-                         TMCNTSC_ALR |\
-                         TMCNTSC_TCF |\
-                         TMCNTSC_TCE)
+			 TMCNTSC_ALR |\
+			 TMCNTSC_TCF |\
+			 TMCNTSC_TCE)
 
 /*-----------------------------------------------------------------------
  * PISCR - Periodic Interrupt Status and Control                 4-42
@@ -393,8 +394,8 @@
  * Periodic timer
  */
 #define CFG_PISCR       (PISCR_PS  |\
-                         PISCR_PTF |\
-                         PISCR_PTE)
+			 PISCR_PTF |\
+			 PISCR_PTE)
 
 /*-----------------------------------------------------------------------
  * SCCR - System Clock Control                                   9-8
@@ -431,29 +432,29 @@
  *
  */
 #define CFG_BR0_PRELIM  ((CFG_FLASH0_BASE & BRx_BA_MSK) |\
-                         BRx_PS_64                      |\
+			 BRx_PS_64                      |\
 			 BRx_DECC_NONE                  |\
-                         BRx_MS_GPCM_P                  |\
-                         BRx_V)
+			 BRx_MS_GPCM_P                  |\
+			 BRx_V)
 
 #define CFG_OR0_PRELIM  (MEG_TO_AM(CFG_FLASH0_SIZE)     |\
-                         ORxG_CSNT                      |\
-                         ORxG_ACS_DIV1                  |\
-                         ORxG_SCY_6_CLK                 |\
-                         ORxG_EHTR)
+			 ORxG_CSNT                      |\
+			 ORxG_ACS_DIV1                  |\
+			 ORxG_SCY_6_CLK                 |\
+			 ORxG_EHTR)
 
 /* Bank 1 - SDRAM
  *
  */
 #define CFG_BR1_PRELIM  ((CFG_SDRAM0_BASE & BRx_BA_MSK) |\
-                         BRx_PS_64                      |\
-                         BRx_MS_SDRAM_P                 |\
-                         BRx_V)
+			 BRx_PS_64                      |\
+			 BRx_MS_SDRAM_P                 |\
+			 BRx_V)
 
 #define CFG_OR1_PRELIM  (MEG_TO_AM(CFG_SDRAM0_SIZE)     |\
-                         ORxS_BPD_4                     |\
-                         ORxS_ROWST_PBI0_A8             |\
-                         ORxS_NUMR_12                   |\
+			 ORxS_BPD_4                     |\
+			 ORxS_ROWST_PBI0_A8             |\
+			 ORxS_NUMR_12                   |\
 			 ORxS_IBID)
 
 #define CFG_PSDMR       0x014DA412
@@ -464,14 +465,14 @@
  *
  */
 #define CFG_BR2_PRELIM  ((CFG_SDRAM1_BASE & BRx_BA_MSK) |\
-                         BRx_PS_32                      |\
-                         BRx_MS_SDRAM_L                 |\
-                         BRx_V)
+			 BRx_PS_32                      |\
+			 BRx_MS_SDRAM_L                 |\
+			 BRx_V)
 
 #define CFG_OR2_PRELIM  (MEG_TO_AM(CFG_SDRAM1_SIZE)     |\
-                         ORxS_BPD_4                     |\
-                         ORxS_ROWST_PBI0_A9             |\
-                         ORxS_NUMR_12)
+			 ORxS_BPD_4                     |\
+			 ORxS_ROWST_PBI0_A9             |\
+			 ORxS_NUMR_12)
 
 #define CFG_LSDMR       0x0169A512
 #define CFG_LSRT	0x79
@@ -482,15 +483,15 @@
  *
  */
 #define CFG_BR4_PRELIM   ((CFG_REGS_BASE & BRx_BA_MSK)  |\
-                           BRx_PS_8                     |\
-                           BRx_MS_GPCM_P                |\
-                           BRx_V)
+			   BRx_PS_8                     |\
+			   BRx_MS_GPCM_P                |\
+			   BRx_V)
 
 #define CFG_OR4_PRELIM    (ORxG_AM_MSK                 |\
-                           ORxG_CSNT                   |\
-                           ORxG_ACS_DIV1               |\
-                           ORxG_SCY_5_CLK              |\
-                           ORxG_TRLX)
+			   ORxG_CSNT                   |\
+			   ORxG_ACS_DIV1               |\
+			   ORxG_SCY_5_CLK              |\
+			   ORxG_TRLX)
 
 /*
  * Internal Definitions
@@ -501,5 +502,3 @@
 #define BOOTFLAG_WARM   0x02    /* Software reboot                   */
 
 #endif  /* __CONFIG_H */
-
-

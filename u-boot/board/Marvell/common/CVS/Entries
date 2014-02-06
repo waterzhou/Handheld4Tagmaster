@@ -1,0 +1,15 @@
+/bootseq.txt/1.2/Tue Jan 20 23:12:12 2004/-ko/
+/ecctest.c/1.2/Sat Apr  2 22:37:55 2005/-ko/
+/flash.c/1.2/Thu Oct 13 14:47:25 2005/-ko/
+/i2c.c/1.2/Thu Oct 13 14:47:25 2005/-ko/
+/i2c.h/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/intel_flash.c/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/intel_flash.h/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/memory.c/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/misc.S/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/ns16550.c/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/ns16550.h/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/ppc_error_no.h/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/serial.c/1.1/Sat Jan  3 00:43:19 2004/-ko/
+/serial.h/1.1/Sat Jan  3 00:43:19 2004/-ko/
+D

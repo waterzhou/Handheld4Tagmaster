@@ -76,6 +76,29 @@ typedef unsigned long int 		dword;
 
 #ifdef CONFIG_PXA250
 
+#ifdef CONFIG_XSENGINE
+#define	SMC_inl(r) 	(*((volatile dword *)(SMC_BASE_ADDRESS+(r<<1))))
+#define	SMC_inw(r) 	(*((volatile word *)(SMC_BASE_ADDRESS+(r<<1))))
+#define SMC_inb(p)	({ \
+	unsigned int __p = (unsigned int)(SMC_BASE_ADDRESS + (p<<1)); \
+	unsigned int __v = *(volatile unsigned short *)((__p) & ~2); \
+	if (__p & 2) __v >>= 8; \
+	else __v &= 0xff; \
+	__v; })
+#elif defined(CONFIG_XAENIAX)
+#define SMC_inl(r)	(*((volatile dword *)(SMC_BASE_ADDRESS+(r))))
+#define SMC_inw(z)	({ \
+	unsigned int __p = (unsigned int)(SMC_BASE_ADDRESS + (z)); \
+	unsigned int __v = *(volatile unsigned int *)((__p) & ~3); \
+	if (__p & 3) __v >>= 16; \
+	else __v &= 0xffff; \
+	__v; })
+#define SMC_inb(p)	({ \
+	unsigned int ___v = SMC_inw((p) & ~1); \
+	if (p & 1) ___v >>= 8; \
+	else ___v &= 0xff; \
+	___v; })
+#else
 #define	SMC_inl(r) 	(*((volatile dword *)(SMC_BASE_ADDRESS+(r))))
 #define	SMC_inw(r) 	(*((volatile word *)(SMC_BASE_ADDRESS+(r))))
 #define SMC_inb(p)	({ \
@@ -84,9 +107,25 @@ typedef unsigned long int 		dword;
 	if (__p & 1) __v >>= 8; \
 	else __v &= 0xff; \
 	__v; })
+#endif
 
+#ifdef CONFIG_XSENGINE
+#define	SMC_outl(d,r)	(*((volatile dword *)(SMC_BASE_ADDRESS+(r<<1))) = d)
+#define	SMC_outw(d,r)	(*((volatile word *)(SMC_BASE_ADDRESS+(r<<1))) = d)
+#elif defined (CONFIG_XAENIAX)
+#define SMC_outl(d,r)	(*((volatile dword *)(SMC_BASE_ADDRESS+(r))) = d)
+#define SMC_outw(d,p)	({ \
+	dword __dwo = SMC_inl((p) & ~3); \
+	dword __dwn = (word)(d); \
+	__dwo &= ((p) & 3) ? 0x0000ffff : 0xffff0000; \
+	__dwo |= ((p) & 3) ? __dwn << 16 : __dwn; \
+	SMC_outl(__dwo, (p) & ~3); \
+})
+#else
 #define	SMC_outl(d,r)	(*((volatile dword *)(SMC_BASE_ADDRESS+(r))) = d)
 #define	SMC_outw(d,r)	(*((volatile word *)(SMC_BASE_ADDRESS+(r))) = d)
+#endif
+
 #define	SMC_outb(d,r)	({	word __d = (byte)(d);  \
 				word __w = SMC_inw((r)&~1);  \
 				__w &= ((r)&1) ? 0x00FF : 0xFF00;  \
@@ -139,14 +178,23 @@ typedef unsigned long int 		dword;
 
 #else /* if not CONFIG_PXA250 */
 
+#ifndef CONFIG_SMC_USE_IOFUNCS /* these macros don't work on some boards */
 /*
  * We have only 16 Bit PCMCIA access on Socket 0
  */
 
+#ifdef CONFIG_ADNPESC1
+#define	SMC_inw(r) 	(*((volatile word *)(SMC_BASE_ADDRESS+((r)<<1))))
+#else
 #define	SMC_inw(r) 	(*((volatile word *)(SMC_BASE_ADDRESS+(r))))
+#endif
 #define  SMC_inb(r)	(((r)&1) ? SMC_inw((r)&~1)>>8 : SMC_inw(r)&0xFF)
 
+#ifdef CONFIG_ADNPESC1
+#define	SMC_outw(d,r)	(*((volatile word *)(SMC_BASE_ADDRESS+((r)<<1))) = d)
+#else
 #define	SMC_outw(d,r)	(*((volatile word *)(SMC_BASE_ADDRESS+(r))) = d)
+#endif
 #define	SMC_outb(d,r)	({	word __d = (byte)(d);  \
 				word __w = SMC_inw((r)&~1);  \
 				__w &= ((r)&1) ? 0x00FF : 0xFF00;  \
@@ -177,6 +225,40 @@ typedef unsigned long int 		dword;
 					};  \
 				})
 #endif
+
+#endif  /* CONFIG_SMC_USE_IOFUNCS */
+
+#if defined(CONFIG_SMC_USE_32_BIT)
+
+#ifdef CONFIG_XSENGINE
+#define	SMC_inl(r) 	(*((volatile dword *)(SMC_BASE_ADDRESS+(r<<1))))
+#else
+#define	SMC_inl(r) 	(*((volatile dword *)(SMC_BASE_ADDRESS+(r))))
+#endif
+
+#define SMC_insl(r,b,l) 	({	int __i ;  \
+					dword *__b2;  \
+			    		__b2 = (dword *) b;  \
+			    		for (__i = 0; __i < l; __i++) {  \
+					  *(__b2 + __i) = SMC_inl(r);  \
+					  SMC_inl(0);  \
+					};  \
+				})
+
+#ifdef CONFIG_XSENGINE
+#define	SMC_outl(d,r)	(*((volatile dword *)(SMC_BASE_ADDRESS+(r<<1))) = d)
+#else
+#define	SMC_outl(d,r)	(*((volatile dword *)(SMC_BASE_ADDRESS+(r))) = d)
+#endif
+#define SMC_outsl(r,b,l)	({	int __i; \
+					dword *__b2; \
+					__b2 = (dword *) b; \
+					for (__i = 0; __i < l; __i++) { \
+					    SMC_outl( *(__b2 + __i), r); \
+					} \
+				})
+
+#endif /* CONFIG_SMC_USE_32_BIT */
 
 #endif
 
@@ -281,7 +363,22 @@ typedef unsigned long int 		dword;
 #define RPC_LED_100	(0x05)	/* LED = 100Mbps link dectect */
 #define RPC_LED_TX	(0x06)	/* LED = TX packet occurred */
 #define RPC_LED_RX	(0x07)	/* LED = RX packet occurred */
-#define RPC_DEFAULT (RPC_ANEG | (RPC_LED_100 << RPC_LSXA_SHFT) | (RPC_LED_FD << RPC_LSXB_SHFT) | RPC_SPEED | RPC_DPLX)
+#if defined(CONFIG_DK1C20) || defined(CONFIG_DK1S10)
+/* buggy schematic: LEDa -> yellow, LEDb --> green */
+#define RPC_DEFAULT	( RPC_SPEED | RPC_DPLX | RPC_ANEG	\
+			| (RPC_LED_TX_RX << RPC_LSXA_SHFT)	\
+			| (RPC_LED_100_10 << RPC_LSXB_SHFT)	)
+#elif defined(CONFIG_ADNPESC1)
+/* SSV ADNP/ESC1 has only one LED: LEDa -> Rx/Tx indicator */
+#define RPC_DEFAULT	( RPC_SPEED | RPC_DPLX | RPC_ANEG	\
+			| (RPC_LED_TX_RX << RPC_LSXA_SHFT)	\
+			| (RPC_LED_100_10 << RPC_LSXB_SHFT)	)
+#else
+/* SMSC reference design: LEDa --> green, LEDb --> yellow */
+#define RPC_DEFAULT	( RPC_SPEED | RPC_DPLX | RPC_ANEG	\
+			| (RPC_LED_100_10 << RPC_LSXA_SHFT)	\
+			| (RPC_LED_TX_RX << RPC_LSXB_SHFT)	)
+#endif
 
 /* Bank 0 0x000C is reserved */
 
@@ -330,7 +427,7 @@ typedef unsigned long int 		dword;
 #define	CTL_EEPROM_SELECT 0x0004 /* Controls EEPROM reload & store */
 #define	CTL_RELOAD	0x0002 /* When set reads EEPROM into registers */
 #define	CTL_STORE	0x0001 /* When set stores registers into EEPROM */
-#define CTL_DEFAULT     (0x1210)
+#define CTL_DEFAULT     (0x1A10) /* Autorelease enabled*/
 
 /* MMU Command Register */
 /* BANK 2 */
@@ -375,6 +472,7 @@ typedef unsigned long int 		dword;
 #define	PTR_RCV		0x8000 /* 1=Receive area, 0=Transmit area */
 #define	PTR_AUTOINC 	0x4000 /* Auto increment the pointer on each access */
 #define PTR_READ	0x2000 /* When 1 the operation is a read */
+#define PTR_NOTEMPTY	0x0800 /* When 1 _do not_ write fifo DATA REG */
 
 
 /* Data Register */
@@ -574,7 +672,6 @@ enum {
 /* Uses the same bit definitions as PHY_INT_REG */
 
 
-
 /*-------------------------------------------------------------------------
  .  I define some macros to make it easier to do somewhat common
  . or slightly complicated, repeated tasks.
@@ -616,4 +713,3 @@ enum {
 	IM_MDINT)
 
 #endif  /* _SMC_91111_H_ */
-

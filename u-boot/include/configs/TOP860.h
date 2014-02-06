@@ -181,17 +181,20 @@
 #if defined (CONFIG_SOFT_I2C)
 #define	SDA	0x00010
 #define	SCL	0x00020
-#define DIR immr->im_cpm.cp_pbdir
-#define DAT	immr->im_cpm.cp_pbdat
-#define PAR	immr->im_cpm.cp_pbpar
-#define	ODR	immr->im_cpm.cp_pbodr
-#define	I2C_INIT	{PAR&=~(SDA|SCL);ODR&=~(SDA|SCL);DAT|=(SDA|SCL);DIR|=(SDA|SCL);}
-#define	I2C_READ	((DAT&SDA)?1:0)
-#define	I2C_SDA(x)	{if(x)DAT|=SDA;else DAT&=~SDA;}
-#define	I2C_SCL(x)	{if(x)DAT|=SCL;else DAT&=~SCL;}
-#define	I2C_DELAY	{udelay(5);}
-#define	I2C_ACTIVE	 {DIR|=SDA;}
-#define	I2C_TRISTATE {DIR&=~SDA;}
+#define __I2C_DIR	immr->im_cpm.cp_pbdir
+#define __I2C_DAT	immr->im_cpm.cp_pbdat
+#define __I2C_PAR	immr->im_cpm.cp_pbpar
+#define	__I2C_ODR	immr->im_cpm.cp_pbodr
+#define	I2C_INIT	{ __I2C_PAR &= ~(SDA|SCL);	\
+			  __I2C_ODR &= ~(SDA|SCL);	\
+			  __I2C_DAT |= (SDA|SCL);	\
+			  __I2C_DIR|=(SDA|SCL);	}
+#define	I2C_READ	((__I2C_DAT & SDA) ? 1 : 0)
+#define	I2C_SDA(x)	{ if (x) __I2C_DAT |= SDA; else __I2C_DAT &= ~SDA; }
+#define	I2C_SCL(x)	{ if (x) __I2C_DAT |= SCL; else __I2C_DAT &= ~SCL; }
+#define	I2C_DELAY	{ udelay(5); }
+#define	I2C_ACTIVE	{ __I2C_DIR |= SDA; }
+#define	I2C_TRISTATE	{ __I2C_DIR &= ~SDA; }
 #endif
 
 #define CFG_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200, 230400 }
@@ -275,7 +278,7 @@
  *	1	CSR		0			Checkstop reset enable
  *	1	LOLRE	0			Loss-of-lock reset enable
  *	1	FIOPD	0			Force I/O pull down
- *	5	0		00000			
+ *	5	0		00000
  */
 #define CFG_PLPRCR	(PLPRCR_TEXPS | ((CFG_MF-1)<<20))
 
@@ -322,8 +325,8 @@
  *	1	SEME	0			Sync external master enable
  *	1	BSC		0			Byte strobe configuration
  *	1	GB5E	0			GPL_B5 enable
- *	1	B2DD	0			Bank 2 double drive			
- *	1	B3DD	0			Bank 3 double drive			
+ *	1	B2DD	0			Bank 2 double drive
+ *	1	B3DD	0			Bank 3 double drive
  *	4	0		0000
  */
 #define CFG_SIUMCR	(SIUMCR_MLRC11)
@@ -364,7 +367,7 @@
  *	5	0		00000
  */
 #define SCCR_MASK	0
-#if CONFIG_EBDF
+#ifdef CONFIG_EBDF
  #define CFG_SCCR	(SCCR_COM11 | SCCR_TBS | SCCR_EBDF01)
 #else
  #define CFG_SCCR	(SCCR_COM11 | SCCR_TBS)
@@ -401,8 +404,8 @@
 #undef	CONFIG_BOOTARGS
 #define CONFIG_BOOTCOMMAND	\
 	"bootp;" \
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; " \
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; " \
 	"bootm"
 
 /*
@@ -412,7 +415,7 @@
 #define CONFIG_BOOTP_MASK				( CONFIG_BOOTP_DEFAULT		| \
 									  	  CONFIG_BOOTP_BOOTFILESIZE   \
 										)
-										
+
 
 /*
  * Set default IP stuff just to get bootstrap entries into the

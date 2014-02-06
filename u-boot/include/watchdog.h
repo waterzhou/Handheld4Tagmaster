@@ -31,6 +31,10 @@
 #  error "Configuration error: CONFIG_HW_WATCHDOG and CONFIG_WATCHDOG can't be used together."
 #endif
 
+#if defined(__ASSEMBLY__) && defined(__NIOS__)
+#  error "Configuration error: WATCHDOG_RESET inside assembler not supported for Nios platforms."
+#endif
+
 /*
  * Hardware watchdog
  */
@@ -80,22 +84,9 @@
 	void reset_5xx_watchdog(volatile immap_t *immr);
 #endif
 
-/* IBM 4xx */
+/* AMCC 4xx */
 #if defined(CONFIG_4xx) && !defined(__ASSEMBLY__)
 	void reset_4xx_watchdog(void);
 #endif
 
-/* MPC 8260 */
-#if defined(CONFIG_MPC8260) && !defined(__ASSEMBLY__)
-#if defined(CONFIG_WATCHDOG)
-extern __inline__ void
-reset_8260_watchdog(volatile immap_t *immr)
-{
-	immr->im_siu_conf.sc_swsr = 0x556c;
-	immr->im_siu_conf.sc_swsr = 0xaa39;
-}
-#endif /* !__ASSEMBLY__ && CONFIG_WATCHDOG */
-#endif /* CONFIG_MPC8260 && !__ASSEMBLY__ */
-
 #endif /* _WATCHDOG_H_ */
-

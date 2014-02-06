@@ -306,8 +306,8 @@ natsemi_initialize(bd_t * bis)
 			break;
 		}
 
-		pci_read_config_dword(devno, PCI_BASE_ADDRESS_1, &iobase);
-		iobase &= ~0xF;	/* Masked out the low bits that are addresses. */
+		pci_read_config_dword(devno, PCI_BASE_ADDRESS_0, &iobase);
+		iobase &= ~0x3;	/* bit 1: unused and bit 0: I/O Space Indicator */
 
 		pci_write_config_dword(devno, PCI_COMMAND,
 				       PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
@@ -756,6 +756,7 @@ natsemi_send(struct eth_device *dev, volatile void *packet, int length)
 {
 	u32 i, status = 0;
 	u32 tx_status = 0;
+	vu_long *res = (vu_long *)&tx_status;
 
 	/* Stop the transmitter */
 	OUTL(dev, TxOff, ChipCmd);
@@ -781,7 +782,7 @@ natsemi_send(struct eth_device *dev, volatile void *packet, int length)
 	OUTL(dev, TxOn, ChipCmd);
 
 	for (i = 0;
-	     ((vu_long)tx_status = le32_to_cpu(txd.cmdsts)) & DescOwn;
+	     (*res = le32_to_cpu(txd.cmdsts)) & DescOwn;
 	     i++) {
 		if (i >= TOUT_LOOP) {
 			printf

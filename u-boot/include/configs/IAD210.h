@@ -66,13 +66,13 @@
 #define CONFIG_PREBOOT	"echo;echo Type \"run flash_nfs\" to mount root filesystem over NFS;echo"
 
 /* using this define saves us updating another source file */
-#define CONFIG_BOARD_PRE_INIT  1
+#define CONFIG_BOARD_EARLY_INIT_F 1
 
 #undef	CONFIG_BOOTARGS
 /* #define CONFIG_BOOTCOMMAND							\
  	"bootp;" 								\
- 	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " 	\
- 	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" 	\
+ 	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " 	\
+ 	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" 	\
  	"bootm"
 */
 
@@ -88,6 +88,7 @@
 
 # undef  CONFIG_SCC1_ENET		/* disable SCC1 ethernet */
 # define CONFIG_FEC_ENET    1	/* use FEC ethernet  */
+# define CONFIG_MII         1
 # define CFG_DISCOVER_PHY   1
 # define CONFIG_FEC_UTOPIA  1
 # define CONFIG_ETHADDR     08:00:06:26:A2:6D
@@ -354,7 +355,7 @@
  */
 
 #define CFG_MAMR	((CFG_MAMR_PTA << MAMR_PTA_SHIFT)  | MAMR_PTAE	    |	\
-			 MAMR_AMA_TYPE_0 | MAMR_DSA_1_CYCL | MAMR_G0CLB_A11 |	\
+			 MAMR_AMA_TYPE_0 | MAMR_DSA_1_CYCL | MAMR_G0CLA_A11 |	\
 			 MAMR_RLFA_1X	 | MAMR_WLFA_1X	   | MAMR_TLFA_8X)
 
 

@@ -39,7 +39,7 @@
 #define CONFIG_MPC8240		1
 #define CONFIG_OXC		1
 
-#define CONFIG_BOARD_PRE_INIT	1	/* Call board_pre_init	*/
+#define CONFIG_BOARD_EARLY_INIT_F 1	/* Call board_early_init_f	*/
 
 #define CONFIG_IDENT_STRING     " [oxc] "
 
@@ -181,8 +181,9 @@
  */
 
 #define CFG_ENV_IS_IN_FLASH	1
-#define CFG_ENV_ADDR		0xFFF30000	/* Offset of Environment Sector */
+#define CFG_ENV_ADDR		0xFFF30000	/* Offset of Environment Sector	*/
 #define CFG_ENV_SIZE		0x00010000	/* Total Size of Environment Sector */
+#define	CFG_ENV_IS_EMBEDDED	1		/* short-cut compile-time test	*/
 #define CONFIG_ENV_OVERWRITE    1		/* Allow modifying the environment */
 
 /*

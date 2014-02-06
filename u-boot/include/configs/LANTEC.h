@@ -81,15 +81,17 @@
 				 CFG_CMD_MEMORY | \
 				 CFG_CMD_LOADS  | \
 				 CFG_CMD_LOADB)
-#define CONFIG_CMD_NORMAL	(CONFIG_CMD_DFL & ~CFG_CMD_BOOTD)
+#define CONFIG_CMD_NORMAL	(CONFIG_CMD_DFL & ~CFG_CMD_BOOTD & ~CFG_CMD_REISER)
 #define CONFIG_CMD_GDB		(CONFIG_CMD_NORMAL | CFG_CMD_KGDB)
 #define CONFIG_CMD_FULL		(CFG_CMD_ALL & ~CFG_CMD_BEDBUG	\
 					     & ~CFG_CMD_BMP	\
 					     & ~CFG_CMD_BSP	\
+					     & ~CFG_CMD_DISPLAY	\
 					     & ~CFG_CMD_DOC	\
 					     & ~CFG_CMD_DTT	\
 					     & ~CFG_CMD_EEPROM	\
 					     & ~CFG_CMD_ELF	\
+					     & ~CFG_CMD_EXT2	\
 					     & ~CFG_CMD_FDC	\
 					     & ~CFG_CMD_FDOS	\
 					     & ~CFG_CMD_HWFLOW	\
@@ -103,10 +105,13 @@
 					     & ~CFG_CMD_NAND	\
 					     & ~CFG_CMD_PCI	\
 					     & ~CFG_CMD_PCMCIA	\
+					     & ~CFG_CMD_REISER	\
 					     & ~CFG_CMD_SCSI	\
 					     & ~CFG_CMD_SPI	\
+					     & ~CFG_CMD_UNIVERSE\
 					     & ~CFG_CMD_USB	\
-					     & ~CFG_CMD_VFD	)
+					     & ~CFG_CMD_VFD	\
+					     & ~CFG_CMD_XIMG	)
 
 #if CONFIG_LANTEC >= 2
 #define	CONFIG_RTC_MPC8xx		/* use internal RTC of MPC8xx	*/
@@ -297,7 +302,7 @@
 
 /* FLASH timing */
 #define CFG_OR_TIMING_FLASH     (OR_CSNT_SAM  | OR_BI | \
-                                 OR_SCY_5_CLK | OR_TRLX)
+				 OR_SCY_5_CLK | OR_TRLX)
 
 #define CFG_OR0_REMAP	(CFG_REMAP_OR_AM  | CFG_OR_TIMING_FLASH)
 #define CFG_OR0_PRELIM	(CFG_PRELIM_OR_AM | CFG_OR_TIMING_FLASH)
@@ -351,5 +356,22 @@
  */
 #define	BOOTFLAG_COLD	0x01		/* Normal Power-On: Boot from FLASH	*/
 #define BOOTFLAG_WARM	0x02		/* Software reboot			*/
+
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition, whole device */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		""
+#define MTDPARTS_DEFAULT	""
+*/
 
 #endif	/* __CONFIG_H */

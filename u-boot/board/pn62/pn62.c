@@ -76,55 +76,26 @@ int checkboard (void)
 
 long int initdram (int board_type)
 {
-	int i, cnt;
-	volatile uchar *base = CFG_SDRAM_BASE;
-	volatile ulong *addr;
-	ulong save[32];
-	ulong val, ret = 0;
+	long size;
+	long new_bank0_end;
+	long mear1;
+	long emear1;
 
 	show_startup_phase (2);
 
-	for (i = 0, cnt = (CFG_MAX_RAM_SIZE / sizeof (long)) >> 1; cnt > 0;
-		 cnt >>= 1) {
-		addr = (volatile ulong *) base + cnt;
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
+	size = get_ram_size(CFG_SDRAM_BASE, CFG_MAX_RAM_SIZE);
 
-	addr = (volatile ulong *) base;
-	save[i] = *addr;
-	*addr = 0;
+	new_bank0_end = size - 1;
+	mear1 = mpc824x_mpc107_getreg (MEAR1);
+	emear1 = mpc824x_mpc107_getreg (EMEAR1);
+	mear1 = (mear1 & 0xFFFFFF00) |
+		((new_bank0_end & MICR_ADDR_MASK) >> MICR_ADDR_SHIFT);
+	emear1 = (emear1 & 0xFFFFFF00) |
+		((new_bank0_end & MICR_ADDR_MASK) >> MICR_EADDR_SHIFT);
+	mpc824x_mpc107_setreg (MEAR1, mear1);
+	mpc824x_mpc107_setreg (EMEAR1, emear1);
 
-	if (*addr != 0) {
-		*addr = save[i];
-		goto Done;
-	}
-
-	for (cnt = 1; cnt <= CFG_MAX_RAM_SIZE / sizeof (long); cnt <<= 1) {
-		addr = (volatile ulong *) base + cnt;
-		val = *addr;
-		*addr = save[--i];
-		if (val != ~cnt) {
-			ulong new_bank0_end = cnt * sizeof (long) - 1;
-			ulong mear1 = mpc824x_mpc107_getreg (MEAR1);
-			ulong emear1 = mpc824x_mpc107_getreg (EMEAR1);
-
-			mear1 = (mear1 & 0xFFFFFF00) |
-					((new_bank0_end & MICR_ADDR_MASK) >> MICR_ADDR_SHIFT);
-			emear1 = (emear1 & 0xFFFFFF00) |
-					((new_bank0_end & MICR_ADDR_MASK) >> MICR_EADDR_SHIFT);
-			mpc824x_mpc107_setreg (MEAR1, mear1);
-			mpc824x_mpc107_setreg (EMEAR1, emear1);
-
-			ret = cnt * sizeof (long);
-			goto Done;
-		}
-	}
-
-	ret = CFG_MAX_RAM_SIZE;
-  Done:
-	show_startup_phase (3);
-	return ret;
+	return (size);
 }
 
 /*
@@ -174,11 +145,13 @@ int misc_init_r (void)
 	}
 	show_startup_phase (10);
 
+#ifdef CONFIG_HAS_ETH1
 	if (getenv ("eth1addr") == NULL &&
 		get_mac_address (1, mac, str, sizeof (str)) > 0) {
 		setenv ("eth1addr", str);
 		memcpy (gd->bd->bi_enet1addr, mac, 6);
 	}
+#endif /* CONFIG_HAS_ETH1 */
 	show_startup_phase (11);
 
 	/* Tell everybody that U-Boot is up and runnig */
@@ -194,7 +167,7 @@ static int get_serial_number (char *string, int size)
 	if (size < I2155X_VPD_SN_SIZE)
 		size = I2155X_VPD_SN_SIZE;
 	for (i = 0; i < (size - 1); i++) {
-		i2155x_read_vpd (I2155X_VPD_SN_START + i, 1, &c);
+		i2155x_read_vpd (I2155X_VPD_SN_START + i, 1, (uchar *)&c);
 		if (c == '\0')
 			break;
 		string[i] = c;

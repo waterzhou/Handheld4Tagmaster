@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000-2002
+ * (C) Copyright 2000-2004
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -21,11 +21,22 @@
  * MA 02111-1307 USA
  */
 
-/* #define DEBUG */
+#if 0
+#define DEBUG
+#endif
 
 #include <common.h>
 #include <mpc8xx.h>
 #include <environment.h>
+
+#include <asm/processor.h>
+
+#if defined(CONFIG_TQM8xxL) && !defined(CONFIG_TQM866M)
+# ifndef CFG_OR_TIMING_FLASH_AT_50MHZ
+#  define CFG_OR_TIMING_FLASH_AT_50MHZ	(OR_ACS_DIV1  | OR_TRLX | OR_CSNT_SAM | \
+					 OR_SCY_2_CLK | OR_EHTR | OR_BI)
+# endif
+#endif /* CONFIG_TQM8xxL/M, !TQM866M */
 
 #ifndef	CFG_ENV_ADDR
 #define CFG_ENV_ADDR	(CFG_FLASH_BASE + CFG_ENV_OFFSET)
@@ -49,6 +60,50 @@ unsigned long flash_init (void)
 	unsigned long size_b0, size_b1;
 	int i;
 
+#ifdef	CFG_OR_TIMING_FLASH_AT_50MHZ
+	int scy, trlx, flash_or_timing, clk_diff;
+
+	DECLARE_GLOBAL_DATA_PTR;
+
+	scy = (CFG_OR_TIMING_FLASH_AT_50MHZ & OR_SCY_MSK) >> 4;
+	if (CFG_OR_TIMING_FLASH_AT_50MHZ & OR_TRLX) {
+		trlx = OR_TRLX;
+		scy *= 2;
+	} else
+		trlx = 0;
+
+		/* We assume that each 10MHz of bus clock require 1-clk SCY
+		 * adjustment.
+		 */
+	clk_diff = (gd->bus_clk / 1000000) - 50;
+
+		/* We need proper rounding here. This is what the "+5" and "-5"
+		 * are here for.
+		 */
+	if (clk_diff >= 0)
+		scy += (clk_diff + 5) / 10;
+	else
+		scy += (clk_diff - 5) / 10;
+
+		/* For bus frequencies above 50MHz, we want to use relaxed timing
+		 * (OR_TRLX).
+		 */
+	if (gd->bus_clk >= 50000000)
+		trlx = OR_TRLX;
+	else
+		trlx = 0;
+
+	if (trlx)
+		scy /= 2;
+
+	if (scy > 0xf)
+		scy = 0xf;
+	if (scy < 1)
+		scy = 1;
+
+	flash_or_timing = (scy << 4) | trlx |
+	                  (CFG_OR_TIMING_FLASH_AT_50MHZ & ~(OR_TRLX | OR_SCY_MSK));
+#endif
 	/* Init: no FLASHes known */
 	for (i=0; i<CFG_MAX_FLASH_BANKS; ++i) {
 		flash_info[i].flash_id = FLASH_UNKNOWN;
@@ -93,7 +148,11 @@ unsigned long flash_init (void)
 		memctl->memc_br1, memctl->memc_or1);
 
 	/* Remap FLASH according to real size */
+#ifndef	CFG_OR_TIMING_FLASH_AT_50MHZ
 	memctl->memc_or0 = CFG_OR_TIMING_FLASH | (-size_b0 & OR_AM_MSK);
+#else
+	memctl->memc_or0 = flash_or_timing | (-size_b0 & OR_AM_MSK);
+#endif
 	memctl->memc_br0 = (CFG_FLASH_BASE & BR_BA_MSK) | BR_MS_GPCM | BR_V;
 
 	debug ("## BR0: 0x%08x    OR0: 0x%08x\n",
@@ -116,14 +175,15 @@ unsigned long flash_init (void)
 
 #ifdef	CFG_ENV_IS_IN_FLASH
 	/* ENV protection ON by default */
-	debug ("Protect %senvironment: %08lx ... %08lx\n",
 # ifdef CFG_ENV_ADDR_REDUND
-		"primary   ",
-# else
-		"",
-# endif
+	debug ("Protect primary   environment: %08lx ... %08lx\n",
 		(ulong)CFG_ENV_ADDR,
 		(ulong)CFG_ENV_ADDR + CFG_ENV_SECT_SIZE - 1);
+# else
+	debug ("Protect environment: %08lx ... %08lx\n",
+		(ulong)CFG_ENV_ADDR,
+		(ulong)CFG_ENV_ADDR + CFG_ENV_SECT_SIZE - 1);
+# endif
 
 	flash_protect(FLAG_PROTECT_SET,
 		      CFG_ENV_ADDR,
@@ -143,7 +203,11 @@ unsigned long flash_init (void)
 #endif
 
 	if (size_b1) {
+#ifndef	CFG_OR_TIMING_FLASH_AT_50MHZ
 		memctl->memc_or1 = CFG_OR_TIMING_FLASH | (-size_b1 & 0xFFFF8000);
+#else
+		memctl->memc_or1 = flash_or_timing | (-size_b1 & 0xFFFF8000);
+#endif
 		memctl->memc_br1 = ((CFG_FLASH_BASE + size_b0) & BR_BA_MSK) |
 				    BR_MS_GPCM | BR_V;
 
@@ -209,6 +273,12 @@ void flash_print_info  (flash_info_t *info)
 #ifdef CONFIG_TQM8xxM	/* mirror bit flash */
 	case FLASH_AMLV128U:	printf ("AM29LV128ML (128Mbit, uniform sector size)\n");
 				break;
+	case FLASH_AMLV320U:	printf ("AM29LV320ML (32Mbit, uniform sector size)\n");
+				break;
+	case FLASH_AMLV640U:	printf ("AM29LV640ML (64Mbit, uniform sector size)\n");
+				break;
+	case FLASH_AMLV320B:	printf ("AM29LV320MB (32Mbit, bottom boot sect)\n");
+				break;
 # else	/* ! TQM8xxM */
 	case FLASH_AM400B:	printf ("AM29LV400B (4 Mbit, bottom boot sect)\n");
 				break;
@@ -218,15 +288,17 @@ void flash_print_info  (flash_info_t *info)
 				break;
 	case FLASH_AM800T:	printf ("AM29LV800T (8 Mbit, top boot sector)\n");
 				break;
-	case FLASH_AM160B:	printf ("AM29LV160B (16 Mbit, bottom boot sect)\n");
-				break;
-	case FLASH_AM160T:	printf ("AM29LV160T (16 Mbit, top boot sector)\n");
-				break;
 	case FLASH_AM320B:	printf ("AM29LV320B (32 Mbit, bottom boot sect)\n");
 				break;
 	case FLASH_AM320T:	printf ("AM29LV320T (32 Mbit, top boot sector)\n");
 				break;
 #endif	/* TQM8xxM */
+	case FLASH_AM160B:	printf ("AM29LV160B (16 Mbit, bottom boot sect)\n");
+				break;
+	case FLASH_AM160T:	printf ("AM29LV160T (16 Mbit, top boot sector)\n");
+				break;
+	case FLASH_AMDL163B:	printf ("AM29DL163B (16 Mbit, bottom boot sect)\n");
+				break;
 	default:		printf ("Unknown Chip Type\n");
 				break;
 	}
@@ -275,12 +347,15 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 
 	switch (value) {
 	case AMD_MANUFACT:
+		debug ("Manufacturer: AMD\n");
 		info->flash_id = FLASH_MAN_AMD;
 		break;
 	case FUJ_MANUFACT:
+		debug ("Manufacturer: FUJITSU\n");
 		info->flash_id = FLASH_MAN_FUJ;
 		break;
 	default:
+		debug ("Manufacturer: *** unknown ***\n");
 		info->flash_id = FLASH_UNKNOWN;
 		info->sector_count = 0;
 		info->size = 0;
@@ -294,18 +369,53 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 	switch (value) {
 #ifdef CONFIG_TQM8xxM	/* mirror bit flash */
 	case AMD_ID_MIRROR:
+		debug ("Mirror Bit flash: addr[14] = %08lX  addr[15] = %08lX\n",
+			addr[14], addr[15]);
+		/* Special case for AMLV320MH/L */
+		if ((addr[14] & 0x00ff00ff) == 0x001d001d &&
+		    (addr[15] & 0x00ff00ff) == 0x00000000) {
+			debug ("Chip: AMLV320MH/L\n");
+			info->flash_id += FLASH_AMLV320U;
+			info->sector_count = 64;
+			info->size = 0x00800000;	/* => 8 MB */
+			break;
+		}
 		switch(addr[14]) {
 		case AMD_ID_LV128U_2:
 			if (addr[15] != AMD_ID_LV128U_3) {
+				debug ("Chip: AMLV128U -> unknown\n");
 				info->flash_id = FLASH_UNKNOWN;
-			}
-			else {
+			} else {
+				debug ("Chip: AMLV128U\n");
 				info->flash_id += FLASH_AMLV128U;
 				info->sector_count = 256;
 				info->size = 0x02000000;
 			}
-			break;				/* => 32 MB		*/
+			break;				/* => 32 MB	*/
+		case AMD_ID_LV640U_2:
+			if (addr[15] != AMD_ID_LV640U_3) {
+				debug ("Chip: AMLV640U -> unknown\n");
+				info->flash_id = FLASH_UNKNOWN;
+			} else {
+				debug ("Chip: AMLV640U\n");
+				info->flash_id += FLASH_AMLV640U;
+				info->sector_count = 128;
+				info->size = 0x01000000;
+			}
+			break;				/* => 16 MB	*/
+		case AMD_ID_LV320B_2:
+			if (addr[15] != AMD_ID_LV320B_3) {
+				debug ("Chip: AMLV320B -> unknown\n");
+				info->flash_id = FLASH_UNKNOWN;
+			} else {
+				debug ("Chip: AMLV320B\n");
+				info->flash_id += FLASH_AMLV320B;
+				info->sector_count = 71;
+				info->size = 0x00800000;
+			}
+			break;				/* =>  8 MB	*/
 		default:
+			debug ("Chip: *** unknown ***\n");
 			info->flash_id = FLASH_UNKNOWN;
 			break;
 		}
@@ -315,50 +425,57 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		info->flash_id += FLASH_AM400T;
 		info->sector_count = 11;
 		info->size = 0x00100000;
-		break;				/* => 1 MB		*/
+		break;					/* => 1 MB		*/
 
 	case AMD_ID_LV400B:
 		info->flash_id += FLASH_AM400B;
 		info->sector_count = 11;
 		info->size = 0x00100000;
-		break;				/* => 1 MB		*/
+		break;					/* => 1 MB		*/
 
 	case AMD_ID_LV800T:
 		info->flash_id += FLASH_AM800T;
 		info->sector_count = 19;
 		info->size = 0x00200000;
-		break;				/* => 2 MB		*/
+		break;					/* => 2 MB	*/
 
 	case AMD_ID_LV800B:
 		info->flash_id += FLASH_AM800B;
 		info->sector_count = 19;
 		info->size = 0x00200000;
-		break;				/* => 2 MB		*/
-
-	case AMD_ID_LV160T:
-		info->flash_id += FLASH_AM160T;
-		info->sector_count = 35;
-		info->size = 0x00400000;
-		break;				/* => 4 MB		*/
-
-	case AMD_ID_LV160B:
-		info->flash_id += FLASH_AM160B;
-		info->sector_count = 35;
-		info->size = 0x00400000;
-		break;				/* => 4 MB		*/
+		break;					/* => 2 MB	*/
 
 	case AMD_ID_LV320T:
 		info->flash_id += FLASH_AM320T;
 		info->sector_count = 71;
 		info->size = 0x00800000;
-		break;				/* => 8 MB		*/
+		break;					/* => 8 MB	*/
 
 	case AMD_ID_LV320B:
 		info->flash_id += FLASH_AM320B;
 		info->sector_count = 71;
 		info->size = 0x00800000;
-		break;				/* => 8 MB		*/
+		break;					/* => 8 MB	*/
 #endif	/* TQM8xxM */
+
+	case AMD_ID_LV160T:
+		info->flash_id += FLASH_AM160T;
+		info->sector_count = 35;
+		info->size = 0x00400000;
+		break;					/* => 4 MB	*/
+
+	case AMD_ID_LV160B:
+		info->flash_id += FLASH_AM160B;
+		info->sector_count = 35;
+		info->size = 0x00400000;
+		break;					/* => 4 MB	*/
+
+	case AMD_ID_DL163B:
+		info->flash_id += FLASH_AMDL163B;
+		info->sector_count = 39;
+		info->size = 0x00400000;
+		break;					/* => 4 MB	*/
+
 	default:
 		info->flash_id = FLASH_UNKNOWN;
 		return (0);			/* => no or unknown flash */
@@ -371,9 +488,23 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		switch (info->flash_id & FLASH_TYPEMASK) {
 			/* only known types here - no default */
 		case FLASH_AMLV128U:
+		case FLASH_AMLV640U:
+		case FLASH_AMLV320U:
 			for (i = 0; i < info->sector_count; i++) {
 				info->start[i] = base;
 				base += 0x20000;
+			}
+			break;
+		case FLASH_AMLV320B:
+			for (i = 0; i < info->sector_count; i++) {
+				info->start[i] = base;
+				/*
+				 * The first 8 sectors are 8 kB,
+				 * all the other ones  are 64 kB
+				 */
+				base += (i < 8)
+					?  2 * ( 8 << 10)
+					:  2 * (64 << 10);
 			}
 			break;
 		}
@@ -381,7 +512,6 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 # else	/* ! TQM8xxM */
 	case AMD_ID_LV400B:
 	case AMD_ID_LV800B:
-	case AMD_ID_LV160B:
 		/* set sector offsets for bottom boot block type	*/
 		info->start[0] = base + 0x00000000;
 		info->start[1] = base + 0x00008000;
@@ -393,7 +523,6 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		break;
 	case AMD_ID_LV400T:
 	case AMD_ID_LV800T:
-	case AMD_ID_LV160T:
 		/* set sector offsets for top boot block type		*/
 		i = info->sector_count - 1;
 		info->start[i--] = base + info->size - 0x00008000;
@@ -428,11 +557,44 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		}
 		break;
 #endif	/* TQM8xxM */
+	case AMD_ID_LV160B:
+		/* set sector offsets for bottom boot block type	*/
+		info->start[0] = base + 0x00000000;
+		info->start[1] = base + 0x00008000;
+		info->start[2] = base + 0x0000C000;
+		info->start[3] = base + 0x00010000;
+		for (i = 4; i < info->sector_count; i++) {
+			info->start[i] = base + (i * 0x00020000) - 0x00060000;
+		}
+		break;
+	case AMD_ID_LV160T:
+		/* set sector offsets for top boot block type		*/
+		i = info->sector_count - 1;
+		info->start[i--] = base + info->size - 0x00008000;
+		info->start[i--] = base + info->size - 0x0000C000;
+		info->start[i--] = base + info->size - 0x00010000;
+		for (; i >= 0; i--) {
+			info->start[i] = base + i * 0x00020000;
+		}
+		break;
+	case AMD_ID_DL163B:
+		for (i = 0; i < info->sector_count; i++) {
+			info->start[i] = base;
+			/*
+			 * The first 8 sectors are 8 kB,
+			 * all the other ones  are 64 kB
+			 */
+			base += (i < 8)
+				?  2 * ( 8 << 10)
+				:  2 * (64 << 10);
+		}
+		break;
 	default:
 		return (0);
 		break;
 	}
 
+#if 0
 	/* check for protected sectors */
 	for (i = 0; i < info->sector_count; i++) {
 		/* read sector protection at sector address, (A7 .. A0) = 0x02 */
@@ -440,6 +602,7 @@ static ulong flash_get_size (vu_long *addr, flash_info_t *info)
 		addr = (volatile unsigned long *)(info->start[i]);
 		info->protect[i] = addr[2] & 1;
 	}
+#endif
 
 	/*
 	 * Prevent writes to uninitialized FLASH.

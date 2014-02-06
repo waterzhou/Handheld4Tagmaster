@@ -71,7 +71,6 @@
 
 #include <common.h>
 #include <command.h>
-#include <cmd_boot.h>
 #if !defined(CONFIG_440)
 #include <405gp_pci.h>
 #endif
@@ -96,9 +95,10 @@ void pci_405gp_init(struct pci_controller *hose)
 
 	unsigned short temp_short;
 	unsigned long ptmpcila[2] = {CFG_PCI_PTM1PCI, CFG_PCI_PTM2PCI};
-#if defined(CONFIG_CPCI405)
+#if defined(CONFIG_CPCI405) || defined(CONFIG_PMC405)
 	unsigned long ptmla[2]    = {bd->bi_memstart, bd->bi_flashstart};
 	unsigned long ptmms[2]    = {~(bd->bi_memsize - 1) | 1, ~(bd->bi_flashsize - 1) | 1};
+	char *ptmla_str, *ptmms_str;
 #else
 	unsigned long ptmla[2]    = {CFG_PCI_PTM1LA, CFG_PCI_PTM2LA};
 	unsigned long ptmms[2]    = {CFG_PCI_PTM1MS, CFG_PCI_PTM2MS};
@@ -113,6 +113,27 @@ void pci_405gp_init(struct pci_controller *hose)
 	unsigned long pmmma[3]    = {0xC0000001, 0,0};
 	unsigned long pmmpcila[3] = {0x80000000, 0,0};
 	unsigned long pmmpciha[3] = {0x00000000, 0,0};
+#endif
+#ifdef CONFIG_PCI_PNP
+#if (CONFIG_PCI_HOST == PCI_HOST_AUTO)
+	char *s;
+#endif
+#endif
+
+#if defined(CONFIG_CPCI405) || defined(CONFIG_PMC405)
+	ptmla_str = getenv("ptm1la");
+	ptmms_str = getenv("ptm1ms");
+	if(NULL != ptmla_str && NULL != ptmms_str ) {
+	        ptmla[0] = simple_strtoul (ptmla_str, NULL, 16);
+		ptmms[0] = simple_strtoul (ptmms_str, NULL, 16);
+	}
+
+	ptmla_str = getenv("ptm2la");
+	ptmms_str = getenv("ptm2ms");
+	if(NULL != ptmla_str && NULL != ptmms_str ) {
+	        ptmla[1] = simple_strtoul (ptmla_str, NULL, 16);
+		ptmms[1] = simple_strtoul (ptmms_str, NULL, 16);
+	}
 #endif
 
 	/*
@@ -195,7 +216,7 @@ void pci_405gp_init(struct pci_controller *hose)
 	/*--------------------------------------------------------------------------+
 	 * PMM2 is not used.  Initialize them to zero.
 	 *--------------------------------------------------------------------------*/
-	out32r(PMM2MA,    (pmmma[2]&~0x1)); 
+	out32r(PMM2MA,    (pmmma[2]&~0x1));
 	out32r(PMM2LA,    pmmla[2]);
 	out32r(PMM2PCILA, pmmpcila[2]);
 	out32r(PMM2PCIHA, pmmpciha[2]);
@@ -207,11 +228,14 @@ void pci_405gp_init(struct pci_controller *hose)
 	 *--------------------------------------------------------------------------*/
 	out32r(PTM1LA,    ptmla[0]);         /* insert address                     */
 	out32r(PTM1MS,    ptmms[0]);         /* insert size, enable bit is 1       */
+	pci_write_config_dword(PCIDEVID_405GP, PCI_BASE_ADDRESS_1, ptmpcila[0]);
 
 	/*--------------------------------------------------------------------------+
 	 * 405GP PCI Target configuration.  (PTM2)
 	 *--------------------------------------------------------------------------*/
 	out32r(PTM2LA, ptmla[1]);            /* insert address                     */
+	pci_write_config_dword(PCIDEVID_405GP, PCI_BASE_ADDRESS_2, ptmpcila[1]);
+
 	if (ptmms[1] == 0)
 	{
 		out32r(PTM2MS,    0x00000001);   /* set enable bit                     */
@@ -252,8 +276,9 @@ void pci_405gp_init(struct pci_controller *hose)
 	}
 
 #if (CONFIG_PCI_HOST != PCI_HOST_ADAPTER)
-#if (CONFIG_PCI_HOSE == PCI_HOST_AUTO)
-	if (mfdcr(strap) & PSR_PCI_ARBIT_EN)
+#if (CONFIG_PCI_HOST == PCI_HOST_AUTO)
+	if ((mfdcr(strap) & PSR_PCI_ARBIT_EN) ||
+	    (((s = getenv("pciscan")) != NULL) && (strcmp(s, "yes") == 0)))
 #endif
 	{
 		/*--------------------------------------------------------------------------+
@@ -267,6 +292,10 @@ void pci_405gp_init(struct pci_controller *hose)
 	}
 #endif
 
+#if defined(CONFIG_405EP) /* on ppc405ep vendor id is not set */
+	pci_write_config_word(PCIDEVID_405GP, PCI_VENDOR_ID, 0x1014); /* IBM */
+#endif
+
 	/*
 	 * Set HCE bit (Host Configuration Enabled)
 	 */
@@ -278,7 +307,8 @@ void pci_405gp_init(struct pci_controller *hose)
 	 * Scan the PCI bus and configure devices found.
 	 *--------------------------------------------------------------------------*/
 #if (CONFIG_PCI_HOST == PCI_HOST_AUTO)
-	if (mfdcr(strap) & PSR_PCI_ARBIT_EN)
+	if ((mfdcr(strap) & PSR_PCI_ARBIT_EN) ||
+	    (((s = getenv("pciscan")) != NULL) && (strcmp(s, "yes") == 0)))
 #endif
 	{
 #ifdef CONFIG_PCI_SCAN_SHOW
@@ -303,7 +333,7 @@ void pci_405gp_setup_bridge(struct pci_controller *hose, pci_dev_t dev,
 			    struct pci_config_table *entry)
 {
 #ifdef DEBUG
-        printf("405gp_setup_bridge\n");
+	printf("405gp_setup_bridge\n");
 #endif
 }
 
@@ -358,7 +388,7 @@ void pci_405gp_setup_vga(struct pci_controller *hose, pci_dev_t dev,
  */
 static struct pci_config_table pci_405gp_config_table[] = {
 /*if VendID is 0 it terminates the table search (ie Walnut)*/
-#if CFG_PCI_SUBSYS_VENDORID
+#ifdef CFG_PCI_SUBSYS_VENDORID
 	{CFG_PCI_SUBSYS_VENDORID, PCI_ANY_ID, PCI_CLASS_BRIDGE_HOST,
 	 PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, pci_405gp_setup_bridge},
 #endif
@@ -401,18 +431,32 @@ static struct pci_controller ppc440_hose = {0};
 void pci_440_init (struct pci_controller *hose)
 {
 	int reg_num = 0;
-	unsigned long strap;
 
+#ifndef CONFIG_DISABLE_PISE_TEST
 	/*--------------------------------------------------------------------------+
 	 * The PCI initialization sequence enable bit must be set ... if not abort
-     * pci setup since updating the bit requires chip reset.
+	 * pci setup since updating the bit requires chip reset.
 	 *--------------------------------------------------------------------------*/
-    strap = mfdcr(cpc0_strp1);
-    if( (strap & 0x00040000) == 0 ){
-        printf("PCI: CPC0_STRP1[PISE] not set.\n");
-        printf("PCI: Configuration aborted.\n");
-        return;
-    }
+#if defined(CONFIG_440GX)
+	unsigned long strap;
+
+	mfsdr(sdr_sdstp1,strap);
+	if ( (strap & 0x00010000) == 0 ){
+		printf("PCI: SDR0_STRP1[PISE] not set.\n");
+		printf("PCI: Configuration aborted.\n");
+		return;
+	}
+#elif defined(CONFIG_440GP)
+	unsigned long strap;
+
+	strap = mfdcr(cpc0_strp1);
+	if( (strap & 0x00040000) == 0 ){
+		printf("PCI: CPC0_STRP1[PISE] not set.\n");
+		printf("PCI: Configuration aborted.\n");
+		return;
+	}
+#endif
+#endif /* CONFIG_DISABLE_PISE_TEST */
 
 	/*--------------------------------------------------------------------------+
 	 * PCI controller init
@@ -438,9 +482,9 @@ void pci_440_init (struct pci_controller *hose)
 #if defined(CFG_PCI_PRE_INIT)
     /* Let board change/modify hose & do initial checks */
     if( pci_pre_init (hose) == 0 ){
-        printf("PCI: Board-specific initialization failed.\n");
-        printf("PCI: Configuration aborted.\n");
-        return;
+	printf("PCI: Board-specific initialization failed.\n");
+	printf("PCI: Configuration aborted.\n");
+	return;
     }
 #endif
 
@@ -457,8 +501,13 @@ void pci_440_init (struct pci_controller *hose)
     out16r( PCIX0_CLS, 0x00060000 ); /* Bridge, host bridge */
 #endif
 
-    out32r( PCIX0_BRDGOPT1, 0x10000060 );               /* PLB Rq pri highest   */
-    out32r( PCIX0_BRDGOPT2, in32(PCIX0_BRDGOPT2) | 1 ); /* Enable host config   */
+#if defined(CONFIG_440GX)
+	out32r( PCIX0_BRDGOPT1, 0x04000060 );               /* PLB Rq pri highest   */
+	out32r( PCIX0_BRDGOPT2, in32(PCIX0_BRDGOPT2) | 0x83 ); /* Enable host config, clear Timeout, ensure int src1  */
+#elif defined(PCIX0_BRDGOPT1)
+	out32r( PCIX0_BRDGOPT1, 0x10000060 );               /* PLB Rq pri highest   */
+	out32r( PCIX0_BRDGOPT2, in32(PCIX0_BRDGOPT2) | 1 ); /* Enable host config   */
+#endif
 
 	/*--------------------------------------------------------------------------+
 	 * PCI master init: default is one 256MB region for PCI memory:
@@ -486,10 +535,12 @@ void pci_440_init (struct pci_controller *hose)
 	 *--------------------------------------------------------------------------*/
     if( is_pci_host(hose) ){
 #ifdef CONFIG_PCI_SCAN_SHOW
-        printf("PCI:   Bus Dev VenId DevId Class Int\n");
+	printf("PCI:   Bus Dev VenId DevId Class Int\n");
 #endif
-        out16r( PCIX0_CMD, in16r( PCIX0_CMD ) | PCI_COMMAND_MASTER);
-        hose->last_busno = pci_hose_scan(hose);
+#if !defined(CONFIG_440EP) && !defined(CONFIG_440GR)
+	out16r( PCIX0_CMD, in16r( PCIX0_CMD ) | PCI_COMMAND_MASTER);
+#endif
+	hose->last_busno = pci_hose_scan(hose);
     }
 }
 

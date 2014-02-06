@@ -23,6 +23,7 @@
 #define CFG_PCMCIA_MEM_ADDR	0xe0000000
 #define CFG_PCMCIA_MEM_SIZE	0x10000
 #define CFG_IMMR		0xFF000000
+#define	CFG_SDRAM_SIZE		(4<<20) /* standard FADS has 4M */
 #define	CFG_SDRAM_BASE		0x00000000
 #define CFG_FLASH_BASE		0x02800000
 #define BCSR_ADDR		((uint) 0xff010000)
@@ -65,8 +66,6 @@
  * High Level Configuration Options
  * (easy to change)
  */
-#include <mpc8xx_irq.h>
-
 #define CONFIG_MPC823		1
 #define CONFIG_MPC823FADS	1
 #define CONFIG_FADS		1
@@ -97,8 +96,8 @@
 #define CONFIG_BOOTCOMMAND							\
 "bootp ;" 									\
 "setenv bootargs console=tty0 console=ttyS0 " 					\
-"root=/dev/nfs nfsroot=$(serverip):$(rootpath) " 				\
-"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname):eth0:off ;" 	\
+"root=/dev/nfs nfsroot=${serverip}:${rootpath} " 				\
+"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}:eth0:off ;" 	\
 "bootm"
 #else
 #define CONFIG_BOOTDELAY	0	/* autoboot disabled		*/
@@ -367,8 +366,9 @@
 #define BCSR1_PCCVCC1            ((uint)0x00010000)
 
 #define BCSR2_FLASH_PD_MASK      ((uint)0xF0000000)
+#define BCSR2_FLASH_PD_SHIFT	 28
 #define BCSR2_DRAM_PD_MASK       ((uint)0x07800000)
-#define BCSR2_DRAM_PD_SHIFT      (23)
+#define BCSR2_DRAM_PD_SHIFT      23
 #define BCSR2_EXTTOLI_MASK       ((uint)0x00780000)
 #define BCSR2_DBREVNR_MASK       ((uint)0x00030000)
 
@@ -432,14 +432,6 @@
 #define CONFIG_DRAM_50MHZ		1
 #define CONFIG_SDRAM_50MHZ
 
-#ifdef CONFIG_MPC860T
-
-/* Interrupt level assignments.
-*/
-#define FEC_INTERRUPT	SIU_LEVEL1	/* FEC interrupt */
-
-#endif /* CONFIG_MPC860T */
-
 /* We don't use the 8259.
 */
 #define NR_8259_INTS	0
@@ -466,5 +458,7 @@
 #ifdef CONFIG_MPC860
 #define PCMCIA_SLOT_A 1
 #endif
+
+#define CFG_DAUGHTERBOARD
 
 #endif	/* __CONFIG_H */

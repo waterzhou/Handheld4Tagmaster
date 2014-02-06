@@ -35,6 +35,9 @@
 
 #define CONFIG_MPC8260		1	/* This is an MPC8260 CPU	*/
 #define CONFIG_COGENT		1	/* using Cogent Modular Architecture */
+#define CONFIG_CPM2		1	/* Has a CPM2 */
+
+#define	CONFIG_MISC_INIT_F	1	/* Use misc_init_f()		*/
 
 /* Cogent Modular Architecture options */
 #define CONFIG_CMA282		1	/* ...on a CMA282 CPU module	*/
@@ -160,6 +163,7 @@
 #define CFG_CMA_CONS_SERIAL	/* use Cogent motherboard serial for console */
 #endif
 #define CFG_CMA_LCD_HEARTBEAT	/* define for sec rotator in lcd corner */
+#define CONFIG_SHOW_ACTIVITY
 
 #if (CMA_MB_CAPS & CMA_MB_CAP_FLASH)
 /*

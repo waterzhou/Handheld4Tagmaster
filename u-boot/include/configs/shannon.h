@@ -28,16 +28,13 @@
 #define __CONFIG_H
 
 /*
- * If we are developing, we might want to start armboot from ram
- * so we MUST NOT initialize critical regs like mem-timing ...
- */
-
-/*
- * we just run in non-critical mode now, because we use the Inferno-Loader to
- * bring us to live
+ * Since we use the Inferno-Loader to bring us to live,
+ * we skip the lowlevel init stuff.
+ * But U-Boot still relocates itself into RAM
  */
 #define CONFIG_INFERNO			/* we are using the inferno bootldr */
-#undef CONFIG_INIT_CRITICAL		/* undef for developing */
+#define CONFIG_SKIP_LOWLEVEL_INIT	1
+#undef  CONFIG_SKIP_RELOCATE_UBOOT
 
 /*
  * High Level Configuration Options
@@ -52,6 +49,7 @@
  * Size of malloc() pool
  */
 #define CFG_MALLOC_LEN		(CFG_ENV_SIZE + 128*1024)
+#define CFG_GBL_DATA_SIZE	128	/* size in bytes reserved for initial data */
 
 /*
  * Hardware drivers
@@ -204,13 +202,13 @@
 #define CFG_ATA_BASE_ADDR	CFG_PCMCIA_ATTRB_ADDR
 
 /* Offset for data I/O			*/
-#define CFG_ATA_DATA_OFFSET	(CFG_ATA_BASE_ADDR)
+#define CFG_ATA_DATA_OFFSET	0
 
 /* Offset for normal register accesses	*/
-#define CFG_ATA_REG_OFFSET	(CFG_ATA_BASE_ADDR)
+#define CFG_ATA_REG_OFFSET	0
 
 /* Offset for alternate registers	*/
-#define CFG_ATA_ALT_OFFSET	(CFG_ATA_BASE_ADDR)
+#define CFG_ATA_ALT_OFFSET	0
 
 /*-----------------------------------------------------------------------
  */

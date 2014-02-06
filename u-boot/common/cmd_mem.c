@@ -29,7 +29,6 @@
 
 #include <common.h>
 #include <command.h>
-#include <cmd_mem.h>
 #if (CONFIG_COMMANDS & CFG_CMD_MMC)
 #include <mmc.h>
 #endif
@@ -37,8 +36,11 @@
 #include <dataflash.h>
 #endif
 
-#if (CONFIG_COMMANDS & (CFG_CMD_MEMORY | CFG_CMD_PCI | CFG_CMD_I2C\
-			| CMD_CMD_PORTIO))
+#if (CONFIG_COMMANDS & (CFG_CMD_MEMORY	| \
+			CFG_CMD_I2C	| \
+			CFG_CMD_ITEST	| \
+			CFG_CMD_PCI	| \
+			CMD_CMD_PORTIO	) )
 int cmd_get_data_size(char* arg, int default_size)
 {
 	/* Check for a size specification .b, .w or .l.
@@ -52,6 +54,10 @@ int cmd_get_data_size(char* arg, int default_size)
 			return 2;
 		case 'l':
 			return 4;
+		case 's':
+			return -2;
+		default:
+			return -1;
 		}
 	}
 	return default_size;
@@ -85,9 +91,10 @@ static	ulong	base_address = 0;
 #define DISP_LINE_LEN	16
 int do_mem_md ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-	ulong	addr, size, length;
+	ulong	addr, length;
 	ulong	i, nbytes, linebytes;
 	u_char	*cp;
+	int	size;
 	int rc = 0;
 
 	/* We use the last specified parameters, unless new ones are
@@ -106,7 +113,8 @@ int do_mem_md ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		/* New command specified.  Check for a size specification.
 		 * Defaults to long if no or incorrect specification.
 		 */
-		size = cmd_get_data_size(argv[0], 4);
+		if ((size = cmd_get_data_size(argv[0], 4)) < 0)
+			return 1;
 
 		/* Address is specified since argc > 1
 		*/
@@ -131,13 +139,19 @@ int do_mem_md ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		uint	*uip = (uint   *)linebuf;
 		ushort	*usp = (ushort *)linebuf;
 		u_char	*ucp = (u_char *)linebuf;
-
+#ifdef CONFIG_HAS_DATAFLASH
+		int rc;
+#endif
 		printf("%08lx:", addr);
 		linebytes = (nbytes>DISP_LINE_LEN)?DISP_LINE_LEN:nbytes;
 
 #ifdef CONFIG_HAS_DATAFLASH
-		if (read_dataflash(addr, (linebytes/size)*size, linebuf) != -1){
-
+		if ((rc = read_dataflash(addr, (linebytes/size)*size, linebuf)) == DATAFLASH_OK){
+			/* if outside dataflash */
+			/*if (rc != 1) {
+				dataflash_perror (rc);
+				return (1);
+			}*/
 			for (i=0; i<linebytes; i+= size) {
 				if (size == 4) {
 					printf(" %08x", *uip++);
@@ -148,7 +162,7 @@ int do_mem_md ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 				}
 				addr += size;
 			}
-			
+
 		} else {	/* addr does not correspond to DataFlash */
 #endif
 		for (i=0; i<linebytes; i+= size) {
@@ -164,16 +178,16 @@ int do_mem_md ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #ifdef CONFIG_HAS_DATAFLASH
 		}
 #endif
-		printf("    ");
-		cp = linebuf;
+		puts ("    ");
+		cp = (u_char *)linebuf;
 		for (i=0; i<linebytes; i++) {
 			if ((*cp < 0x20) || (*cp > 0x7e))
-				printf(".");
+				putc ('.');
 			else
 				printf("%c", *cp);
 			cp++;
 		}
-		printf("\n");
+		putc ('\n');
 		nbytes -= linebytes;
 		if (ctrlc()) {
 			rc = 1;
@@ -198,7 +212,8 @@ int do_mem_nm ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 int do_mem_mw ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-	ulong	addr, size, writeval, count;
+	ulong	addr, writeval, count;
+	int	size;
 
 	if ((argc < 3) || (argc > 4)) {
 		printf ("Usage:\n%s\n", cmdtp->usage);
@@ -207,7 +222,8 @@ int do_mem_mw ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	/* Check for size specification.
 	*/
-	size = cmd_get_data_size(argv[0], 4);
+	if ((size = cmd_get_data_size(argv[0], 4)) < 1)
+		return 1;
 
 	/* Address is specified since argc > 1
 	*/
@@ -237,9 +253,70 @@ int do_mem_mw ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return 0;
 }
 
+#ifdef CONFIG_MX_CYCLIC
+int do_mem_mdc ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	int i;
+	ulong count;
+
+	if (argc < 4) {
+		printf ("Usage:\n%s\n", cmdtp->usage);
+		return 1;
+	}
+
+	count = simple_strtoul(argv[3], NULL, 10);
+
+	for (;;) {
+		do_mem_md (NULL, 0, 3, argv);
+
+		/* delay for <count> ms... */
+		for (i=0; i<count; i++)
+			udelay (1000);
+
+		/* check for ctrl-c to abort... */
+		if (ctrlc()) {
+			puts("Abort\n");
+			return 0;
+		}
+	}
+
+	return 0;
+}
+
+int do_mem_mwc ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	int i;
+	ulong count;
+
+	if (argc < 4) {
+		printf ("Usage:\n%s\n", cmdtp->usage);
+		return 1;
+	}
+
+	count = simple_strtoul(argv[3], NULL, 10);
+
+	for (;;) {
+		do_mem_mw (NULL, 0, 3, argv);
+
+		/* delay for <count> ms... */
+		for (i=0; i<count; i++)
+			udelay (1000);
+
+		/* check for ctrl-c to abort... */
+		if (ctrlc()) {
+			puts("Abort\n");
+			return 0;
+		}
+	}
+
+	return 0;
+}
+#endif /* CONFIG_MX_CYCLIC */
+
 int do_mem_cmp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-	ulong	size, addr1, addr2, count, ngood;
+	ulong	addr1, addr2, count, ngood;
+	int	size;
 	int     rcode = 0;
 
 	if (argc != 4) {
@@ -249,7 +326,8 @@ int do_mem_cmp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	/* Check for size specification.
 	*/
-	size = cmd_get_data_size(argv[0], 4);
+	if ((size = cmd_get_data_size(argv[0], 4)) < 0)
+		return 1;
 
 	addr1 = simple_strtoul(argv[1], NULL, 16);
 	addr1 += base_address;
@@ -261,7 +339,7 @@ int do_mem_cmp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 #ifdef CONFIG_HAS_DATAFLASH
 	if (addr_dataflash(addr1) | addr_dataflash(addr2)){
-		printf("Comparison with DataFlash space not supported.\n\r");
+		puts ("Comparison with DataFlash space not supported.\n\r");
 		return 0;
 	}
 #endif
@@ -315,7 +393,8 @@ int do_mem_cmp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-	ulong	addr, size, dest, count;
+	ulong	addr, dest, count;
+	int	size;
 
 	if (argc != 4) {
 		printf ("Usage:\n%s\n", cmdtp->usage);
@@ -324,7 +403,8 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	/* Check for size specification.
 	*/
-	size = cmd_get_data_size(argv[0], 4);
+	if ((size = cmd_get_data_size(argv[0], 4)) < 0)
+		return 1;
 
 	addr = simple_strtoul(argv[1], NULL, 16);
 	addr += base_address;
@@ -348,9 +428,9 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	   ) {
 		int rc;
 
-		printf ("Copy to Flash... ");
+		puts ("Copy to Flash... ");
 
-		rc = flash_write ((uchar *)addr, dest, count*size);
+		rc = flash_write ((char *)addr, dest, count*size);
 		if (rc != 0) {
 			flash_perror (rc);
 			return (1);
@@ -364,13 +444,13 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	if (mmc2info(dest)) {
 		int rc;
 
-		printf ("Copy to MMC... ");
+		puts ("Copy to MMC... ");
 		switch (rc = mmc_write ((uchar *)addr, dest, count*size)) {
 		case 0:
-			printf ("\n");
+			putc ('\n');
 			return 1;
 		case -1:
-			printf("failed\n");
+			puts ("failed\n");
 			return 1;
 		default:
 			printf ("%s[%d] FIXME: rc=%d\n",__FILE__,__LINE__,rc);
@@ -383,13 +463,13 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	if (mmc2info(addr)) {
 		int rc;
 
-		printf ("Copy from MMC... ");
+		puts ("Copy from MMC... ");
 		switch (rc = mmc_read (addr, (uchar *)dest, count*size)) {
 		case 0:
-			printf ("\n");
+			putc ('\n');
 			return 1;
 		case -1:
-			printf("failed\n");
+			puts ("failed\n");
 			return 1;
 		default:
 			printf ("%s[%d] FIXME: rc=%d\n",__FILE__,__LINE__,rc);
@@ -405,7 +485,7 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	if (addr_dataflash(dest) && !addr_dataflash(addr)){
 		int rc;
 
-		printf ("Copy to DataFlash... ");
+		puts ("Copy to DataFlash... ");
 
 		rc = write_dataflash (dest, addr, count*size);
 
@@ -416,15 +496,20 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		puts ("done\n");
 		return 0;
 	}
-	
+
 	/* Check if we are copying from DataFlash to RAM */
 	if (addr_dataflash(addr) && !addr_dataflash(dest) && (addr2info(dest)==NULL) ){
-		read_dataflash(addr, count * size, (char *) dest);
+		int rc;
+		rc = read_dataflash(addr, count * size, (char *) dest);
+		if (rc != 1) {
+			dataflash_perror (rc);
+			return (1);
+		}
 		return 0;
 	}
 
 	if (addr_dataflash(addr) && addr_dataflash(dest)){
-		printf("Unsupported combination of source/destination.\n\r");
+		puts ("Unsupported combination of source/destination.\n\r");
 		return 1;
 	}
 #endif
@@ -457,7 +542,8 @@ int do_mem_base (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 int do_mem_loop (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-	ulong	addr, size, length, i, junk;
+	ulong	addr, length, i, junk;
+	int	size;
 	volatile uint	*longp;
 	volatile ushort *shortp;
 	volatile u_char	*cp;
@@ -470,7 +556,8 @@ int do_mem_loop (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	/* Check for a size spefication.
 	 * Defaults to long if no or incorrect specification.
 	 */
-	size = cmd_get_data_size(argv[0], 4);
+	if ((size = cmd_get_data_size(argv[0], 4)) < 0)
+		return 1;
 
 	/* Address is always specified.
 	*/
@@ -523,6 +610,81 @@ int do_mem_loop (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 }
 
+#ifdef CONFIG_LOOPW
+int do_mem_loopw (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	ulong	addr, length, i, data;
+	int	size;
+	volatile uint	*longp;
+	volatile ushort *shortp;
+	volatile u_char	*cp;
+
+	if (argc < 4) {
+		printf ("Usage:\n%s\n", cmdtp->usage);
+		return 1;
+	}
+
+	/* Check for a size spefication.
+	 * Defaults to long if no or incorrect specification.
+	 */
+	if ((size = cmd_get_data_size(argv[0], 4)) < 0)
+		return 1;
+
+	/* Address is always specified.
+	*/
+	addr = simple_strtoul(argv[1], NULL, 16);
+
+	/* Length is the number of objects, not number of bytes.
+	*/
+	length = simple_strtoul(argv[2], NULL, 16);
+
+	/* data to write */
+	data = simple_strtoul(argv[3], NULL, 16);
+
+	/* We want to optimize the loops to run as fast as possible.
+	 * If we have only one object, just run infinite loops.
+	 */
+	if (length == 1) {
+		if (size == 4) {
+			longp = (uint *)addr;
+			for (;;)
+				*longp = data;
+					}
+		if (size == 2) {
+			shortp = (ushort *)addr;
+			for (;;)
+				*shortp = data;
+		}
+		cp = (u_char *)addr;
+		for (;;)
+			*cp = data;
+	}
+
+	if (size == 4) {
+		for (;;) {
+			longp = (uint *)addr;
+			i = length;
+			while (i-- > 0)
+				*longp++ = data;
+		}
+	}
+	if (size == 2) {
+		for (;;) {
+			shortp = (ushort *)addr;
+			i = length;
+			while (i-- > 0)
+				*shortp++ = data;
+		}
+	}
+	for (;;) {
+		cp = (u_char *)addr;
+		i = length;
+		while (i-- > 0)
+			*cp++ = data;
+	}
+}
+#endif /* CONFIG_LOOPW */
+
 /*
  * Perform a memory test. A more complete alternative test can be
  * configured using CFG_ALT_MEMTEST. The complete test loops until
@@ -542,7 +704,11 @@ int do_mem_mtest (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	vu_long	temp;
 	vu_long	anti_pattern;
 	vu_long	num_words;
+#if defined(CFG_MEMTEST_SCRATCH)
+	vu_long *dummy = (vu_long*)CFG_MEMTEST_SCRATCH;
+#else
 	vu_long *dummy = NULL;
+#endif
 	int	j;
 	int iterations = 1;
 
@@ -630,7 +796,7 @@ int do_mem_mtest (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			if(readback != ~val) {
 			    printf ("FAILURE (data line): "
 				"Is %08lx, should be %08lx\n",
-					val, readback);
+					readback, ~val);
 			}
 		    }
 		}
@@ -797,7 +963,7 @@ int do_mem_mtest (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			val  += incr;
 		}
 
-		printf("Reading...");
+		puts ("Reading...");
 
 		for (addr=start,val=pattern; addr<end; addr++) {
 			readback = *addr;
@@ -838,8 +1004,8 @@ int do_mem_mtest (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 static int
 mod_mem(cmd_tbl_t *cmdtp, int incrflag, int flag, int argc, char *argv[])
 {
-	ulong	addr, size, i;
-	int	nbytes;
+	ulong	addr, i;
+	int	nbytes, size;
 	extern char console_buffer[];
 
 	if (argc != 2) {
@@ -860,7 +1026,8 @@ mod_mem(cmd_tbl_t *cmdtp, int incrflag, int flag, int argc, char *argv[])
 		/* New command specified.  Check for a size specification.
 		 * Defaults to long if no or incorrect specification.
 		 */
-		size = cmd_get_data_size(argv[0], 4);
+		if ((size = cmd_get_data_size(argv[0], 4)) < 0)
+			return 1;
 
 		/* Address is specified since argc > 1
 		*/
@@ -870,7 +1037,7 @@ mod_mem(cmd_tbl_t *cmdtp, int incrflag, int flag, int argc, char *argv[])
 
 #ifdef CONFIG_HAS_DATAFLASH
 	if (addr_dataflash(addr)){
-		printf("Can't modify DataFlash in place. Use cp instead.\n\r");
+		puts ("Can't modify DataFlash in place. Use cp instead.\n\r");
 		return 0;
 	}
 #endif
@@ -931,6 +1098,8 @@ mod_mem(cmd_tbl_t *cmdtp, int incrflag, int flag, int argc, char *argv[])
 	return 0;
 }
 
+#ifndef CONFIG_CRC32_VERIFY
+
 int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	ulong addr, length;
@@ -960,4 +1129,164 @@ int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return 0;
 }
 
+#else	/* CONFIG_CRC32_VERIFY */
+
+int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	ulong addr, length;
+	ulong crc;
+	ulong *ptr;
+	ulong vcrc;
+	int verify;
+	int ac;
+	char **av;
+
+	if (argc < 3) {
+  usage:
+		printf ("Usage:\n%s\n", cmdtp->usage);
+		return 1;
+	}
+
+	av = argv + 1;
+	ac = argc - 1;
+	if (strcmp(*av, "-v") == 0) {
+		verify = 1;
+		av++;
+		ac--;
+		if (ac < 3)
+			goto usage;
+	} else
+		verify = 0;
+
+	addr = simple_strtoul(*av++, NULL, 16);
+	addr += base_address;
+	length = simple_strtoul(*av++, NULL, 16);
+
+	crc = crc32(0, (const uchar *) addr, length);
+
+	if (!verify) {
+		printf ("CRC32 for %08lx ... %08lx ==> %08lx\n",
+				addr, addr + length - 1, crc);
+		if (ac > 2) {
+			ptr = (ulong *) simple_strtoul (*av++, NULL, 16);
+			*ptr = crc;
+		}
+	} else {
+		vcrc = simple_strtoul(*av++, NULL, 16);
+		if (vcrc != crc) {
+			printf ("CRC32 for %08lx ... %08lx ==> %08lx != %08lx ** ERROR **\n",
+					addr, addr + length - 1, crc, vcrc);
+			return 1;
+		}
+	}
+
+	return 0;
+
+}
+#endif	/* CONFIG_CRC32_VERIFY */
+
+/**************************************************/
+#if (CONFIG_COMMANDS & CFG_CMD_MEMORY)
+U_BOOT_CMD(
+	md,     3,     1,      do_mem_md,
+	"md      - memory display\n",
+	"[.b, .w, .l] address [# of objects]\n    - memory display\n"
+);
+
+
+U_BOOT_CMD(
+	mm,     2,      1,       do_mem_mm,
+	"mm      - memory modify (auto-incrementing)\n",
+	"[.b, .w, .l] address\n" "    - memory modify, auto increment address\n"
+);
+
+
+U_BOOT_CMD(
+	nm,     2,	    1,     	do_mem_nm,
+	"nm      - memory modify (constant address)\n",
+	"[.b, .w, .l] address\n    - memory modify, read and keep address\n"
+);
+
+U_BOOT_CMD(
+	mw,    4,    1,     do_mem_mw,
+	"mw      - memory write (fill)\n",
+	"[.b, .w, .l] address value [count]\n    - write memory\n"
+);
+
+U_BOOT_CMD(
+	cp,    4,    1,    do_mem_cp,
+	"cp      - memory copy\n",
+	"[.b, .w, .l] source target count\n    - copy memory\n"
+);
+
+U_BOOT_CMD(
+	cmp,    4,     1,     do_mem_cmp,
+	"cmp     - memory compare\n",
+	"[.b, .w, .l] addr1 addr2 count\n    - compare memory\n"
+);
+
+#ifndef CONFIG_CRC32_VERIFY
+
+U_BOOT_CMD(
+	crc32,    4,    1,     do_mem_crc,
+	"crc32   - checksum calculation\n",
+	"address count [addr]\n    - compute CRC32 checksum [save at addr]\n"
+);
+
+#else	/* CONFIG_CRC32_VERIFY */
+
+U_BOOT_CMD(
+	crc32,    5,    1,     do_mem_crc,
+	"crc32   - checksum calculation\n",
+	"address count [addr]\n    - compute CRC32 checksum [save at addr]\n"
+	"-v address count crc\n    - verify crc of memory area\n"
+);
+
+#endif	/* CONFIG_CRC32_VERIFY */
+
+U_BOOT_CMD(
+	base,    2,    1,     do_mem_base,
+	"base    - print or set address offset\n",
+	"\n    - print address offset for memory commands\n"
+	"base off\n    - set address offset for memory commands to 'off'\n"
+);
+
+U_BOOT_CMD(
+	loop,    3,    1,    do_mem_loop,
+	"loop    - infinite loop on address range\n",
+	"[.b, .w, .l] address number_of_objects\n"
+	"    - loop on a set of addresses\n"
+);
+
+#ifdef CONFIG_LOOPW
+U_BOOT_CMD(
+	loopw,    4,    1,    do_mem_loopw,
+	"loopw   - infinite write loop on address range\n",
+	"[.b, .w, .l] address number_of_objects data_to_write\n"
+	"    - loop on a set of addresses\n"
+);
+#endif /* CONFIG_LOOPW */
+
+U_BOOT_CMD(
+	mtest,    4,    1,     do_mem_mtest,
+	"mtest   - simple RAM test\n",
+	"[start [end [pattern]]]\n"
+	"    - simple RAM read/write test\n"
+);
+
+#ifdef CONFIG_MX_CYCLIC
+U_BOOT_CMD(
+	mdc,     4,     1,      do_mem_mdc,
+	"mdc     - memory display cyclic\n",
+	"[.b, .w, .l] address count delay(ms)\n    - memory display cyclic\n"
+);
+
+U_BOOT_CMD(
+	mwc,     4,     1,      do_mem_mwc,
+	"mwc     - memory write cyclic\n",
+	"[.b, .w, .l] address value delay(ms)\n    - memory write cyclic\n"
+);
+#endif /* CONFIG_MX_CYCLIC */
+
+#endif
 #endif	/* CFG_CMD_MEMORY */

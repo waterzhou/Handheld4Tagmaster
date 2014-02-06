@@ -26,7 +26,6 @@
  */
 #include <common.h>
 #include <command.h>
-#include <cmd_diag.h>
 #include <post.h>
 
 #if (CONFIG_COMMANDS & CFG_CMD_DIAG) && defined(CONFIG_POST)
@@ -38,11 +37,11 @@ int do_diag (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 	if (argc == 1 || strcmp (argv[1], "run") != 0) {
 		/* List test info */
 		if (argc == 1) {
-			printf ("Available hardware tests:\n");
+			puts ("Available hardware tests:\n");
 			post_info (NULL);
-			printf ("Use 'diag [<test1> [<test2> ...]]'"
+			puts ("Use 'diag [<test1> [<test2> ...]]'"
 					" to get more info.\n");
-			printf ("Use 'diag run [<test1> [<test2> ...]]'"
+			puts ("Use 'diag run [<test1> [<test2> ...]]'"
 					" to run tests.\n");
 		} else {
 			for (i = 1; i < argc; i++) {
@@ -65,5 +64,17 @@ int do_diag (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 
 	return 0;
 }
+/***************************************************/
+
+U_BOOT_CMD(
+	diag,	CFG_MAXARGS,	0,	do_diag,
+	"diag    - perform board diagnostics\n",
+	     "    - print list of available tests\n"
+	"diag [test1 [test2]]\n"
+	"         - print information about specified tests\n"
+	"diag run - run all available tests\n"
+	"diag run [test1 [test2]]\n"
+	"         - run specified tests\n"
+);
 
 #endif /* CFG_CMD_DIAG */

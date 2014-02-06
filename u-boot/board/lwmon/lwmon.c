@@ -38,9 +38,9 @@ V* Verification:  dzu@denx.de
 #include <commproc.h>
 #include <i2c.h>
 #include <command.h>
-#include <cmd_bsp.h>
 #include <malloc.h>
 #include <post.h>
+#include <serial.h>
 
 #include <linux/types.h>
 #include <linux/string.h>	/* for strdup */
@@ -73,9 +73,9 @@ const uint sdram_table[] =
 	/*
 	 * SDRAM Initialization (offset 5 in UPM RAM)
 	 *
-         * This is no UPM entry point. The following definition uses
-         * the remaining space to establish an initialization
-         * sequence, which is executed by a RUN command.
+	 * This is no UPM entry point. The following definition uses
+	 * the remaining space to establish an initialization
+	 * sequence, which is executed by a RUN command.
 	 *
 	 */
 		    0x1FF5FC34, 0xEFEABC34, 0x1FB57C35, /* last */
@@ -121,9 +121,9 @@ const uint sdram_table[] =
 	/*
 	 * SDRAM Initialization (offset 5 in UPM RAM)
 	 *
-         * This is no UPM entry point. The following definition uses
-         * the remaining space to establish an initialization
-         * sequence, which is executed by a RUN command.
+	 * This is no UPM entry point. The following definition uses
+	 * the remaining space to establish an initialization
+	 * sequence, which is executed by a RUN command.
 	 *
 	 */
 		    0x1FF5FC34, 0xEFEABC34, 0x1FB57C35, /* last */
@@ -132,7 +132,7 @@ const uint sdram_table[] =
 	 */
 	0x0E2DBC04, 0x10AF7C04, 0xF0AFFC00, 0xF0AFFC00,
 	0xF1AFFC00, 0xEFBAFC00, 0x1FF5FC47, /* last */
-				 	    _NOT_USED_,
+					    _NOT_USED_,
 	_NOT_USED_, _NOT_USED_, _NOT_USED_, _NOT_USED_,
 	_NOT_USED_, _NOT_USED_, _NOT_USED_, _NOT_USED_,
 	/*
@@ -146,7 +146,7 @@ const uint sdram_table[] =
 	 */
 	0x0E29BC04, 0x10A77C00, 0xF0AFFC00, 0xF0AFFC00,
 	0xE1BAFC04, 0x1FF5FC47, /* last */
-			        _NOT_USED_, _NOT_USED_,
+				_NOT_USED_, _NOT_USED_,
 	_NOT_USED_, _NOT_USED_, _NOT_USED_, _NOT_USED_,
 	_NOT_USED_, _NOT_USED_, _NOT_USED_, _NOT_USED_,
 	/*
@@ -185,7 +185,7 @@ V* Verification: dzu@denx.de
  ***********************************************************************/
 int checkboard (void)
 {
-	puts ("Board: Litronic Monitor IV\n");
+	puts ("Board: LICCON Konsole LCD3\n");
 	return (0);
 }
 
@@ -247,7 +247,7 @@ long int initdram (int board_type)
 	udelay (1);				/* 0x80006106 */
 	memctl->memc_mcr = MCR_OP_RUN | MCR_MB_CS3 | MCR_MLCF (1) | MCR_MAD (0x06);
 
-	memctl->memc_mamr |= MAMR_PTBE;	/* refresh enabled */
+	memctl->memc_mamr |= MAMR_PTAE;	/* refresh enabled */
 
 	udelay (200);
 
@@ -266,22 +266,22 @@ long int initdram (int board_type)
 	 *
 	 * try 8 column mode
 	 */
-	size8 = dram_size (CFG_MAMR_8COL, (ulong *)SDRAM_BASE3_PRELIM, SDRAM_MAX_SIZE);
+	size8 = dram_size (CFG_MAMR_8COL, (long *)SDRAM_BASE3_PRELIM, SDRAM_MAX_SIZE);
 
 	udelay (1000);
 
 	/*
 	 * try 9 column mode
 	 */
-	size9 = dram_size (CFG_MAMR_9COL, (ulong *)SDRAM_BASE3_PRELIM, SDRAM_MAX_SIZE);
+	size9 = dram_size (CFG_MAMR_9COL, (long *)SDRAM_BASE3_PRELIM, SDRAM_MAX_SIZE);
 
 	if (size8 < size9) {		/* leave configuration at 9 columns */
 		size_b0 = size9;
-		memctl->memc_mamr = CFG_MAMR_9COL | MAMR_PTBE;
+		memctl->memc_mamr = CFG_MAMR_9COL | MAMR_PTAE;
 		udelay (500);
 	} else {			/* back to 8 columns            */
 		size_b0 = size8;
-		memctl->memc_mamr = CFG_MAMR_8COL | MAMR_PTBE;
+		memctl->memc_mamr = CFG_MAMR_8COL | MAMR_PTAE;
 		udelay (500);
 	}
 
@@ -327,42 +327,10 @@ static long int dram_size (long int mamr_value, long int *base, long int maxsize
 {
 	volatile immap_t *immr = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immr->im_memctl;
-	volatile long int *addr;
-	ulong cnt, val;
-	ulong save[32];				/* to make test non-destructive */
-	unsigned char i = 0;
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	save[i] = *addr;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		val = *addr;
-		*addr = save[--i];
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (get_ram_size(base, maxsize));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -372,14 +340,14 @@ static long int dram_size (long int mamr_value, long int *base, long int maxsize
 #endif
 
 /***********************************************************************
-F* Function:     int board_pre_init (void) P*A*Z*
+F* Function:     int board_early_init_f (void) P*A*Z*
  *
 P* Parameters:   none
 P*
 P* Returnvalue:  int
 P*                - 0 is always returned.
  *
-Z* Intention:    This function is the board_pre_init() method implementation
+Z* Intention:    This function is the board_early_init_f() method implementation
 Z*               for the lwmon board.
 Z*               Disable Ethernet TENA on Port B.
  *
@@ -387,7 +355,7 @@ D* Design:       wd@denx.de
 C* Coding:       wd@denx.de
 V* Verification: dzu@denx.de
  ***********************************************************************/
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	volatile immap_t *immr = (immap_t *) CFG_IMMR;
 
@@ -501,6 +469,13 @@ int board_postclk_init (void)
 	return (0);
 }
 
+struct serial_device * default_serial_console (void)
+{
+	DECLARE_GLOBAL_DATA_PTR;
+
+	return gd->do_mdm_init ? &serial_scc_device : &serial_smc_device;
+}
+
 static void kbd_init (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
@@ -511,8 +486,11 @@ static void kbd_init (void)
 	int i;
 
 	i2c_init (CFG_I2C_SPEED, CFG_I2C_SLAVE);
-	
+
 	gd->kbd_status = 0;
+
+	/* Forced by PIC. Delays <= 175us loose */
+	udelay(1000);
 
 	/* Read initial keyboard error code */
 	val = KEYBD_CMD_READ_STATUS;
@@ -543,13 +521,13 @@ static void kbd_init (void)
 	/*
 	 * Read current keyboard state.
 	 *
-         * After the error reset it may take some time before the
-         * keyboard PIC picks up a valid keyboard scan - the total
-         * scan time is approx. 1.6 ms (information by Martin Rajek,
-         * 28 Sep 2002). We read a couple of times for the keyboard
-         * to stabilize, using a big enough delay.
-         * 10 times should be enough. If the data is still changing,
-         * we use what we get :-(
+	 * After the error reset it may take some time before the
+	 * keyboard PIC picks up a valid keyboard scan - the total
+	 * scan time is approx. 1.6 ms (information by Martin Rajek,
+	 * 28 Sep 2002). We read a couple of times for the keyboard
+	 * to stabilize, using a big enough delay.
+	 * 10 times should be enough. If the data is still changing,
+	 * we use what we get :-(
 	 */
 
 	memset (tmp_data, 0xFF, KEYBD_DATALEN);	/* impossible value */
@@ -596,11 +574,11 @@ int misc_init_r (void)
 	DECLARE_GLOBAL_DATA_PTR;
 
 	uchar kbd_data[KEYBD_DATALEN];
-	uchar keybd_env[2 * KEYBD_DATALEN + 1];
+	char keybd_env[2 * KEYBD_DATALEN + 1];
 	uchar kbd_init_status = gd->kbd_status >> 8;
 	uchar kbd_status = gd->kbd_status;
 	uchar val;
-	uchar *str;
+	char *str;
 	int i;
 
 	if (kbd_init_status) {
@@ -639,7 +617,7 @@ int misc_init_r (void)
 	}
 	setenv ("keybd", keybd_env);
 
-	str = strdup (key_match (kbd_data));	/* decode keys */
+	str = strdup ((char *)key_match (kbd_data));	/* decode keys */
 #ifdef KEYBD_SET_DEBUGMODE
 	if (kbd_data[0] == KEYBD_SET_DEBUGMODE) {	/* set debug mode */
 		if ((console_assign (stdout, "lcd") < 0) ||
@@ -665,19 +643,19 @@ static uchar kbd_command_prefix[] = "key_cmd";
 static int compare_magic (uchar *kbd_data, uchar *str)
 {
 	uchar compare[KEYBD_DATALEN-1];
-	uchar *nxt;
+	char *nxt;
 	int i;
 
 	/* Don't include modifier byte */
 	memcpy (compare, kbd_data+1, KEYBD_DATALEN-1);
 
-	for (; str != NULL; str = (*nxt) ? nxt+1 : nxt) {
+	for (; str != NULL; str = (*nxt) ? (uchar *)(nxt+1) : (uchar *)nxt) {
 		uchar c;
 		int k;
 
-		c = (uchar) simple_strtoul (str, (char **) (&nxt), 16);
+		c = (uchar) simple_strtoul ((char *)str, (char **) (&nxt), 16);
 
-		if (str == nxt) {	/* invalid character */
+		if (str == (uchar *)nxt) {	/* invalid character */
 			break;
 		}
 
@@ -741,9 +719,9 @@ V* Verification: dzu@denx.de
  ***********************************************************************/
 static uchar *key_match (uchar *kbd_data)
 {
-	uchar magic[sizeof (kbd_magic_prefix) + 1];
+	char magic[sizeof (kbd_magic_prefix) + 1];
 	uchar *suffix;
-	uchar *kbd_magic_keys;
+	char *kbd_magic_keys;
 
 	/*
 	 * The following string defines the characters that can pe appended
@@ -759,13 +737,13 @@ static uchar *key_match (uchar *kbd_data)
 	/* loop over all magic keys;
 	 * use '\0' suffix in case of empty string
 	 */
-	for (suffix=kbd_magic_keys; *suffix || suffix==kbd_magic_keys; ++suffix) {
+	for (suffix=(uchar *)kbd_magic_keys; *suffix || suffix==(uchar *)kbd_magic_keys; ++suffix) {
 		sprintf (magic, "%s%c", kbd_magic_prefix, *suffix);
 #if 0
 		printf ("### Check magic \"%s\"\n", magic);
 #endif
-		if (compare_magic(kbd_data, getenv(magic)) == 0) {
-			uchar cmd_name[sizeof (kbd_command_prefix) + 1];
+		if (compare_magic(kbd_data, (uchar *)getenv(magic)) == 0) {
+			char cmd_name[sizeof (kbd_command_prefix) + 1];
 			char *cmd;
 
 			sprintf (cmd_name, "%s%c", kbd_command_prefix, *suffix);
@@ -776,7 +754,7 @@ static uchar *key_match (uchar *kbd_data)
 					cmd_name, cmd ? cmd : "<<NULL>>");
 #endif
 			*kbd_data = *suffix;
-			return (cmd);
+			return ((uchar *)cmd);
 		}
 	}
 #if 0
@@ -849,6 +827,12 @@ int do_pic (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	printf ("Usage:\n%s\n", cmdtp->usage);
 	return 1;
 }
+U_BOOT_CMD(
+	pic,	4,	1,	do_pic,
+	"pic     - read and write PIC registers\n",
+	"read  reg      - read PIC register `reg'\n"
+	"pic write reg val  - write value `val' to PIC register `reg'\n"
+);
 
 /***********************************************************************
 F* Function:     int do_kbd (cmd_tbl_t *cmdtp, int flag,
@@ -879,7 +863,7 @@ V* Verification: dzu@denx.de
 int do_kbd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	uchar kbd_data[KEYBD_DATALEN];
-	uchar keybd_env[2 * KEYBD_DATALEN + 1];
+	char keybd_env[2 * KEYBD_DATALEN + 1];
 	uchar val;
 	int i;
 
@@ -901,6 +885,12 @@ int do_kbd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	setenv ("keybd", keybd_env);
 	return 0;
 }
+
+U_BOOT_CMD(
+	kbd,	1,	1,	do_kbd,
+	"kbd     - read keyboard status\n",
+	NULL
+);
 
 /* Read and set LSB switch */
 #define CFG_PC_TXD1_ENA		0x0008		/* PC.12 */
@@ -967,6 +957,14 @@ int do_lsb (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	printf ("Usage:\n%s\n", cmdtp->usage);
 	return 1;
 }
+
+U_BOOT_CMD(
+	lsb,	2,	1,	do_lsb,
+	"lsb     - check and set LSB switch\n",
+	"on  - switch LSB on\n"
+	"lsb off - switch LSB off\n"
+	"lsb     - print current setting\n"
+);
 
 #endif /* CFG_CMD_BSP */
 
@@ -1046,6 +1044,25 @@ static int key_pressed(void)
 	i2c_write (kbd_addr, 0, 0, &val, 1);
 	i2c_read (kbd_addr, 0, 0, kbd_data, KEYBD_DATALEN);
 
-	return (compare_magic(kbd_data, CONFIG_MODEM_KEY_MAGIC) == 0);
+	return (compare_magic(kbd_data, (uchar *)CONFIG_MODEM_KEY_MAGIC) == 0);
 }
 #endif	/* CONFIG_MODEM_SUPPORT */
+
+#ifdef CONFIG_POST
+/*
+ * Returns 1 if keys pressed to start the power-on long-running tests
+ * Called from board_init_f().
+ */
+int post_hotkeys_pressed(void)
+{
+	uchar kbd_data[KEYBD_DATALEN];
+	uchar val;
+
+	/* Read keys */
+	val = KEYBD_CMD_READ_KEYS;
+	i2c_write (kbd_addr, 0, 0, &val, 1);
+	i2c_read (kbd_addr, 0, 0, kbd_data, KEYBD_DATALEN);
+
+	return (compare_magic(kbd_data, (uchar *)CONFIG_POST_KEY_MAGIC) == 0);
+}
+#endif

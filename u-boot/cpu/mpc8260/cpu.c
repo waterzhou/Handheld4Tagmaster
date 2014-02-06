@@ -22,7 +22,7 @@
  */
 
 /*
- * CPU specific code for the MPC8255 / MPC8260 CPUs
+ * CPU specific code for the MPC825x / MPC826x / MPC827x / MPC828x
  *
  * written or collected and sometimes rewritten by
  * Magnus Damm <damm@bitsmart.com>
@@ -35,6 +35,9 @@
  *
  * added 8260 masks by
  * Marius Groeger <mag@sysgo.de>
+ *
+ * added HiP7 (824x/827x/8280) processors support by
+ * Yuli Barcohen <yuli@arabellasw.com>
  */
 
 #include <common.h>
@@ -56,15 +59,29 @@ int checkcpu (void)
 
 	puts ("CPU:   ");
 
-	if (((pvr >> 16) & 0xff) != 0x81)
+	switch (pvr) {
+	case PVR_8260:
+	case PVR_8260_HIP3:
+		k = 3;
+		break;
+	case PVR_8260_HIP4:
+		k = 4;
+		break;
+	case PVR_8260_HIP7R1:
+	case PVR_8260_HIP7RA:
+	case PVR_8260_HIP7:
+		k = 7;
+		break;
+	default:
 		return -1;	/* whoops! not an MPC8260 */
+	}
 	rev = pvr & 0xff;
 
 	immr = immap->im_memctl.memc_immr;
 	if ((immr & IMMR_ISB_MSK) != CFG_IMMR)
 		return -1;	/* whoops! someone moved the IMMR */
 
-	printf (CPU_ID_STR " (Rev %02x, Mask ", rev);
+	printf (CPU_ID_STR " (HiP%d Rev %02x, Mask ", k, rev);
 
 	/*
 	 * the bottom 16 bits of the immr are the Part Number and Mask Number
@@ -78,31 +95,55 @@ int checkcpu (void)
 
 	switch (m) {
 	case 0x0000:
-		printf ("0.2 2J24M");
+		puts ("0.2 2J24M");
 		break;
 	case 0x0010:
-		printf ("A.0 K22A");
+		puts ("A.0 K22A");
 		break;
 	case 0x0011:
-		printf ("A.1 1K22A-XC");
+		puts ("A.1 1K22A-XC");
 		break;
 	case 0x0001:
-		printf ("B.1 1K23A");
+		puts ("B.1 1K23A");
 		break;
 	case 0x0021:
-		printf ("B.2 2K23A-XC");
+		puts ("B.2 2K23A-XC");
 		break;
 	case 0x0023:
-		printf ("B.3 3K23A");
+		puts ("B.3 3K23A");
 		break;
 	case 0x0024:
-		printf ("C.2 6K23A");
+		puts ("C.2 6K23A");
 		break;
 	case 0x0060:
-		printf ("A.0(A) 2K25A");
+		puts ("A.0(A) 2K25A");
 		break;
 	case 0x0062:
-		printf ("B.1 4K25A");
+		puts ("B.1 4K25A");
+		break;
+	case 0x0064:
+		puts ("C.0 5K25A");
+		break;
+	case 0x0A00:
+		puts ("0.0 0K49M");
+		break;
+	case 0x0A01:
+		puts ("0.1 1K49M");
+		break;
+	case 0x0A10:
+		puts ("1.0 1K49M");
+		break;
+	case 0x0C00:
+		puts ("0.0 0K50M");
+		break;
+	case 0x0C10:
+		puts ("1.0 1K50M");
+		break;
+	case 0x0D00:
+		puts ("0.0 0K50M");
+		break;
+	case 0x0D10:
+		puts ("1.0 1K50M");
 		break;
 	default:
 		printf ("unknown [immr=0x%04x,k=0x%04x]", m, k);
@@ -179,8 +220,9 @@ void upmconfig (uint upm, uint * table, uint size)
 
 /* ------------------------------------------------------------------------- */
 
+#if !defined(CONFIG_HAVE_OWN_RESET)
 int
-do_reset (cmd_tbl_t * cmdtp, bd_t * bd, int flag, int argc, char *argv[])
+do_reset (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 {
 	ulong msr, addr;
 
@@ -212,6 +254,7 @@ do_reset (cmd_tbl_t * cmdtp, bd_t * bd, int flag, int argc, char *argv[])
 	return 1;
 
 }
+#endif	/* CONFIG_HAVE_OWN_RESET */
 
 /* ------------------------------------------------------------------------- */
 

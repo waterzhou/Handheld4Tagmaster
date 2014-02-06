@@ -76,13 +76,17 @@
 #define CFG_LOADS_BAUD_CHANGE	1	/* allow baudrate change	*/
 
 
-
-#define CONFIG_COMMANDS	       ( (CONFIG_CMD_DFL & (~CFG_CMD_NET)	 &  \
-				(~CFG_CMD_RTC) & ~(CFG_CMD_PCI)  & ~(CFG_CMD_I2C)) | \
+#define CONFIG_COMMANDS	       ((CONFIG_CMD_DFL & \
+				     ~( CFG_CMD_NET | \
+					CFG_CMD_RTC | \
+					CFG_CMD_PCI | \
+					CFG_CMD_I2C   \
+				      ) ) | \
 				CFG_CMD_IRQ	| \
 				CFG_CMD_KGDB	| \
 				CFG_CMD_BEDBUG	| \
-				CFG_CMD_ELF	 | CFG_CMD_JFFS2 )
+				CFG_CMD_ELF	| \
+				CFG_CMD_JFFS2	  )
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -142,7 +146,6 @@
 #define	CFG_HZ		1000		/* decrementer freq: 1 ms ticks	*/
 
 
-
 /*-----------------------------------------------------------------------
  * Start addresses for the final memory configuration
  * (Set up by the startup code)
@@ -190,7 +193,7 @@
 /*-----------------------------------------------------------------------
  * Cache Configuration
  */
-#define CFG_DCACHE_SIZE		8192	/* For IBM 405 CPUs			*/
+#define CFG_DCACHE_SIZE		8192	/* For AMCC 405 CPUs			*/
 #define CFG_CACHELINE_SIZE	32	/* ...			*/
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 #define CFG_CACHELINE_SHIFT	5	/* log base 2 of the above value	*/
@@ -238,9 +241,22 @@
 #define CONFIG_KGDB_SER_INDEX	2	/* which serial port to use */
 #endif
 
-/* JFFS2 stuff */
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition, whole device */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00080000
 
-#define CFG_JFFS2_FIRST_BANK 0
-#define CFG_JFFS2_NUM_BANKS 1
-#define CFG_JFFS2_FIRST_SECTOR 1
+/* mtdparts command line support */
+/* Note: fake mtd_id used, no linux mtd map file */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor0=ml2-0"
+#define MTDPARTS_DEFAULT	"mtdparts=ml2-0:-@512k(jffs2)"
+*/
+
 #endif	/* __CONFIG_H */

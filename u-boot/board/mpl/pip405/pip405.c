@@ -176,11 +176,11 @@ void write_4hex (unsigned long val)
 
 #endif
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	unsigned char dataout[1];
 	unsigned char datain[128];
-	unsigned long sdram_size;
+	unsigned long sdram_size = 0;
 	SDRAM_SETUP *t = (SDRAM_SETUP *) sdram_setup_table;
 	unsigned long memclk;
 	unsigned long tmemclk = 0;
@@ -194,6 +194,11 @@ int board_pre_init (void)
 #ifdef SDRAM_DEBUG
 	DECLARE_GLOBAL_DATA_PTR;
 #endif
+	/* set up the config port */
+	mtdcr (ebccfga, pb7ap);
+	mtdcr (ebccfgd, CONFIG_PORT_AP);
+	mtdcr (ebccfga, pb7cr);
+	mtdcr (ebccfgd, CONFIG_PORT_CR);
 
 	memclk = get_bus_freq (tmemclk);
 	tmemclk = 1000000000 / (memclk / 100);	/* in 10 ps units */
@@ -530,7 +535,6 @@ int board_pre_init (void)
 	mtdcr (memcfgd, tmp);
 
 
-
    /*-------------------------------------------------------------------------+
    | Interrupt controller setup for the PIP405 board.
    | Note: IRQ 0-15  405GP internally generated; active high; level sensitive
@@ -570,15 +574,15 @@ int board_pre_init (void)
 
 int checkboard (void)
 {
-	unsigned char s[50];
+	char s[50];
 	unsigned char bc;
 	int i;
 	backup_t *b = (backup_t *) s;
 
 	puts ("Board: ");
 
-	i = getenv_r ("serial#", s, 32);
-	if ((i == 0) || strncmp (s, "PIP405", 6)) {
+	i = getenv_r ("serial#", (char *)s, 32);
+	if ((i == 0) || strncmp ((char *)s, "PIP405", 6)) {
 		get_backup_values (b);
 		if (strncmp (b->signature, "MPL\0", 4) != 0) {
 			puts ("### No HW ID - assuming PIP405");
@@ -658,8 +662,20 @@ static int test_dram (unsigned long ramsize)
 }
 
 
+extern flash_info_t flash_info[];	/* info for FLASH chips */
+
 int misc_init_r (void)
 {
+	DECLARE_GLOBAL_DATA_PTR;
+	/* adjust flash start and size as well as the offset */
+	gd->bd->bi_flashstart=0-flash_info[0].size;
+	gd->bd->bi_flashsize=flash_info[0].size-CFG_MONITOR_LEN;
+	gd->bd->bi_flashoffset=0;
+
+	/* if PIP405 has booted from PCI, reset CCR0[24] as described in errata PCI_18 */
+	if (mfdcr(strap) & PSR_ROM_LOC)
+	       mtspr(ccr0, (mfspr(ccr0) & ~0x80));
+
 	return (0);
 }
 
@@ -671,7 +687,6 @@ int overwrite_console (void)
 {
 	return (in8 (CONFIG_PORT_ADDR) & 0x1);	/* return TRUE if console should be overwritten */
 }
-
 
 
 extern int isa_init (void);
@@ -943,5 +958,3 @@ void ide_set_reset (int idereset)
 	}
 	out8 (PLD_SCSI_RST_REG, resreg);
 }
-
-

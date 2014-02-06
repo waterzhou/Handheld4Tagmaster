@@ -43,15 +43,20 @@
 #include <command.h>
 #include <environment.h>
 #include <watchdog.h>
-#include <cmd_nvedit.h>
+#include <serial.h>
 #include <linux/stddef.h>
 #include <asm/byteorder.h>
 #if (CONFIG_COMMANDS & CFG_CMD_NET)
 #include <net.h>
 #endif
 
-#if !defined(CFG_ENV_IS_IN_NVRAM) && !defined(CFG_ENV_IS_IN_EEPROM) && !defined(CFG_ENV_IS_IN_FLASH) && !defined(CFG_ENV_IS_NOWHERE)
-# error Define one of CFG_ENV_IS_IN_NVRAM, CFG_ENV_IS_IN_EEPROM, CFG_ENV_IS_IN_FLASH, CFG_ENV_IS_NOWHERE
+#if !defined(CFG_ENV_IS_IN_NVRAM)	&& \
+    !defined(CFG_ENV_IS_IN_EEPROM)	&& \
+    !defined(CFG_ENV_IS_IN_FLASH)	&& \
+    !defined(CFG_ENV_IS_IN_DATAFLASH)	&& \
+    !defined(CFG_ENV_IS_IN_NAND)	&& \
+    !defined(CFG_ENV_IS_NOWHERE)
+# error Define one of CFG_ENV_IS_IN_{NVRAM|EEPROM|FLASH|DATAFLASH|NOWHERE}
 #endif
 
 #define XMK_STR(x)	#x
@@ -119,7 +124,7 @@ int do_printenv (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 			for (nxt=j; env_get_char(nxt) != '\0'; ++nxt)
 				;
-			k = envmatch(name, j);
+			k = envmatch((uchar *)name, j);
 			if (k < 0) {
 				continue;
 			}
@@ -152,7 +157,7 @@ int _do_setenv (int flag, int argc, char *argv[])
 	int   i, len, oldval;
 	int   console = -1;
 	uchar *env, *nxt = NULL;
-	uchar *name;
+	char *name;
 	bd_t *bd = gd->bd;
 
 	uchar *env_data = env_get_addr(0);
@@ -169,7 +174,7 @@ int _do_setenv (int flag, int argc, char *argv[])
 	for (env=env_data; *env; env=nxt+1) {
 		for (nxt=env; *nxt; ++nxt)
 			;
-		if ((oldval = envmatch(name, env-env_data)) >= 0)
+		if ((oldval = envmatch((uchar *)name, env-env_data)) >= 0)
 			break;
 	}
 
@@ -184,12 +189,9 @@ int _do_setenv (int flag, int argc, char *argv[])
 		 * ver is readonly.
 		 */
 		if ( (strcmp (name, "serial#") == 0) ||
-#if defined(CONFIG_VERSION_VARIABLE)
-		     (strcmp (name, "ver") == 0) ||
-#endif /* CONFIG_VERSION_VARIABLE */
 		    ((strcmp (name, "ethaddr") == 0)
 #if defined(CONFIG_OVERWRITE_ETHADDR_ONCE) && defined(CONFIG_ETHADDR)
-		     && (strcmp (env_get_addr(oldval),MK_STR(CONFIG_ETHADDR)) != 0)
+		     && (strcmp ((char *)env_get_addr(oldval),MK_STR(CONFIG_ETHADDR)) != 0)
 #endif	/* CONFIG_OVERWRITE_ETHADDR_ONCE && CONFIG_ETHADDR */
 		    ) ) {
 			printf ("Can't overwrite \"%s\"\n", name);
@@ -215,6 +217,11 @@ int _do_setenv (int flag, int argc, char *argv[])
 			/* Try assigning specified device */
 			if (console_assign (console, argv[2]) < 0)
 				return 1;
+
+#ifdef CONFIG_SERIAL_MULTI
+			if (serial_assign (argv[2]) < 0)
+				return 1;
+#endif
 		}
 
 		/*
@@ -476,7 +483,7 @@ int do_askenv ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
  * or NULL if not found
  */
 
-char *getenv (uchar *name)
+char *getenv (char *name)
 {
 	int i, nxt;
 
@@ -490,15 +497,15 @@ char *getenv (uchar *name)
 				return (NULL);
 			}
 		}
-		if ((val=envmatch(name, i)) < 0)
+		if ((val=envmatch((uchar *)name, i)) < 0)
 			continue;
-		return (env_get_addr(val));
+		return ((char *)env_get_addr(val));
 	}
 
 	return (NULL);
 }
 
-int getenv_r (uchar *name, uchar *buf, unsigned len)
+int getenv_r (char *name, char *buf, unsigned len)
 {
 	int i, nxt;
 
@@ -510,7 +517,7 @@ int getenv_r (uchar *name, uchar *buf, unsigned len)
 				return (-1);
 			}
 		}
-		if ((val=envmatch(name, i)) < 0)
+		if ((val=envmatch((uchar *)name, i)) < 0)
 			continue;
 		/* found; copy out */
 		n = 0;
@@ -534,6 +541,8 @@ int do_saveenv (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	return (saveenv() ? 1 : 0);
 }
+
+
 #endif
 
 
@@ -556,3 +565,61 @@ envmatch (uchar *s1, int i2)
 		return(i2);
 	return(-1);
 }
+
+
+/**************************************************/
+
+U_BOOT_CMD(
+	printenv, CFG_MAXARGS, 1,	do_printenv,
+	"printenv- print environment variables\n",
+	"\n    - print values of all environment variables\n"
+	"printenv name ...\n"
+	"    - print value of environment variable 'name'\n"
+);
+
+U_BOOT_CMD(
+	setenv, CFG_MAXARGS, 0,	do_setenv,
+	"setenv  - set environment variables\n",
+	"name value ...\n"
+	"    - set environment variable 'name' to 'value ...'\n"
+	"setenv name\n"
+	"    - delete environment variable 'name'\n"
+);
+
+#if defined(CFG_ENV_IS_IN_NVRAM) || defined(CFG_ENV_IS_IN_EEPROM) || \
+    ((CONFIG_COMMANDS & (CFG_CMD_ENV|CFG_CMD_FLASH)) == \
+      (CFG_CMD_ENV|CFG_CMD_FLASH))
+U_BOOT_CMD(
+	saveenv, 1, 0,	do_saveenv,
+	"saveenv - save environment variables to persistent storage\n",
+	NULL
+);
+
+#endif	/* CFG_CMD_ENV */
+
+#if (CONFIG_COMMANDS & CFG_CMD_ASKENV)
+
+U_BOOT_CMD(
+	askenv,	CFG_MAXARGS,	1,	do_askenv,
+	"askenv  - get environment variables from stdin\n",
+	"name [message] [size]\n"
+	"    - get environment variable 'name' from stdin (max 'size' chars)\n"
+	"askenv name\n"
+	"    - get environment variable 'name' from stdin\n"
+	"askenv name size\n"
+	"    - get environment variable 'name' from stdin (max 'size' chars)\n"
+	"askenv name [message] size\n"
+	"    - display 'message' string and get environment variable 'name'"
+	"from stdin (max 'size' chars)\n"
+);
+#endif	/* CFG_CMD_ASKENV */
+
+#if (CONFIG_COMMANDS & CFG_CMD_RUN)
+int do_run (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+U_BOOT_CMD(
+	run,	CFG_MAXARGS,	1,	do_run,
+	"run     - run commands in an environment variable\n",
+	"var [...]\n"
+	"    - run the commands in the environment variable(s) 'var'\n"
+);
+#endif  /* CFG_CMD_RUN */

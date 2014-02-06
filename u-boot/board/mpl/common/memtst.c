@@ -65,9 +65,6 @@ int testdram (void)
 #define MEGABYTE (1024*1024)
 
 
-
-
-
 typedef struct {
 	volatile unsigned long pat1;
 	volatile unsigned long pat2;
@@ -444,7 +441,6 @@ void *RAM_MemTest_Check2Addr2 (int mode, unsigned long startaddr,
 }
 
 
-
 typedef struct {
 	void (*test_write) (unsigned long startaddr, unsigned long size,
 						unsigned long *pat);
@@ -498,7 +494,7 @@ void mem_test_reloc(void)
 }
 
 
-int mem_test (unsigned long start, unsigned long ramsize, int quiet, int reloc)
+int mem_test (unsigned long start, unsigned long ramsize, int quiet)
 {
 	unsigned long errors, stage;
 	unsigned long startaddr, size, i;

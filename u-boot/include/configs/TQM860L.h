@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000, 2001, 2002
+ * (C) Copyright 2000-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -42,9 +42,9 @@
 
 #define CONFIG_BAUDRATE		115200	/* console baudrate = 115kbps	*/
 
-#define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
+#define	CONFIG_BOOTCOUNT_LIMIT
 
-#define	CONFIG_CLOCKS_IN_MHZ	1	/* clocks passsed to Linux in MHz */
+#define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 
 #define CONFIG_BOARD_TYPES	1	/* support board types		*/
 
@@ -55,17 +55,18 @@
 #undef	CONFIG_BOOTARGS
 
 #define	CONFIG_EXTRA_ENV_SETTINGS					\
+	"netdev=eth0\0"							\
 	"nfsargs=setenv bootargs root=/dev/nfs rw "			\
-		"nfsroot=$(serverip):$(rootpath)\0"			\
+		"nfsroot=${serverip}:${rootpath}\0"			\
 	"ramargs=setenv bootargs root=/dev/ram rw\0"			\
-	"addip=setenv bootargs $(bootargs) "				\
-		"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask)"	\
-		":$(hostname):$(netdev):off panic=1\0"			\
+	"addip=setenv bootargs ${bootargs} "				\
+		"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}"	\
+		":${hostname}:${netdev}:off panic=1\0"			\
 	"flash_nfs=run nfsargs addip;"					\
-		"bootm $(kernel_addr)\0"				\
+		"bootm ${kernel_addr}\0"				\
 	"flash_self=run ramargs addip;"					\
-		"bootm $(kernel_addr) $(ramdisk_addr)\0"		\
-	"net_nfs=tftp 200000 $(bootfile);run nfsargs addip;bootm\0"	\
+		"bootm ${kernel_addr} ${ramdisk_addr}\0"		\
+	"net_nfs=tftp 200000 ${bootfile};run nfsargs addip;bootm\0"	\
 	"rootpath=/opt/eldk/ppc_8xx\0"					\
 	"bootfile=/tftpboot/TQM860L/uImage\0"				\
 	"kernel_addr=40040000\0"					\
@@ -91,10 +92,14 @@
 
 #define CONFIG_COMMANDS	      ( CONFIG_CMD_DFL	| \
 				CFG_CMD_ASKENV	| \
+				CFG_CMD_DATE	| \
 				CFG_CMD_DHCP	| \
 				CFG_CMD_ELF	| \
 				CFG_CMD_IDE	| \
-				CFG_CMD_DATE	)
+				CFG_CMD_NFS	| \
+				CFG_CMD_SNTP	)
+
+#define CONFIG_NETCONSOLE
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -248,15 +253,8 @@
  *-----------------------------------------------------------------------
  * Reset PLL lock status sticky bit, timer expired status bit and timer
  * interrupt status bit
- *
- * If this is a 80 MHz CPU, set PLL multiplication factor to 5 (5*16=80)!
  */
-#ifdef	CONFIG_80MHz	/* for 80 MHz, we use a 16 MHz clock * 5 */
-#define CFG_PLPRCR							\
-		( (5-1)<<PLPRCR_MF_SHIFT | PLPRCR_TEXPS | PLPRCR_TMIST )
-#else			/* up to 50 MHz we use a 1:1 clock */
 #define CFG_PLPRCR	(PLPRCR_SPLSS | PLPRCR_TEXPS | PLPRCR_TMIST)
-#endif	/* CONFIG_80MHz */
 
 /*-----------------------------------------------------------------------
  * SCCR - System Clock and reset Control Register		15-27
@@ -265,17 +263,9 @@
  * power management and some other internal clocks
  */
 #define SCCR_MASK	SCCR_EBDF11
-#ifdef	CONFIG_80MHz	/* for 80 MHz, we use a 16 MHz clock * 5 */
-#define CFG_SCCR	(/* SCCR_TBS  | */ \
-			 SCCR_COM00   | SCCR_DFSYNC00 | SCCR_DFBRG00  | \
+#define CFG_SCCR	(SCCR_COM00   | SCCR_DFSYNC00 | SCCR_DFBRG00  | \
 			 SCCR_DFNL000 | SCCR_DFNH000  | SCCR_DFLCD000 | \
 			 SCCR_DFALCD00)
-#else			/* up to 50 MHz we use a 1:1 clock */
-#define CFG_SCCR	(SCCR_TBS     | \
-			 SCCR_COM00   | SCCR_DFSYNC00 | SCCR_DFBRG00  | \
-			 SCCR_DFNL000 | SCCR_DFNH000  | SCCR_DFLCD000 | \
-			 SCCR_DFALCD00)
-#endif	/* CONFIG_80MHz */
 
 /*-----------------------------------------------------------------------
  * PCMCIA stuff
@@ -344,19 +334,8 @@
 /*
  * FLASH timing:
  */
-#if   defined(CONFIG_80MHz)
-/* 80 MHz CPU - 40 MHz bus: ACS = 00, TRLX = 0, CSNT = 1, SCY = 3, EHTR = 1 */
-#define CFG_OR_TIMING_FLASH	(OR_ACS_DIV1  | 0       | OR_CSNT_SAM | \
-				 OR_SCY_3_CLK | OR_EHTR | OR_BI)
-#elif defined(CONFIG_66MHz)
-/* 66 MHz CPU - 66 MHz bus: ACS = 00, TRLX = 1, CSNT = 1, SCY = 3, EHTR = 1 */
 #define CFG_OR_TIMING_FLASH	(OR_ACS_DIV1  | OR_TRLX | OR_CSNT_SAM | \
 				 OR_SCY_3_CLK | OR_EHTR | OR_BI)
-#else		/*   50 MHz */
-/* 50 MHz CPU - 50 MHz bus: ACS = 00, TRLX = 1, CSNT = 1, SCY = 2, EHTR = 1 */
-#define CFG_OR_TIMING_FLASH	(OR_ACS_DIV1  | OR_TRLX | OR_CSNT_SAM | \
-				 OR_SCY_2_CLK | OR_EHTR | OR_BI)
-#endif	/*CONFIG_??MHz */
 
 #define CFG_OR0_REMAP	(CFG_REMAP_OR_AM  | CFG_OR_TIMING_FLASH)
 #define CFG_OR0_PRELIM	(CFG_PRELIM_OR_AM | CFG_OR_TIMING_FLASH)
@@ -417,13 +396,9 @@
  * 66 Mhz => 66.000.000 / Divider = 129
  * 80 Mhz => 80.000.000 / Divider = 156
  */
-#if   defined(CONFIG_80MHz)
-#define CFG_MAMR_PTA		156
-#elif defined(CONFIG_66MHz)
-#define CFG_MAMR_PTA		129
-#else		/*   50 MHz */
-#define CFG_MAMR_PTA		 98
-#endif	/*CONFIG_??MHz */
+
+#define CFG_PTA_PER_CLK	((4096 * 32 * 1000) / (4 * 64))
+#define CFG_MAMR_PTA	98
 
 /*
  * For 16 MBit, refresh rates could be 31.3 us

@@ -28,11 +28,13 @@ SEARCH_DIR(/lib); SEARCH_DIR(/usr/lib); SEARCH_DIR(/usr/local/lib); SEARCH_DIR(/
 SECTIONS
 {
   .resetvec 0xFFFFFFFC :
+/*  .resetvec 0x01FFFFFC :*/
   {
     *(.resetvec)
   } = 0xffff
 
   .bootpg 0xFFFFF000 :
+/*  .bootpg 0x01FFF000 :*/
   {
     cpu/ppc4xx/start.o	(.bootpg)
   } = 0xffff
@@ -74,7 +76,6 @@ SECTIONS
     cpu/ppc4xx/serial.o	(.text)
     cpu/ppc4xx/cpu_init.o	(.text)
     cpu/ppc4xx/speed.o	(.text)
-    cpu/ppc4xx/405gp_enet.o	(.text)
     common/dlmalloc.o	(.text)
     lib_generic/crc32.o		(.text)
     lib_ppc/extable.o	(.text)
@@ -126,6 +127,13 @@ SECTIONS
   _edata  =  .;
   PROVIDE (edata = .);
 
+  . = .;
+  __u_boot_cmd_start = .;
+  .u_boot_cmd : { *(.u_boot_cmd) }
+  __u_boot_cmd_end = .;
+
+
+  . = .;
   __start___ex_table = .;
   __ex_table : { *(__ex_table) }
   __stop___ex_table = .;

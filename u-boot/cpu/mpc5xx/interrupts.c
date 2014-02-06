@@ -17,102 +17,55 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, 
+ * Foundation,
  */
 
 /*
  * File:		interrupt.c
- * 
+ *
  * Discription:		Contains interrupt routines needed by U-Boot
  *
  */
 
 #include <common.h>
-#include <watchdog.h>
+#include <command.h>
 #include <mpc5xx.h>
 #include <asm/processor.h>
 
-/************************************************************************/
-
-unsigned decrementer_count;	/* count value for 1e6/HZ microseconds	*/
-
-/************************************************************************/
+#if defined(CONFIG_PATI)
+/* PATI uses IRQs for PCI doorbell */
+#undef NR_IRQS
+#define NR_IRQS 16
+#endif
 
 struct interrupt_action {
 	interrupt_handler_t *handler;
 	void *arg;
+	int count;
 };
 
 static struct interrupt_action irq_vecs[NR_IRQS];
 
 /*
- * Local function prototypes 
- */
-static __inline__ unsigned long get_msr (void)
-{
-	unsigned long msr;
-
-	asm volatile ("mfmsr %0":"=r" (msr):);
-
-	return msr;
-}
-
-static __inline__ void set_msr (unsigned long msr)
-{
-	asm volatile ("mtmsr %0"::"r" (msr));
-}
-
-static __inline__ unsigned long get_dec (void)
-{
-	unsigned long val;
-
-	asm volatile ("mfdec %0":"=r" (val):);
-
-	return val;
-}
-
-
-static __inline__ void set_dec (unsigned long val)
-{
-	asm volatile ("mtdec %0"::"r" (val));
-}
-
-/*
- * Enable interrupts 
- */ 
-void enable_interrupts (void)
-{
-	set_msr (get_msr () | MSR_EE);
-}
-
-/* 
- * Returns flag if MSR_EE was set before 
- */
-int disable_interrupts (void)
-{
-	ulong msr = get_msr ();
-
-	set_msr (msr & ~MSR_EE);
-	return ((msr & MSR_EE) != 0);
-}
-
-/*
- * Initialise interrupts 
+ * Initialise interrupts
  */
 
-int interrupt_init (void)
+int interrupt_init_cpu (ulong *decrementer_count)
 {
 	volatile immap_t *immr = (immap_t *) CFG_IMMR;
+	int vec;
 
 	/* Decrementer used here for status led */
-	decrementer_count = get_tbclk () / CFG_HZ;
+	*decrementer_count = get_tbclk () / CFG_HZ;
 
 	/* Disable all interrupts */
 	immr->im_siu_conf.sc_simask = 0;
+	for (vec=0; vec<NR_IRQS; vec++) {
+		irq_vecs[vec].handler = NULL;
+		irq_vecs[vec].arg = NULL;
+		irq_vecs[vec].count = 0;
+	}
 
-	set_dec (decrementer_count);
-
-	set_msr (get_msr () | MSR_EE);
 	return (0);
 }
 
@@ -206,19 +159,14 @@ void irq_free_handler (int vec)
 	irq_vecs[vec].arg = NULL;
 }
 
-volatile ulong timestamp = 0;
-
 /*
- *  Timer interrupt - gets called when  bit 0 of DEC changes from 
+ *  Timer interrupt - gets called when  bit 0 of DEC changes from
  *  0. Decrementer is enabled with bit TBE in TBSCR.
  */
-void timer_interrupt (struct pt_regs *regs)
+void timer_interrupt_cpu (struct pt_regs *regs)
 {
 	volatile immap_t *immr = (immap_t *) CFG_IMMR;
 
-#ifdef CONFIG_STATUS_LED
-	extern void status_led_tick (ulong);
-#endif
 #if 0
 	printf ("*** Timer Interrupt *** ");
 #endif
@@ -226,48 +174,34 @@ void timer_interrupt (struct pt_regs *regs)
 	immr->im_clkrstk.cark_plprcrk = KAPWR_KEY;
 	__asm__ ("nop");
 	immr->im_clkrst.car_plprcr |= PLPRCR_TEXPS | PLPRCR_TMIST;
-	
-	/* Restore Decrementer Count */
-	set_dec (decrementer_count);
 
-	timestamp++;
+	return;
+}
 
-#ifdef CONFIG_STATUS_LED
-	status_led_tick (timestamp);
-#endif /* CONFIG_STATUS_LED */
+#if (CONFIG_COMMANDS & CFG_CMD_IRQ)
+/*******************************************************************************
+ *
+ * irqinfo - print information about IRQs
+ *
+ */
+int do_irqinfo(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	int vec;
 
-#if defined(CONFIG_WATCHDOG)
-	/*
-	 * The shortest watchdog period of all boards
-	 * is approx. 1 sec, thus re-trigger watchdog at least
-	 * every 500 ms = CFG_HZ / 2
-	 */
-	if ((timestamp % (CFG_HZ / 2)) == 0) {
-		reset_5xx_watchdog (immr);
+	printf ("\nInterrupt-Information:\n");
+	printf ("Nr  Routine   Arg       Count\n");
+
+	for (vec=0; vec<NR_IRQS; vec++) {
+		if (irq_vecs[vec].handler != NULL) {
+			printf ("%02d  %08lx  %08lx  %d\n",
+				vec,
+				(ulong)irq_vecs[vec].handler,
+				(ulong)irq_vecs[vec].arg,
+				irq_vecs[vec].count);
+		}
 	}
-#endif /* CONFIG_WATCHDOG */
+	return 0;
 }
 
-/*
- * Reset timer 
- */
-void reset_timer (void)
-{
-	timestamp = 0;
-}
 
-/*
- * Get Timer
- */
-ulong get_timer (ulong base)
-{
-	return (timestamp - base);
-}
-
-/*
- * Set timer
- */
-void set_timer (ulong t)
-{
-	timestamp = t;
-}
+#endif  /* CONFIG_COMMANDS & CFG_CMD_IRQ */

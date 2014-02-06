@@ -42,7 +42,7 @@ int board_init (void)
 	/* so we do _nothing_ here */
 
 	/* arch number of Lubbock-Board */
-	gd->bd->bi_arch_number = 89;
+	gd->bd->bi_arch_number = MACH_TYPE_LUBBOCK;
 
 	/* adress of boot parameters */
 	gd->bd->bi_boot_params = 0xa0000100;
@@ -50,10 +50,10 @@ int board_init (void)
 	return 0;
 }
 
-int board_post_init(void)
+int board_late_init(void)
 {
-   setenv("stdout", "serial");
-   setenv("stderr", "serial");
+	setenv("stdout", "serial");
+	setenv("stderr", "serial");
 	return 0;
 }
 
@@ -71,5 +71,5 @@ int dram_init (void)
 	gd->bd->bi_dram[3].start = PHYS_SDRAM_4;
 	gd->bd->bi_dram[3].size = PHYS_SDRAM_4_SIZE;
 
-   return 0;
+	return 0;
 }

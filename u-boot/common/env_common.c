@@ -27,7 +27,6 @@
 #include <common.h>
 #include <command.h>
 #include <environment.h>
-#include <cmd_nvedit.h>
 #include <linux/stddef.h>
 #include <malloc.h>
 
@@ -95,6 +94,9 @@ uchar default_environment[] = {
 #ifdef	CONFIG_ETH2ADDR
 	"eth2addr="	MK_STR(CONFIG_ETH2ADDR)		"\0"
 #endif
+#ifdef	CONFIG_ETH3ADDR
+	"eth3addr="	MK_STR(CONFIG_ETH3ADDR)		"\0"
+#endif
 #ifdef	CONFIG_IPADDR
 	"ipaddr="	MK_STR(CONFIG_IPADDR)		"\0"
 #endif
@@ -137,6 +139,9 @@ uchar default_environment[] = {
 	"\0"
 };
 
+#if defined(CFG_ENV_IS_IN_NAND)		/* Environment is in Nand Flash */
+int default_environment_size = sizeof(default_environment);
+#endif
 
 void env_crc_update (void)
 {
@@ -261,3 +266,44 @@ void env_relocate (void)
 	disable_nvram();
 #endif
 }
+
+#ifdef CONFIG_AUTO_COMPLETE
+int env_complete(char *var, int maxv, char *cmdv[], int bufsz, char *buf)
+{
+	int i, nxt, len, vallen, found;
+	const char *lval, *rval;
+
+	found = 0;
+	cmdv[0] = NULL;
+
+	len = strlen(var);
+	/* now iterate over the variables and select those that match */
+	for (i=0; env_get_char(i) != '\0'; i=nxt+1) {
+
+		for (nxt=i; env_get_char(nxt) != '\0'; ++nxt)
+			;
+
+		lval = (char *)env_get_addr(i);
+		rval = strchr(lval, '=');
+		if (rval != NULL) {
+			vallen = rval - lval;
+			rval++;
+		} else
+			vallen = strlen(lval);
+
+		if (len > 0 && (vallen < len || memcmp(lval, var, len) != 0))
+			continue;
+
+		if (found >= maxv - 2 || bufsz < vallen + 1) {
+			cmdv[found++] = "...";
+			break;
+		}
+		cmdv[found++] = buf;
+		memcpy(buf, lval, vallen); buf += vallen; bufsz -= vallen;
+		*buf++ = '\0'; bufsz--;
+	}
+
+	cmdv[found] = NULL;
+	return found;
+}
+#endif

@@ -42,7 +42,11 @@
 #include <asm/cache.h>
 #include <asm/mmu.h>
 
+#if !defined(CONFIG_DB64360) && \
+    !defined(CONFIG_DB64460) && \
+    !defined(CONFIG_CPCI750)
 #include <galileo/gt64260R.h>
+#endif
 
 #ifndef  CONFIG_IDENT_STRING
 #define  CONFIG_IDENT_STRING ""
@@ -159,83 +163,15 @@ ProgramCheck:
 	STD_EXCEPTION(0x900, Decrementer, timer_interrupt)
 	STD_EXCEPTION(0xa00, Trap_0a, UnknownException)
 	STD_EXCEPTION(0xb00, Trap_0b, UnknownException)
-
-	. = 0xc00
-/*
- * r0 - SYSCALL number
- * r3-... arguments
- */
-SystemCall:
-	addis	r11,r0,0		/* get functions table addr */
-	ori	r11,r11,0		/* Note: this code is patched in trap_init */
-	addis	r12,r0,0		/* get number of functions */
-	ori	r12,r12,0
-
-	cmplw	0, r0, r12
-	bge	1f
-
-	rlwinm	r0,r0,2,0,31		/* fn_addr = fn_tbl[r0] */
-	add	r11,r11,r0
-	lwz	r11,0(r11)
-
-	li	r20,0xd00-4		/* Get stack pointer */
-	lwz	r12,0(r20)
-	subi	r12,r12,12		/* Adjust stack pointer */
-	li	r0,0xc00+_end_back-SystemCall
-	cmplw	0, r0, r12		/* Check stack overflow */
-	bgt	1f
-	stw	r12,0(r20)
-
-	mflr	r0
-	stw	r0,0(r12)
-	mfspr	r0,SRR0
-	stw	r0,4(r12)
-	mfspr	r0,SRR1
-	stw	r0,8(r12)
-
-	li	r12,0xc00+_back-SystemCall
-	mtlr	r12
-	mtspr	SRR0,r11
-
-1:	SYNC
-	rfi
-
-_back:
-
-	mfmsr	r11			/* Disable interrupts */
-	li	r12,0
-	ori	r12,r12,MSR_EE
-	andc	r11,r11,r12
-	SYNC				/* Some chip revs need this... */
-	mtmsr	r11
-	SYNC
-
-	li	r12,0xd00-4		/* restore regs */
-	lwz	r12,0(r12)
-
-	lwz	r11,0(r12)
-	mtlr	r11
-	lwz	r11,4(r12)
-	mtspr	SRR0,r11
-	lwz	r11,8(r12)
-	mtspr	SRR1,r11
-
-	addi	r12,r12,12		/* Adjust stack pointer */
-	li	r20,0xd00-4
-	stw	r12,0(r20)
-
-	SYNC
-	rfi
-_end_back:
-
+	STD_EXCEPTION(0xc00, SystemCall, UnknownException)
 	STD_EXCEPTION(0xd00, SingleStep, UnknownException)
 
 	STD_EXCEPTION(0xe00, Trap_0e, UnknownException)
 	STD_EXCEPTION(0xf00, Trap_0f, UnknownException)
 
-        /*
-         * On the MPC8xx, this is a software emulation interrupt. It
-         * occurs for all unimplemented and illegal instructions.
+	/*
+	 * On the MPC8xx, this is a software emulation interrupt. It
+	 * occurs for all unimplemented and illegal instructions.
 	 */
 	STD_EXCEPTION(0x1000, SoftEmu, SoftEmuException)
 
@@ -282,9 +218,9 @@ boot_warm:
 #if defined(CONFIG_ALTIVEC) && defined(CONFIG_74xx)
 	.long	0x7e00066c
 		/*
-                 * dssall instruction, gas doesn't have it yet
-                 * ...for altivec, data stream stop all this probably
-                 * isn't needed unless we warm (software) reboot U-Boot
+		 * dssall instruction, gas doesn't have it yet
+		 * ...for altivec, data stream stop all this probably
+		 * isn't needed unless we warm (software) reboot U-Boot
 		 */
 #endif
 
@@ -325,15 +261,15 @@ in_flash:
 	 * Cache must be enabled here for stack-in-cache trick.
 	 * This means we need to enable the BATS.
 	 * This means:
-         *   1) for the EVB, original gt regs need to be mapped
+	 *   1) for the EVB, original gt regs need to be mapped
 	 *   2) need to have an IBAT for the 0xf region,
 	 *      we are running there!
-         * Cache should be turned on after BATs, since by default
-         * everything is write-through.
-         * The init-mem BAT can be reused after reloc. The old
-         * gt-regs BAT can be reused after board_init_f calls
-         * board_pre_init (EVB only).
-         */
+	 * Cache should be turned on after BATs, since by default
+	 * everything is write-through.
+	 * The init-mem BAT can be reused after reloc. The old
+	 * gt-regs BAT can be reused after board_init_f calls
+	 * board_early_init_f (EVB only).
+	 */
 #if !defined(CONFIG_BAB7xx) && !defined(CONFIG_ELPPC)
 	/* enable address translation */
 	bl	enable_addr_trans
@@ -391,10 +327,10 @@ invalidate_bats:
 	mtspr	DBAT2U, r0
 	mtspr	DBAT3U, r0
 #ifdef CONFIG_750FX
-        mtspr   DBAT4U, r0
-        mtspr   DBAT5U, r0
-        mtspr   DBAT6U, r0
-        mtspr   DBAT7U, r0
+	mtspr   DBAT4U, r0
+	mtspr   DBAT5U, r0
+	mtspr   DBAT6U, r0
+	mtspr   DBAT7U, r0
 #endif
 	isync
 	sync
@@ -479,76 +415,76 @@ setup_bats:
 
 #ifdef CONFIG_750FX
 	/* IBAT 4 */
-        addis   r4, r0, CFG_IBAT4L@h
-        ori     r4, r4, CFG_IBAT4L@l
-        addis   r3, r0, CFG_IBAT4U@h
-        ori     r3, r3, CFG_IBAT4U@l
-        mtspr   IBAT4L, r4
-        mtspr   IBAT4U, r3
-        isync
+	addis   r4, r0, CFG_IBAT4L@h
+	ori     r4, r4, CFG_IBAT4L@l
+	addis   r3, r0, CFG_IBAT4U@h
+	ori     r3, r3, CFG_IBAT4U@l
+	mtspr   IBAT4L, r4
+	mtspr   IBAT4U, r3
+	isync
 
 	/* DBAT 4 */
-        addis   r4, r0, CFG_DBAT4L@h
-        ori     r4, r4, CFG_DBAT4L@l
-        addis   r3, r0, CFG_DBAT4U@h
-        ori     r3, r3, CFG_DBAT4U@l
-        mtspr   DBAT4L, r4
-        mtspr   DBAT4U, r3
-        isync
+	addis   r4, r0, CFG_DBAT4L@h
+	ori     r4, r4, CFG_DBAT4L@l
+	addis   r3, r0, CFG_DBAT4U@h
+	ori     r3, r3, CFG_DBAT4U@l
+	mtspr   DBAT4L, r4
+	mtspr   DBAT4U, r3
+	isync
 
-        /* IBAT 5 */
-        addis   r4, r0, CFG_IBAT5L@h
-        ori     r4, r4, CFG_IBAT5L@l
-        addis   r3, r0, CFG_IBAT5U@h
-        ori     r3, r3, CFG_IBAT5U@l
-        mtspr   IBAT5L, r4
-        mtspr   IBAT5U, r3
-        isync
+	/* IBAT 5 */
+	addis   r4, r0, CFG_IBAT5L@h
+	ori     r4, r4, CFG_IBAT5L@l
+	addis   r3, r0, CFG_IBAT5U@h
+	ori     r3, r3, CFG_IBAT5U@l
+	mtspr   IBAT5L, r4
+	mtspr   IBAT5U, r3
+	isync
 
 	/* DBAT 5 */
-        addis   r4, r0, CFG_DBAT5L@h
-        ori     r4, r4, CFG_DBAT5L@l
-        addis   r3, r0, CFG_DBAT5U@h
-        ori     r3, r3, CFG_DBAT5U@l
-        mtspr   DBAT5L, r4
-        mtspr   DBAT5U, r3
-        isync
+	addis   r4, r0, CFG_DBAT5L@h
+	ori     r4, r4, CFG_DBAT5L@l
+	addis   r3, r0, CFG_DBAT5U@h
+	ori     r3, r3, CFG_DBAT5U@l
+	mtspr   DBAT5L, r4
+	mtspr   DBAT5U, r3
+	isync
 
-        /* IBAT 6 */
-        addis   r4, r0, CFG_IBAT6L@h
-        ori     r4, r4, CFG_IBAT6L@l
-        addis   r3, r0, CFG_IBAT6U@h
-        ori     r3, r3, CFG_IBAT6U@l
-        mtspr   IBAT6L, r4
-        mtspr   IBAT6U, r3
-        isync
+	/* IBAT 6 */
+	addis   r4, r0, CFG_IBAT6L@h
+	ori     r4, r4, CFG_IBAT6L@l
+	addis   r3, r0, CFG_IBAT6U@h
+	ori     r3, r3, CFG_IBAT6U@l
+	mtspr   IBAT6L, r4
+	mtspr   IBAT6U, r3
+	isync
 
 	/* DBAT 6 */
-        addis   r4, r0, CFG_DBAT6L@h
-        ori     r4, r4, CFG_DBAT6L@l
-        addis   r3, r0, CFG_DBAT6U@h
-        ori     r3, r3, CFG_DBAT6U@l
-        mtspr   DBAT6L, r4
-        mtspr   DBAT6U, r3
-        isync
+	addis   r4, r0, CFG_DBAT6L@h
+	ori     r4, r4, CFG_DBAT6L@l
+	addis   r3, r0, CFG_DBAT6U@h
+	ori     r3, r3, CFG_DBAT6U@l
+	mtspr   DBAT6L, r4
+	mtspr   DBAT6U, r3
+	isync
 
-        /* IBAT 7 */
-        addis   r4, r0, CFG_IBAT7L@h
-        ori     r4, r4, CFG_IBAT7L@l
-        addis   r3, r0, CFG_IBAT7U@h
-        ori     r3, r3, CFG_IBAT7U@l
-        mtspr   IBAT7L, r4
-        mtspr   IBAT7U, r3
-        isync
+	/* IBAT 7 */
+	addis   r4, r0, CFG_IBAT7L@h
+	ori     r4, r4, CFG_IBAT7L@l
+	addis   r3, r0, CFG_IBAT7U@h
+	ori     r3, r3, CFG_IBAT7U@l
+	mtspr   IBAT7L, r4
+	mtspr   IBAT7U, r3
+	isync
 
 	/* DBAT 7 */
-        addis   r4, r0, CFG_DBAT7L@h
-        ori     r4, r4, CFG_DBAT7L@l
-        addis   r3, r0, CFG_DBAT7U@h
-        ori     r3, r3, CFG_DBAT7U@l
-        mtspr   DBAT7L, r4
-        mtspr   DBAT7U, r3
-        isync
+	addis   r4, r0, CFG_DBAT7L@h
+	ori     r4, r4, CFG_DBAT7L@l
+	addis   r3, r0, CFG_DBAT7U@h
+	ori     r3, r3, CFG_DBAT7U@l
+	mtspr   DBAT7L, r4
+	mtspr   DBAT7U, r3
+	isync
 #endif
 
 	/* bats are done, now invalidate the TLBs */
@@ -768,8 +704,8 @@ in_ram:
 	/*
 	 * Relocation Function, r14 point to got2+0x8000
 	 *
-         * Adjust got2 pointers, no need to check for 0, this code
-         * already puts a few entries in the table.
+	 * Adjust got2 pointers, no need to check for 0, this code
+	 * already puts a few entries in the table.
 	 */
 	li	r0,__got2_entries@sectoff@l
 	la	r3,GOT(_GOT2_TABLE_)
@@ -783,7 +719,7 @@ in_ram:
 	bdnz	1b
 
 	/*
-         * Now adjust the fixups and the pointers to the fixups
+	 * Now adjust the fixups and the pointers to the fixups
 	 * in case we need to move ourselves again.
 	 */
 2:	li	r0,__fixup_entries@sectoff@l
@@ -817,7 +753,10 @@ in_ram:
 	bne	5b
 6:
 	mr	r3, r10		/* Destination Address		*/
-#ifdef CONFIG_AMIGAONEG3SE
+#if defined(CONFIG_AMIGAONEG3SE) || \
+    defined(CONFIG_DB64360)	 || \
+    defined(CONFIG_DB64460)      || \
+    defined(CONFIG_CPCI750)
 	mr	r4, r9		/* Use RAM copy of the global data */
 #endif
 	bl	after_reloc

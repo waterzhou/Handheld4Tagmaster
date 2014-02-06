@@ -1,5 +1,5 @@
 #
-# (C) Copyright 2001, 2002
+# (C) Copyright 2001-2004
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
 #
 # See file CREDITS for list of people who contributed to this
@@ -22,21 +22,16 @@
 #
 
 #
-# PM826 boards
+# MicroSys PM826 board:
 #
 
-# This should be equal to the CFG_FLASH_BASE or
-# CFG_BOOTROM_BASE define in config_PM826.h
-# for the "final" configuration, with U-Boot
-# in flash, or the address in RAM where
-# U-Boot is loaded at for debugging.
-#
 
-ifeq ($(CONFIG_BOOT_ROM),y)
-	TEXT_BASE := 0xFF800000
-	PLATFORM_CPPFLAGS += -DCONFIG_BOOT_ROM
-else
-	TEXT_BASE := 0xFF000000
+sinclude $(TOPDIR)/board/$(BOARDDIR)/config.tmp
+
+ifndef TEXT_BASE
+## Standard: boot 64-bit flash
+TEXT_BASE = 0xFF000000
+
 endif
 
 PLATFORM_CPPFLAGS += -DTEXT_BASE=$(TEXT_BASE) -I$(TOPDIR)

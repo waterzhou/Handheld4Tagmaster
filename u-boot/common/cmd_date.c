@@ -47,14 +47,14 @@ int do_date (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	switch (argc) {
 	case 2:			/* set date & time */
 		if (strcmp(argv[1],"reset") == 0) {
-			printf ("Reset RTC...\n");
+			puts ("Reset RTC...\n");
 			rtc_reset ();
 		} else {
 			/* initialize tm with current time */
 			rtc_get (&tm);
 			/* insert new date & time */
 			if (mk_date (argv[1], &tm) != 0) {
-				printf ("## Bad date format\n");
+				puts ("## Bad date format\n");
 				return 1;
 			}
 			/* and write to RTC */
@@ -188,5 +188,16 @@ int mk_date (char *datestr, struct rtc_time *tmp)
 
 	return (-1);
 }
+
+/***************************************************/
+
+U_BOOT_CMD(
+	date,	2,	1,	do_date,
+	"date    - get/set/reset date & time\n",
+	"[MMDDhhmm[[CC]YY][.ss]]\ndate reset\n"
+	"  - without arguments: print date & time\n"
+	"  - with numeric argument: set the system date & time\n"
+	"  - with 'reset' argument: reset the RTC\n"
+);
 
 #endif	/* CFG_CMD_DATE */

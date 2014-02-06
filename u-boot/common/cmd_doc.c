@@ -80,7 +80,7 @@ int do_doc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	printf ("Usage:\n%s\n", cmdtp->usage);
 	return 1;
     case 2:
-        if (strcmp(argv[1],"info") == 0) {
+	if (strcmp(argv[1],"info") == 0) {
 		int i;
 
 		putc ('\n');
@@ -143,7 +143,7 @@ int do_doc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			cmd ? "read" : "write", curr_device, off, size);
 
 		ret = doc_rw(doc_dev_desc + curr_device, cmd, off, size,
-			     &total, (u_char*)addr);
+			     (size_t *)&total, (u_char*)addr);
 
 		printf ("%d bytes %s: %s\n", total, cmd ? "read" : "write",
 			ret ? "ERROR" : "OK");
@@ -170,6 +170,17 @@ int do_doc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return rcode;
     }
 }
+U_BOOT_CMD(
+	doc,	5,	1,	do_doc,
+	"doc     - Disk-On-Chip sub-system\n",
+	"info  - show available DOC devices\n"
+	"doc device [dev] - show or set current device\n"
+	"doc read  addr off size\n"
+	"doc write addr off size - read/write `size'"
+	" bytes starting at offset `off'\n"
+	"    to/from memory address `addr'\n"
+	"doc erase off size - erase `size' bytes of DOC from offset `off'\n"
+);
 
 int do_docboot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -273,6 +284,12 @@ int do_docboot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return rcode;
 }
 
+U_BOOT_CMD(
+	docboot,	4,	1,	do_docboot,
+	"docboot - boot from DOC device\n",
+	"loadAddr dev\n"
+);
+
 int doc_rw (struct DiskOnChip* this, int cmd,
 	    loff_t from, size_t len,
 	    size_t * retlen, u_char * buf)
@@ -287,12 +304,12 @@ int doc_rw (struct DiskOnChip* this, int cmd,
 
 		if (cmd)
 			ret = doc_read_ecc(this, from, len,
-					   &n, (u_char*)buf,
-					   noecc ? NULL : eccbuf);
+					   (size_t *)&n, (u_char*)buf,
+					   noecc ? (uchar *)NULL : (uchar *)eccbuf);
 		else
 			ret = doc_write_ecc(this, from, len,
-					    &n, (u_char*)buf,
-					    noecc ? NULL : eccbuf);
+					    (size_t *)&n, (u_char*)buf,
+					    noecc ? (uchar *)NULL : (uchar *)eccbuf);
 
 		if (ret)
 			break;
@@ -385,7 +402,7 @@ static int _DoC_WaitReady(struct DiskOnChip *doc)
 		}
 #endif
 		udelay(1);
-        }
+	}
 
 	return 0;
 }
@@ -508,7 +525,7 @@ static int DoC_Address(struct DiskOnChip *doc, int numbytes, unsigned long ofs,
 	return DoC_WaitReady(doc);
 }
 
-/* Read a buffer from DoC, taking care of Millennium odditys */
+/* Read a buffer from DoC, taking care of Millennium oddities */
 static void DoC_ReadBuf(struct DiskOnChip *doc, u_char * buf, int len)
 {
 	volatile int dummy;
@@ -541,7 +558,7 @@ static void DoC_ReadBuf(struct DiskOnChip *doc, u_char * buf, int len)
 	}
 }
 
-/* Write a buffer to DoC, taking care of Millennium odditys */
+/* Write a buffer to DoC, taking care of Millennium oddities */
 static void DoC_WriteBuf(struct DiskOnChip *doc, const u_char * buf, int len)
 {
 	unsigned long docptr;
@@ -787,7 +804,7 @@ static int find_boot_record(struct NFTLrecord *nftl)
 		/* Check for ANAND header first. Then can whinge if it's found but later
 		   checks fail */
 		if ((ret = doc_read_ecc(nftl->mtd, block * nftl->EraseSize, SECTORSIZE,
-					&retlen, buf, NULL))) {
+					(size_t *)&retlen, buf, NULL))) {
 			static int warncount = 5;
 
 			if (warncount) {
@@ -812,7 +829,7 @@ static int find_boot_record(struct NFTLrecord *nftl)
 
 		/* To be safer with BIOS, also use erase mark as discriminant */
 		if ((ret = doc_read_oob(nftl->mtd, block * nftl->EraseSize + SECTORSIZE + 8,
-				8, &retlen, (char *)&h1) < 0)) {
+				8, (size_t *)&retlen, (uchar *)&h1) < 0)) {
 #ifdef NFTL_DEBUG
 			printf("ANAND header found at 0x%x, but OOB data read failed\n",
 			       block * nftl->EraseSize);
@@ -844,8 +861,13 @@ static int find_boot_record(struct NFTLrecord *nftl)
 		memcpy(mh, buf, sizeof(struct NFTLMediaHeader));
 
 		/* Do some sanity checks on it */
-		if (mh->UnitSizeFactor != 0xff) {
-			puts ("Sorry, we don't support UnitSizeFactor "
+		if (mh->UnitSizeFactor == 0) {
+#ifdef NFTL_DEBUG
+			puts ("UnitSizeFactor 0x00 detected.\n"
+			      "This violates the spec but we think we know what it means...\n");
+#endif
+		} else if (mh->UnitSizeFactor != 0xff) {
+			printf ("Sorry, we don't support UnitSizeFactor "
 			      "of != 1 yet.\n");
 			return -1;
 		}
@@ -880,7 +902,7 @@ static int find_boot_record(struct NFTLrecord *nftl)
 				/* read one sector for every SECTORSIZE of blocks */
 				if ((ret = doc_read_ecc(nftl->mtd, block * nftl->EraseSize +
 						       i + SECTORSIZE, SECTORSIZE,
-						       &retlen, buf, (char *)&oob)) < 0) {
+						       (size_t *)&retlen, buf, (uchar *)&oob)) < 0) {
 					puts ("Read of bad sector table failed\n");
 					return -1;
 				}
@@ -933,12 +955,14 @@ static void DoC2k_init(struct DiskOnChip* this)
 
 	/* Ident all the chips present. */
 	DoC_ScanChips(this);
+	if ((!this->numchips) || (!this->chips))
+		return;
 
 	nftl = &this->nftl;
 
 	/* Get physical parameters */
 	nftl->EraseSize = this->erasesize;
-        nftl->nb_blocks = this->totlen / this->erasesize;
+	nftl->nb_blocks = this->totlen / this->erasesize;
 	nftl->mtd = this;
 
 	if (find_boot_record(nftl) != 0)
@@ -975,7 +999,7 @@ int doc_read_ecc(struct DiskOnChip* this, loff_t from, size_t len,
 		printf("ECC needs a full sector read (adr: %lx size %lx)\n",
 		       (long) from, (long) len);
 
-#ifdef PHYCH_DEBUG
+#ifdef PSYCHO_DEBUG
 	printf("DoC_Read (adr: %lx size %lx)\n", (long) from, (long) len);
 #endif
 
@@ -1054,18 +1078,18 @@ int doc_read_ecc(struct DiskOnChip* this, loff_t from, size_t len,
 				syndrome[i] =
 				    ReadDOC(docptr, ECCSyndrome0 + i);
 			}
-                        nb_errors = doc_decode_ecc(buf, syndrome);
+			nb_errors = doc_decode_ecc(buf, syndrome);
 
 #ifdef ECC_DEBUG
 			printf("Errors corrected: %x\n", nb_errors);
 #endif
-                        if (nb_errors < 0) {
+			if (nb_errors < 0) {
 				/* We return error, but have actually done the read. Not that
 				   this can be told to user-space, via sys_read(), but at least
 				   MTD-aware stuff can know about it by checking *retlen */
 				printf("ECC Errors at %lx\n", (long)from);
 				ret = DOC_EECC;
-                        }
+			}
 		}
 
 #ifdef PSYCHO_DEBUG
@@ -1079,7 +1103,7 @@ int doc_read_ecc(struct DiskOnChip* this, loff_t from, size_t len,
 	}
 
 	/* according to 11.4.1, we need to wait for the busy line
-         * drop if we read to the end of the page.  */
+	 * drop if we read to the end of the page.  */
 	if(0 == ((from + *retlen) & 0x1ff))
 	{
 	    DoC_WaitReady(this);
@@ -1291,8 +1315,8 @@ int doc_read_oob(struct DiskOnChip* this, loff_t ofs, size_t len,
 
 	*retlen = len;
 	/* Reading the full OOB data drops us off of the end of the page,
-         * causing the flash device to go into busy mode, so we need
-         * to wait until ready 11.4.1 and Toshiba TC58256FT docs */
+	 * causing the flash device to go into busy mode, so we need
+	 * to wait until ready 11.4.1 and Toshiba TC58256FT docs */
 
 	ret = DoC_WaitReady(this);
 

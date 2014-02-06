@@ -40,8 +40,6 @@
 #include <image.h>
 #include <malloc.h>
 #include <asm/byteorder.h>
-#include <cmd_boot.h>
-#include <cmd_autoscript.h>
 #if defined(CONFIG_8xx)
 #include <mpc8xx.h>
 #endif
@@ -50,7 +48,7 @@
 #endif
 
 #if defined(CONFIG_AUTOSCRIPT) || \
-	 (CONFIG_COMMANDS & CFG_CMD_AUTOSCRIPT)
+	 (CONFIG_COMMANDS & CFG_CMD_AUTOSCRIPT )
 
 extern image_header_t header;		/* from cmd_bootm.c */
 int
@@ -70,7 +68,7 @@ autoscript (ulong addr)
 	memmove (hdr, (char *)addr, sizeof(image_header_t));
 
 	if (ntohl(hdr->ih_magic) != IH_MAGIC) {
-		printf ("Bad magic number\n");
+		puts ("Bad magic number\n");
 		return 1;
 	}
 
@@ -78,8 +76,8 @@ autoscript (ulong addr)
 	hdr->ih_hcrc = 0;
 	len = sizeof (image_header_t);
 	data = (ulong)hdr;
-	if (crc32(0, (char *)data, len) != crc) {
-		printf ("Bad header crc\n");
+	if (crc32(0, (uchar *)data, len) != crc) {
+		puts ("Bad header crc\n");
 		return 1;
 	}
 
@@ -87,14 +85,14 @@ autoscript (ulong addr)
 	len = ntohl(hdr->ih_size);
 
 	if (verify) {
-		if (crc32(0, (char *)data, len) != ntohl(hdr->ih_dcrc)) {
-			printf ("Bad data crc\n");
+		if (crc32(0, (uchar *)data, len) != ntohl(hdr->ih_dcrc)) {
+			puts ("Bad data crc\n");
 			return 1;
 		}
 	}
 
 	if (hdr->ih_type != IH_TYPE_SCRIPT) {
-		printf ("Bad image type\n");
+		puts ("Bad image type\n");
 		return 1;
 	}
 
@@ -102,7 +100,7 @@ autoscript (ulong addr)
 	len_ptr = (ulong *)data;
 
 	if ((len = ntohl(*len_ptr)) == 0) {
-		printf ("Empty Script\n");
+		puts ("Empty Script\n");
 		return 1;
 	}
 
@@ -118,7 +116,7 @@ autoscript (ulong addr)
 	memmove (cmd, (char *)len_ptr, len);
 	*(cmd + len) = 0;
 
-#ifdef CFG_HUSH_PARSER
+#ifdef CFG_HUSH_PARSER /*?? */
 	rcode = parse_string_outer (cmd, FLAG_PARSE_SEMICOLON);
 #else
 	{
@@ -153,7 +151,7 @@ autoscript (ulong addr)
 }
 
 #endif	/* CONFIG_AUTOSCRIPT || CFG_CMD_AUTOSCRIPT */
-
+/**************************************************/
 #if (CONFIG_COMMANDS & CFG_CMD_AUTOSCRIPT)
 int
 do_autoscript (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
@@ -171,4 +169,14 @@ do_autoscript (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	rcode = autoscript (addr);
 	return rcode;
 }
+
+#if (CONFIG_COMMANDS & CFG_CMD_AUTOSCRIPT)
+U_BOOT_CMD(
+	autoscr, 2, 0,	do_autoscript,
+	"autoscr - run script from memory\n",
+	"[addr] - run script starting at addr"
+	" - A valid autoscr header must be present\n"
+);
 #endif /* CFG_CMD_AUTOSCRIPT */
+
+#endif /* CONFIG_AUTOSCRIPT || CFG_CMD_AUTOSCRIPT */

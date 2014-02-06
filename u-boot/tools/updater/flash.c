@@ -24,7 +24,7 @@
 #include <common.h>
 #include <flash.h>
 
-extern flash_info_t  flash_info[CFG_MAX_FLASH_BANKS]; /* info for FLASH chips */
+extern flash_info_t  flash_info[]; /* info for FLASH chips */
 
 /*-----------------------------------------------------------------------
  * Functions
@@ -157,9 +157,9 @@ flash_write (uchar *src, ulong addr, ulong cnt)
 		}
 	}
 
-	mon_printf("\rWriting ");
-	for (j=0; j<20; j++) mon_putc(177);
-	mon_printf("\rWriting ");
+	printf("\rWriting ");
+	for (j=0; j<20; j++) putc(177);
+	printf("\rWriting ");
 
 	/* finally write data to flash */
 	for (info = info_first; info <= info_last && cnt>0; ++info) {

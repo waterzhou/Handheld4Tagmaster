@@ -2,6 +2,9 @@
  * MPC8xx Communication Processor Module.
  * Copyright (c) 1997 Dan Malek (dmalek@jlc.net)
  *
+ * (C) Copyright 2000-2004
+ * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
+ *
  * This file contains structures and information for the communication
  * processor channels.  Some CPM control and status is available
  * throught the MPC8xx internal memory map.  See immap.h for details.
@@ -71,9 +74,10 @@
 #define CPM_I2C_BASE		0x0820
 #define CPM_SPI_BASE		0x0840
 #define CPM_FEC_BASE		0x0860
-#define CPM_WLKBD_BASE		0x0880
+#define CPM_SERIAL2_BASE	0x08E0
 #define CPM_SCC_BASE		0x0900
 #define CPM_POST_BASE		0x0980
+#define CPM_WLKBD_BASE		0x0a00
 
 #endif
 
@@ -81,6 +85,12 @@
 #define CPM_POST_WORD_ADDR	0x07FC
 #else
 #define CPM_POST_WORD_ADDR	CFG_CPM_POST_WORD_ADDR
+#endif
+
+#ifndef CFG_CPM_BOOTCOUNT_ADDR
+#define CPM_BOOTCOUNT_ADDR	(CPM_POST_WORD_ADDR - 2*sizeof(ulong))
+#else
+#define CPM_BOOTCOUNT_ADDR	CFG_CPM_BOOTCOUNT_ADDR
 #endif
 
 #define BD_IIC_START	((uint) 0x0400) /* <- please use CPM_I2C_BASE !! */
@@ -707,13 +717,14 @@ typedef struct scc_enet {
 
 /***  FADS860T********************************************************/
 
-#if defined(CONFIG_MPC860T) && defined(CONFIG_FADS)
-/* This ENET stuff is for the MPC860TFADS with ethernet on SCC1.
+#if defined(CONFIG_FADS) && defined(CONFIG_MPC86x)
+/*
+ * This ENET stuff is for the MPC86xFADS/MPC8xxADS with ethernet on SCC1.
  */
-
 #ifdef CONFIG_SCC1_ENET
+
 #define	SCC_ENET	0
-#endif	/* CONFIG_SCC1_ETHERNET */
+
 #define	PROFF_ENET	PROFF_SCC1
 #define	CPM_CR_ENET	CPM_CR_CH_SCC1
 
@@ -730,14 +741,18 @@ typedef struct scc_enet {
 #define SICR_ENET_MASK	((uint)0x000000ff)
 #define SICR_ENET_CLKRT	((uint)0x0000002c)
 
-/* This ENET stuff is for the MPC860TFADS with ethernet on FEC.
+#endif	/* CONFIG_SCC1_ETHERNET */
+
+/*
+ * This ENET stuff is for the MPC860TFADS/MPC86xADS/MPC885ADS
+ * with ethernet on FEC.
  */
 
 #ifdef CONFIG_FEC_ENET
-#define	FEC_ENET	/* use FEC for EThernet */
-#endif	/* CONFIG_FEC_ETHERNET */
+#define	FEC_ENET	/* Use FEC for Ethernet */
+#endif	/* CONFIG_FEC_ENET */
 
-#endif	/* CONFIG_FADS860T */
+#endif	/* CONFIG_FADS && CONFIG_MPC86x */
 
 /***  FPS850L, FPS860L  ************************************************/
 
@@ -967,10 +982,10 @@ typedef struct scc_enet {
 
 #endif	/* CONFIG_IVMS8, CONFIG_IVML24 */
 
-/***  KUP4K  *********************************************************/
-/* The KUP4K uses the FEC on a MPC855T for Ethernet */
+/***  KUP4K, KUP4X ****************************************************/
+/* The KUP4 boards uses the FEC on a MPC8xx for Ethernet */
 
-#if defined(CONFIG_KUP4K)
+#if defined(CONFIG_KUP4K) || defined(CONFIG_KUP4X)
 
 #define	FEC_ENET	/* use FEC for EThernet */
 #undef	SCC_ENET
@@ -1027,7 +1042,7 @@ typedef struct scc_enet {
 
 /***  LWMON  **********************************************************/
 
-#if defined(CONFIG_LWMON) && !defined(CONFIG_8xx_CONS_SCC2)
+#if defined(CONFIG_LWMON)
 /* Bits in parallel I/O port registers that have to be set/cleared
  * to configure the pins for SCC2 use.
  */
@@ -1177,8 +1192,8 @@ typedef struct scc_enet {
 
 # endif /* CONFIG_FEC_ENET */
 #endif  /* CONFIG_SVM_SC8xx */
-	
-	
+
+
 #if defined(CONFIG_NETVIA)
 /* Bits in parallel I/O port registers that have to be set/cleared
  * to configure the pins for SCC2 use.
@@ -1209,6 +1224,60 @@ typedef struct scc_enet {
 #define SICR_ENET_CLKRT	((uint)0x00002f00)
 
 #endif	/* CONFIG_NETVIA */
+
+/***  QS850/QS823  ***************************************************/
+
+#if defined(CONFIG_QS850) || defined(CONFIG_QS823)
+#undef FEC_ENET /* Don't use FEC for EThernet */
+
+#define PROFF_ENET		PROFF_SCC2
+#define CPM_CR_ENET		CPM_CR_CH_SCC2
+#define SCC_ENET		1
+
+#define PA_ENET_RXD		((ushort)0x0004)  /* RXD on PA13 (Pin D9) */
+#define PA_ENET_TXD		((ushort)0x0008)  /* TXD on PA12 (Pin D7) */
+#define PC_ENET_RENA		((ushort)0x0080)  /* RENA on PC8 (Pin D12) */
+#define PC_ENET_CLSN		((ushort)0x0040)  /* CLSN on PC9 (Pin C12) */
+#define PA_ENET_TCLK		((ushort)0x0200)  /* TCLK on PA6 (Pin D8) */
+#define PA_ENET_RCLK		((ushort)0x0800)  /* RCLK on PA4 (Pin D10) */
+#define PB_ENET_TENA		((uint)0x00002000)  /* TENA on PB18 (Pin D11) */
+#define PC_ENET_LBK		((ushort)0x0010)  /* Loopback control on PC11 (Pin B14) */
+#define PC_ENET_LI		((ushort)0x0020)  /* Link Integrity control PC10 (A15) */
+#define PC_ENET_SQE		((ushort)0x0100)  /* SQE Disable control PC7 (B15) */
+
+/* SCC2 TXCLK from CLK2
+ * SCC2 RXCLK from CLK4
+ * SCC2 Connected to NMSI */
+#define SICR_ENET_MASK		((uint)0x00007F00)
+#define SICR_ENET_CLKRT		((uint)0x00003D00)
+
+#endif /* CONFIG_QS850/QS823 */
+
+/***  QS860T  ***************************************************/
+
+#ifdef CONFIG_QS860T
+#ifdef CONFIG_FEC_ENET
+#define FEC_ENET /* use FEC for EThernet */
+#endif /* CONFIG_FEC_ETHERNET */
+
+/* This ENET stuff is for GTH 10 Mbit ( SCC ) */
+#define PROFF_ENET		PROFF_SCC1
+#define CPM_CR_ENET		CPM_CR_CH_SCC1
+#define SCC_ENET		0
+
+#define PA_ENET_RXD		((ushort)0x0001) /* PA15 */
+#define PA_ENET_TXD		((ushort)0x0002) /* PA14 */
+#define PA_ENET_TCLK		((ushort)0x0800) /* PA4 */
+#define PA_ENET_RCLK		((ushort)0x0200) /* PA6 */
+#define PB_ENET_TENA		((uint)0x00001000) /* PB19 */
+#define PC_ENET_CLSN		((ushort)0x0010) /* PC11 */
+#define PC_ENET_RENA		((ushort)0x0020) /* PC10 */
+
+#define SICR_ENET_MASK		((uint)0x000000ff)
+/* RCLK PA4 -->CLK4, TCLK PA6 -->CLK2 */
+#define SICR_ENET_CLKRT		((uint)0x0000003D)
+
+#endif /* CONFIG_QS860T */
 
 /***  RPXCLASSIC  *****************************************************/
 
@@ -1370,11 +1439,12 @@ typedef struct scc_enet {
 #define SICR_ENET_CLKRT	((uint)0x00002600)
 #endif	/* CONFIG_MVS v1, CONFIG_TQM823L/M, CONFIG_TQM850L/M, etc. */
 
-/***  TQM855L/M, TQM860L/M, TQM862L/M  ********************************/
+/***  TQM855L/M, TQM860L/M, TQM862L/M, TQM866L/M  *********************/
 
 #if defined(CONFIG_TQM855L) || defined(CONFIG_TQM855M) || \
     defined(CONFIG_TQM860L) || defined(CONFIG_TQM860M) || \
-    defined(CONFIG_TQM862L) || defined(CONFIG_TQM862M)
+    defined(CONFIG_TQM862L) || defined(CONFIG_TQM862M) || \
+    defined(CONFIG_TQM866L) || defined(CONFIG_TQM866M)
 
 # ifdef CONFIG_SCC1_ENET	/* use SCC for 10Mbps Ethernet	*/
 
@@ -1445,6 +1515,7 @@ typedef struct scc_enet {
 #define SICR_ENET_MASK	((uint)0x0000ff00)
 #define SICR_ENET_CLKRT	((uint)0x00002e00)
 #endif	/* CONFIG_V37 */
+
 
 /*********************************************************************/
 

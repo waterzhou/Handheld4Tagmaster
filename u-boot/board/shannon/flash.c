@@ -73,7 +73,7 @@ ulong flash_init(void)
 	if (i == 0)
 	  flashbase = PHYS_FLASH_1;
 	else
-	  panic("configured to many flash banks!\n");
+	  panic("configured too many flash banks!\n");
 	for (j = 0; j < flash_info[i].sector_count; j++)
 	{
 
@@ -178,6 +178,7 @@ void flash_print_info  (flash_info_t *info)
     printf ("\n");
 
 Done:
+    ;
 }
 
 /*-----------------------------------------------------------------------
@@ -327,7 +328,7 @@ volatile static int write_word (flash_info_t *info, ulong dest, ulong data)
      */
     result = *addr;
     if ((result & data) != data)
-        return ERR_NOT_ERASED;
+	return ERR_NOT_ERASED;
 
 
     /*
@@ -393,7 +394,7 @@ volatile static int write_word (flash_info_t *info, ulong dest, ulong data)
     *addr = CMD_READ_ARRAY;
 
     if (chip1 == ERR || chip2 == ERR || *addr != data)
-        rc = ERR_PROG_ERROR;
+	rc = ERR_PROG_ERROR;
 
     if (iflag)
       enable_interrupts();

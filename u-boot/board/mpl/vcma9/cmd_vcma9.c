@@ -41,9 +41,12 @@ static uchar cs8900_chksum(ushort data)
 #endif
 
 extern void print_vcma9_info(void);
-extern int vcma9_cantest(void);
+extern int vcma9_cantest(int);
 extern int vcma9_nandtest(void);
-extern int vcma9_dactest(void);
+extern int vcma9_nanderase(void);
+extern int vcma9_nandread(ulong);
+extern int vcma9_nandwrite(ulong);
+extern int vcma9_dactest(int);
 extern int do_mplcommon(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
 
 /* ------------------------------------------------------------------------- */
@@ -58,7 +61,7 @@ int do_vcma9(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	 	return 0;
    	}
 #if defined(CONFIG_DRIVER_CS8900)
-	if (strcmp(argv[1], "cs8900_eeprom") == 0) {
+	if (strcmp(argv[1], "cs8900") == 0) {
 		if (strcmp(argv[2], "read") == 0) {
 			uchar addr; ushort data;
 
@@ -99,12 +102,12 @@ int do_vcma9(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 				/* write checksum word */
 				cs8900_e2prom_write(addr, (0 - csum) << 8);
 			} else {
-				printf("\nplease defined 'ethaddr'\n");
+				puts("\nplease defined 'ethaddr'\n");
 			}
 		} else if (strcmp(argv[2], "dump") == 0) {
 			uchar addr = 0, endaddr, csum; ushort data;
 
-			printf("Dump of CS8900 config device: ");
+			puts("Dump of CS8900 config device: ");
 			cs8900_e2prom_read(addr, &data);
 			if ((data & 0xE000) == 0xA000) {
 				endaddr = (data & 0x00FF) / 2;
@@ -116,9 +119,9 @@ int do_vcma9(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 				}
 				printf("\nChecksum: %s", (csum == 0) ? "ok" : "wrong");
 			} else {
-				printf("no valid config found");
+				puts("no valid config found");
 			}
-			printf("\n");
+			puts("\n");
 		}
 
 		return 0;
@@ -126,15 +129,43 @@ int do_vcma9(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #endif
 #if 0
 	if (strcmp(argv[1], "cantest") == 0) {
-		vcma9_cantest();
+		if (argc >= 3)
+			vcma9_cantest(strcmp(argv[2], "s") ? 0 : 1);
+		else
+			vcma9_cantest(0);
 		return 0;
 	}
 	if (strcmp(argv[1], "nandtest") == 0) {
 		vcma9_nandtest();
 		return 0;
 	}
+	if (strcmp(argv[1], "nanderase") == 0) {
+		vcma9_nanderase();
+		return 0;
+	}
+	if (strcmp(argv[1], "nandread") == 0) {
+		ulong offset = 0;
+
+		if (argc >= 3)
+			offset = simple_strtoul(argv[2], NULL, 16);
+
+		vcma9_nandread(offset);
+		return 0;
+	}
+	if (strcmp(argv[1], "nandwrite") == 0) {
+		ulong offset = 0;
+
+		if (argc >= 3)
+			offset = simple_strtoul(argv[2], NULL, 16);
+
+		vcma9_nandwrite(offset);
+		return 0;
+	}
 	if (strcmp(argv[1], "dactest") == 0) {
-		vcma9_dactest();
+		if (argc >= 3)
+			vcma9_dactest(strcmp(argv[2], "s") ? 0 : 1);
+		else
+		vcma9_dactest(0);
 		return 0;
 	}
 #endif
@@ -142,3 +173,8 @@ int do_vcma9(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return (do_mplcommon(cmdtp, flag, argc, argv));
 }
 
+U_BOOT_CMD(
+	vcma9, 6, 1, do_vcma9,
+	"vcma9   - VCMA9 specific commands\n",
+	"flash mem [SrcAddr]\n    - updates U-Boot with image in memory\n"
+);

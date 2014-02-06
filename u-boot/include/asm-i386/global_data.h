@@ -45,6 +45,7 @@ typedef	struct {
 	unsigned long	bus_clk;
 	unsigned long	ram_size;	/* RAM size */
 	unsigned long	reset_status;	/* reset status register at boot */
+	void		**jt;		/* jump table */
 } gd_t;
 
 /*
@@ -52,6 +53,7 @@ typedef	struct {
  */
 #define	GD_FLG_RELOC	0x00001		/* Code was relocated to RAM		*/
 #define	GD_FLG_DEVINIT	0x00002		/* Devices have been initialized	*/
+#define	GD_FLG_SILENT	0x00004		/* Silent mode				*/
 
 extern gd_t *global_data;
 

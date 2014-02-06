@@ -36,7 +36,6 @@
 
 #define CONFIG_MPC850		1	/* This is a MPC850 CPU		*/
 #define CONFIG_NETVIA		1	/* ...on a NetVia board		*/
-#undef  CONFIG_NETVIA_PLL_CLOCK		/* PLL or fixed crystal clock	*/
 
 #if !defined(CONFIG_NETVIA_VERSION) || CONFIG_NETVIA_VERSION == 1
 #define	CONFIG_8xx_CONS_SMC1	1	/* Console is on SMC1		*/
@@ -49,14 +48,8 @@
 
 #define CONFIG_BAUDRATE		115200	/* console baudrate = 115kbps	*/
 
-#ifdef CONFIG_NETVIA_PLL_CLOCK
-/* XXX make sure that you calculate these two correctly */
-#define CFG_GCLK_MF		1350
-#define CONFIG_8xx_GCLK_FREQ	44236800
-#else
-#define CFG_GCLK_MF		1
-#define CONFIG_8xx_GCLK_FREQ	50000000
-#endif
+#define CONFIG_XIN		10000000
+#define CONFIG_8xx_GCLK_FREQ	80000000
 
 #if 0
 #define CONFIG_BOOTDELAY	-1	/* autoboot disabled		*/
@@ -71,8 +64,8 @@
 #undef	CONFIG_BOOTARGS
 #define CONFIG_BOOTCOMMAND							\
 	"tftpboot; " 								\
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " 	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; " 	\
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " 	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; " 	\
 	"bootm"
 
 #define CONFIG_LOADS_ECHO	0	/* echo off for serial download	*/
@@ -105,7 +98,7 @@
 #define CONFIG_COMMANDS		CONFIG_COMMANDS_BASE
 #endif
 
-#define CONFIG_BOARD_PRE_INIT
+#define CONFIG_BOARD_EARLY_INIT_F 1
 #define CONFIG_MISC_INIT_R
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
@@ -253,21 +246,33 @@
  * Reset PLL lock status sticky bit, timer expired status bit and timer
  * interrupt status bit
  *
- */
-
-#define CFG_PLPRCR	( ((CFG_GCLK_MF-1) << PLPRCR_MF_SHIFT) | PLPRCR_SPLSS | PLPRCR_TEXPS | PLPRCR_TMIST)
-
-/*-----------------------------------------------------------------------
+ *
+ *-----------------------------------------------------------------------
  * SCCR - System Clock and reset Control Register		15-27
  *-----------------------------------------------------------------------
  * Set clock output, timebase and RTC source and divider,
  * power management and some other internal clocks
  */
+
 #define SCCR_MASK	SCCR_EBDF11
+
+#if CONFIG_8xx_GCLK_FREQ == 50000000
+
+#define CFG_PLPRCR	( ((5 - 1) << PLPRCR_MF_SHIFT) | PLPRCR_SPLSS | PLPRCR_TEXPS | PLPRCR_TMIST)
 #define CFG_SCCR	(SCCR_TBS     | \
 			 SCCR_COM00   | SCCR_DFSYNC00 | SCCR_DFBRG00  | \
 			 SCCR_DFNL000 | SCCR_DFNH000  | SCCR_DFLCD000 | \
 			 SCCR_DFALCD00)
+
+#elif CONFIG_8xx_GCLK_FREQ == 80000000
+
+#define CFG_PLPRCR	( ((8 - 1) << PLPRCR_MF_SHIFT) | PLPRCR_SPLSS | PLPRCR_TEXPS | PLPRCR_TMIST)
+#define CFG_SCCR	(SCCR_TBS     | \
+			 SCCR_COM00   | SCCR_DFSYNC00 | SCCR_DFBRG00  | \
+			 SCCR_DFNL000 | SCCR_DFNH000  | SCCR_DFLCD000 | \
+			 SCCR_DFALCD00 | SCCR_EBDF01)
+
+#endif
 
 /*-----------------------------------------------------------------------
  *
@@ -386,8 +391,7 @@
 
 /* NAND */
 #define CFG_NAND_BASE			NAND_BASE
-
-#define CONFIG_MTD_NAND_ECC_JFFS2	1
+#define CONFIG_MTD_NAND_ECC_JFFS2
 
 #define CFG_MAX_NAND_DEVICE		1
 
@@ -521,6 +525,6 @@ static inline void __led_set(led_id_t mask, int state)
 
 #endif
 
-/****************************************************************/
+/*************************************************************************************************/
 
 #endif	/* __CONFIG_H */

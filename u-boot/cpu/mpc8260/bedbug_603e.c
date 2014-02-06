@@ -5,8 +5,7 @@
 #include <common.h>
 #include <command.h>
 #include <linux/ctype.h>
-
-#include <cmd_bedbug.h>
+#include <bedbug/type.h>
 #include <bedbug/bedbug.h>
 #include <bedbug/regs.h>
 #include <bedbug/ppc.h>
@@ -64,7 +63,7 @@ void bedbug603e_init( void )
  * ====================================================================== */
 
 void bedbug603e_do_break (cmd_tbl_t *cmdtp, int flag, int argc,
-                         char *argv[])
+			 char *argv[])
 {
   long		addr;           /* Address to break at  */
   int		which_bp;       /* Breakpoint number    */
@@ -82,7 +81,7 @@ void bedbug603e_do_break (cmd_tbl_t *cmdtp, int flag, int argc,
   {
     if( bug_ctx.hw_debug_enabled == 0 )
     {
-      printf( "No breakpoints enabled\n" );
+      puts ( "No breakpoints enabled\n" );
       return;
     }
 
@@ -106,7 +105,7 @@ void bedbug603e_do_break (cmd_tbl_t *cmdtp, int flag, int argc,
 
       printf( "Breakpoint [%d]: ", which_bp );
       if( (addr & 0x00000002) == 0 )
-	printf( "NOT SET\n" );
+	puts ( "NOT SET\n" );
       else
 	disppc( (unsigned char *)(addr & 0xFFFFFFFC), 0, 1, bedbug_puts, F_RADHEX );
     }
@@ -116,8 +115,8 @@ void bedbug603e_do_break (cmd_tbl_t *cmdtp, int flag, int argc,
   /* Set a breakpoint at the address */
 
   if(!(( isdigit( argv[ 1 ][ 0 ] )) ||
-        (( argv[ 1 ][ 0 ] >= 'a' ) && ( argv[ 1 ][ 0 ] <= 'f' )) ||
-        (( argv[ 1 ][ 0 ] >= 'A' ) && ( argv[ 1 ][ 0 ] <= 'F' ))))
+	(( argv[ 1 ][ 0 ] >= 'a' ) && ( argv[ 1 ][ 0 ] <= 'f' )) ||
+	(( argv[ 1 ][ 0 ] >= 'A' ) && ( argv[ 1 ][ 0 ] <= 'F' ))))
   {
     printf ("Usage:\n%s\n", cmdtp->usage);
     return;
@@ -184,7 +183,7 @@ int bedbug603e_set( int which_bp, unsigned long addr )
 
   if(( addr & 0x00000003 ) != 0 )
   {
-    printf( "Breakpoints must be on a 32 bit boundary\n" );
+    puts ( "Breakpoints must be on a 32 bit boundary\n" );
     return 0;
   }
 
@@ -192,7 +191,7 @@ int bedbug603e_set( int which_bp, unsigned long addr )
   if(( bug_ctx.find_empty ) && ( !which_bp ) &&
      ( which_bp = (*bug_ctx.find_empty)()) == 0 )
   {
-    printf( "All breakpoints in use\n" );
+    puts ( "All breakpoints in use\n" );
     return 0;
   }
 
@@ -236,4 +235,3 @@ int bedbug603e_clear( int which_bp )
 
 /* ====================================================================== */
 #endif
-

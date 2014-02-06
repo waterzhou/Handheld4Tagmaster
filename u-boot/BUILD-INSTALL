@@ -1,0 +1,17 @@
+#!/bin/sh
+cd `dirname $0`
+REPREV=`svn info svn://193.15.235.99/repos | grep Revision | awk '{ print $2 }'`
+CWDREV=`svn info . | grep Revision | awk '{ print $2 }'`
+
+if [[ $REPREV != $CWDREV ]]
+then 
+  echo "Warning: Not building latest SubVersion revision!"
+  echo "Press [ENTER] to continue or [CTRL]-[C] to abort."
+  read
+fi
+
+make clean > build-log.txt 2>&1
+make at91rm9200dk_config >> build-log.txt 2>&1
+make CROSS_COMPILE=arm-softfloat-linux-gnu- >> build-log.txt 2>&1
+gzip -f -n u-boot.bin >> build-log.txt 2>&1
+cp tools/mkimage . >> build-log.txt 2>&1

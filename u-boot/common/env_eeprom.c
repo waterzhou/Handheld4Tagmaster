@@ -30,9 +30,7 @@
 
 #include <command.h>
 #include <environment.h>
-#include <cmd_nvedit.h>
 #include <linux/stddef.h>
-#include <malloc.h>
 
 env_t *env_ptr = NULL;
 

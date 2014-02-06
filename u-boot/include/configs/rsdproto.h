@@ -37,6 +37,9 @@
 
 #define CONFIG_MPC8260		1	/* This is an MPC8260 CPU	*/
 #define CONFIG_RSD_PROTO	1	/* on a R&S Protocol Board      */
+#define CONFIG_CPM2		1	/* Has a CPM2 */
+
+#define	CONFIG_MISC_INIT_F	1	/* Use misc_init_f()		*/
 
 /*
  * select serial console configuration
@@ -211,16 +214,16 @@
 
 /* get the HRCW ISB field from CFG_IMMR */
 #define CFG_RSD_HRCW_IMMR ( ((CFG_IMMR & 0x10000000) >> 10) |\
-                            ((CFG_IMMR & 0x01000000) >> 7)  |\
-                            ((CFG_IMMR & 0x00100000) >> 4) )
+			    ((CFG_IMMR & 0x01000000) >> 7)  |\
+			    ((CFG_IMMR & 0x00100000) >> 4) )
 
 #define CFG_HRCW_MASTER	(HRCW_L2CPC10 | \
 			 HRCW_DPPC11 | \
-                         CFG_RSD_HRCW_IMMR |\
-		     	 HRCW_MMR00 | \
-	     		 HRCW_APPC10 | \
-		     	 HRCW_CS10PC00 | \
-		     	 HRCW_MODCK_H0000 |\
+			 CFG_RSD_HRCW_IMMR |\
+			 HRCW_MMR00 | \
+			 HRCW_APPC10 | \
+			 HRCW_CS10PC00 | \
+			 HRCW_MODCK_H0000 |\
 			 CFG_RSD_HRCW_BOOT_FLAGS)
 
 /* no slaves */
@@ -388,9 +391,9 @@
 /* Virtex-FPGA - Register */
 #define CFG_BR3_PRELIM  (PHYS_VIRTEX_REGISTER | BRx_V)
 #define CFG_OR3_PRELIM  (ORxS_SIZE_TO_AM(PHYS_VIRTEX_REGISTER_SIZE) | \
-                         ORxG_SCY_1_CLK | \
-                         ORxG_ACS_DIV2 | \
-                         ORxG_CSNT )
+			 ORxG_SCY_1_CLK | \
+			 ORxG_ACS_DIV2 | \
+			 ORxG_CSNT )
 
 /* local bus SDRAM */
 #define CFG_BR4_PRELIM	(PHYS_SDRAM_LOCAL | BRx_PS_32 | BRx_MS_SDRAM_L | BRx_V)

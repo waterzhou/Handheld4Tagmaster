@@ -44,7 +44,7 @@
  * CONFIG_BOOT_PCI is only used for first boot-up and should
  * NOT be enabled for production bootloader
  ***********************************************************/
-/*#define        CONFIG_BOOT_PCI         1*/       
+/*#define        CONFIG_BOOT_PCI         1*/
 /***********************************************************
  * Clock
  ***********************************************************/
@@ -55,18 +55,21 @@
  ***********************************************************/
 #define MIP405_COMMON_CMDS \
 		       (CONFIG_CMD_DFL	| \
-			CFG_CMD_IDE	| \
-			CFG_CMD_DHCP	| \
 			CFG_CMD_CACHE	| \
-			CFG_CMD_PCI	| \
-			CFG_CMD_IRQ	| \
+			CFG_CMD_DATE	| \
+			CFG_CMD_DHCP	| \
 			CFG_CMD_ECHO	| \
 			CFG_CMD_EEPROM	| \
-			CFG_CMD_I2C	| \
-			CFG_CMD_REGINFO | \
-			CFG_CMD_DATE	| \
 			CFG_CMD_ELF	| \
+			CFG_CMD_FAT	| \
+			CFG_CMD_I2C	| \
+			CFG_CMD_IDE	| \
+			CFG_CMD_IRQ	| \
+			CFG_CMD_JFFS2	| \
 			CFG_CMD_MII	| \
+			CFG_CMD_PCI	| \
+			CFG_CMD_PING	| \
+			CFG_CMD_REGINFO | \
 			CFG_CMD_SAVES	| \
 			CFG_CMD_BSP	)
 
@@ -125,7 +128,7 @@
 #define CONFIG_BAUDRATE		9600	/* STD Baudrate */
 #define CONFIG_BOOTDELAY	5
 /* autoboot (do NOT change this set environment variable "bootdelay" to -1 instead) */
-#define CONFIG_BOOT_RETRY_TIME	-10	/* feature is avaiable but not enabled */
+/* #define CONFIG_BOOT_RETRY_TIME	-10	/XXX* feature is available but not enabled */
 #define CONFIG_ZERO_BOOTDELAY_CHECK  	/* check console even if bootdelay = 0 */
 
 #define CONFIG_BOOTCOMMAND	"diskboot 400000 0:1; bootm" /* autoboot command		*/
@@ -216,7 +219,7 @@
 #define CFG_FLASH_BASE		0xFFF80000
 #define CFG_MONITOR_BASE	CFG_FLASH_BASE
 #define CFG_MONITOR_LEN		(512 * 1024)	/* Reserve 512 kB for Monitor	*/
-#define CFG_MALLOC_LEN		(128 * 1024)	/* Reserve 128 kB for malloc()	*/
+#define CFG_MALLOC_LEN		(1024 * 1024)	/* Reserve 1024 kB for malloc()	*/
 
 /*
  * For booting Linux, the board info and command line data
@@ -233,23 +236,61 @@
 #define CFG_FLASH_ERASE_TOUT	120000	/* Timeout for Flash Erase (in ms)	*/
 #define CFG_FLASH_WRITE_TOUT	500	/* Timeout for Flash Write (in ms)	*/
 
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition, whole device */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support */
+/* Note: fake mtd_id used, no linux mtd map file */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor0=mip405-0"
+#define MTDPARTS_DEFAULT	"mtdparts=mip405-0:-(jffs2)"
+*/
+
 /*-----------------------------------------------------------------------
  * Cache Configuration
  */
-#define CFG_DCACHE_SIZE		0x4000	/* For IBM 405GPr CPUs			*/
+#define CFG_DCACHE_SIZE		0x4000	/* For AMCC 405GPr CPUs			*/
 #define CFG_CACHELINE_SIZE	32	/* ...			*/
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 #define CFG_CACHELINE_SHIFT	5	/* log base 2 of the above value	*/
 #endif
 
+/*-----------------------------------------------------------------------
+ * Logbuffer Configuration
+ */
+#undef CONFIG_LOGBUFFER 	/* supported but not enabled */
+/*-----------------------------------------------------------------------
+ * Bootcountlimit Configuration
+ */
+#undef CONFIG_BOOTCOUNT_LIMIT	/* supported but not enabled */
+
+/*-----------------------------------------------------------------------
+ * POST Configuration
+ */
+#if 0 /* enable this if POST is desired (is supported but not enabled) */
+#define CONFIG_POST		(CFG_POST_MEMORY	| \
+				 CFG_POST_CPU 		| \
+				 CFG_POST_RTC 		| \
+				 CFG_POST_I2C)
+
+#endif
 /*
  * Init Memory Controller:
  */
+#define FLASH_MAX_SIZE		0x00800000		/* 8MByte max */
+#define FLASH_BASE_PRELIM	0xFF800000  /* open the flash CS */
+/* Size: 0=1MB, 1=2MB, 2=4MB, 3=8MB, 4=16MB, 5=32MB, 6=64MB, 7=128MB */
+#define FLASH_SIZE_PRELIM	 3  /* maximal flash FLASH size bank #0	*/
 
-#define FLASH_BASE0_PRELIM	0xFFC00000	/* FLASH bank #0	*/
-#define FLASH_BASE1_PRELIM	0		/* FLASH bank #1	*/
-
-#define CONFIG_BOARD_PRE_INIT
+#define CONFIG_BOARD_EARLY_INIT_F 1
 
 /* Peripheral Bus Mapping */
 #define PER_PLD_ADDR		0xF4000000 /* smallest window is 1MByte 0x10 0000*/
@@ -258,7 +299,6 @@
 
 #define MULTI_PURPOSE_SOCKET_ADDR 0xF8000000
 #define CONFIG_PORT_ADDR 	PER_PLD_ADDR + 5
-
 
 
 /*-----------------------------------------------------------------------
@@ -271,7 +311,16 @@
 #define CFG_INIT_RAM_END	CFG_OCM_DATA_SIZE	/* End of On Chip SRAM	       */
 #define CFG_GBL_DATA_SIZE	64		/* size in bytes reserved for initial data */
 #define CFG_GBL_DATA_OFFSET	(CFG_INIT_RAM_END - CFG_GBL_DATA_SIZE)
-#define CFG_INIT_SP_OFFSET	CFG_GBL_DATA_OFFSET
+/* reserve some memory for POST and BOOT limit info */
+#define CFG_INIT_SP_OFFSET	(CFG_GBL_DATA_OFFSET - 32)
+
+#ifdef  CONFIG_POST		/* reserve one word for POST Info */
+#define CFG_POST_WORD_ADDR	(CFG_GBL_DATA_OFFSET - 4)
+#endif
+
+#ifdef CONFIG_BOOTCOUNT_LIMIT /* reserve 2 word for bootcount limit */
+#define CFG_BOOTCOUNT_ADDR (CFG_GBL_DATA_OFFSET - 12)
+#endif
 
 /*
  * Internal Definitions
@@ -296,7 +345,8 @@
  ***********************************************************/
 #define CONFIG_MII		1	/* MII PHY management		*/
 #define CONFIG_PHY_ADDR		1	/* PHY address			*/
-
+#define CONFIG_PHY_RESET_DELAY	300	/* Intel LXT971A needs this */
+#define CONFIG_PHY_CMD_DELAY	40	/* Intel LXT971A needs this */
 /************************************************************
  * RTC
  ***********************************************************/
@@ -325,23 +375,12 @@
 #undef	CONFIG_IDE_LED	       /* no led for ide supported     */
 #define CONFIG_IDE_RESET       /* reset for ide supported...	*/
 #define CONFIG_IDE_RESET_ROUTINE /* with a special reset function */
-
+#define CONFIG_SUPPORT_VFAT
 /************************************************************
  * ATAPI support (experimental)
  ************************************************************/
 #define CONFIG_ATAPI			/* enable ATAPI Support */
 
-/************************************************************
- * SCSI support (experimental) only SYM53C8xx supported
- ************************************************************/
-#undef CONFIG_SCSI_SYM53C8XX
-
-#ifdef CONFIG_SCSI_SYM53C8XX
-#define CFG_SCSI_MAX_LUN	8 /* number of supported LUNs */
-#define CFG_SCSI_MAX_SCSI_ID	7 /* maximum SCSI ID (0..6) */
-#define CFG_SCSI_MAX_DEVICE	CFG_SCSI_MAX_SCSI_ID * CFG_SCSI_MAX_LUN /* maximum Target devices */
-#define CFG_SCSI_SPIN_UP_TIME	2
-#endif /* CONFIG_SCSI_SYM53C8XX */
 /************************************************************
  * DISK Partition support
  ************************************************************/
@@ -390,6 +429,11 @@
 #define CONFIG_KGDB_BAUDRATE	230400	/* speed to run kgdb serial port */
 #define CONFIG_KGDB_SER_INDEX	2	/* which serial port to use */
 #endif
+
+/************************************************************
+ * support BZIP2 compression
+ ************************************************************/
+#define CONFIG_BZIP2		1
 
 /************************************************************
  * Ident

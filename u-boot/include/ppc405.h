@@ -25,8 +25,8 @@
 /*--------------------------------------------------------------------- */
 /* Special Purpose Registers						*/
 /*--------------------------------------------------------------------- */
-        #define  srr2  0x3de      /* save/restore register 2 */
-        #define  srr3  0x3df      /* save/restore register 3 */
+	#define  srr2  0x3de      /* save/restore register 2 */
+	#define  srr3  0x3df      /* save/restore register 3 */
 	#define  dbsr  0x3f0      /* debug status register */
 	#define  dbcr0 0x3f2      /* debug control register 0 */
 	#define  dbcr1 0x3bd      /* debug control register 1 */
@@ -44,9 +44,9 @@
 	#define  tsr   0x3d8      /* timer status register */
 	#define  tcr   0x3da      /* timer control register */
 	#define  pit   0x3db      /* programmable interval timer */
-        #define  sgr   0x3b9      /* storage guarded reg      */
-        #define  dcwr  0x3ba      /* data cache write-thru reg*/
-        #define  sler  0x3bb      /* storage little-endian reg */
+	#define  sgr   0x3b9      /* storage guarded reg      */
+	#define  dcwr  0x3ba      /* data cache write-thru reg*/
+	#define  sler  0x3bb      /* storage little-endian reg */
 	#define  cdbcr 0x3d7      /* cache debug cntrl reg    */
 	#define  icdbdr 0x3d3     /* instr cache dbug data reg*/
 	#define  ccr0  0x3b3      /* core configuration register */
@@ -56,8 +56,8 @@
 	#define  su0r  0x3bc      /* storage user-defined register 0 */
 	#define  zpr   0x3b0      /* zone protection regsiter */
 
-        #define  tbl   0x11c      /* time base lower - privileged write */
- 	#define  tbu   0x11d      /* time base upper - privileged write */
+	#define  tbl   0x11c      /* time base lower - privileged write */
+	#define  tbu   0x11d      /* time base upper - privileged write */
 
 	#define  sprg4r 0x104     /* Special purpose general 4 - read only */
 	#define  sprg5r 0x105     /* Special purpose general 5 - read only */
@@ -132,9 +132,10 @@
 #define UIC_MAL_RXEOB 0x00080000      /* MAL RXEOB                          */
 #define UIC_MAL_TXDE  0x00040000      /* MAL TXDE                           */
 #define UIC_MAL_RXDE  0x00020000      /* MAL RXDE                           */
-#define UIC_ENET      0x00010000      /* Ethernet                           */
+#define UIC_ENET      0x00010000      /* Ethernet0                          */
+#define UIC_ENET1     0x00004000      /* Ethernet1 on 405EP                 */
+#define UIC_ECC_CE    0x00004000      /* ECC Correctable Error on 405GP     */
 #define UIC_EXT_PCI_SERR 0x00008000   /* External PCI SERR#                 */
-#define UIC_ECC_CE    0x00004000      /* ECC Correctable Error              */
 #define UIC_PCI_PM    0x00002000      /* PCI Power Management               */
 #define UIC_EXT0      0x00000040      /* External  interrupt 0              */
 #define UIC_EXT1      0x00000020      /* External  interrupt 1              */
@@ -163,14 +164,17 @@
   #define mem_pmit    0x34    /* power management idle timer	     */
   #define mem_mb0cf   0x40    /* memory bank 0 configuration	     */
   #define mem_mb1cf   0x44    /* memory bank 1 configuration	     */
+#ifndef CONFIG_405EP
   #define mem_mb2cf   0x48    /* memory bank 2 configuration	     */
   #define mem_mb3cf   0x4c    /* memory bank 3 configuration	     */
+#endif
   #define mem_sdtr1   0x80    /* timing reg 1			     */
 #ifndef CONFIG_405EP
   #define mem_ecccf   0x94    /* ECC configuration		     */
   #define mem_eccerr  0x98    /* ECC error status		     */
 #endif
 
+#ifndef CONFIG_405EP
 /******************************************************************************
  * Decompression Controller
  ******************************************************************************/
@@ -194,6 +198,7 @@
   /* There are 0x400 of the following registers, from krom0 to krom3ff*/
   /* Only the first one is given here.                                */
   #define krom0      0x400    /* SRAM/ROM read/write                  */
+#endif
 
 /******************************************************************************
  * Power Management
@@ -215,17 +220,21 @@
   #define pb2cr       0x02    /* periph bank 2 config reg            */
   #define pb3cr       0x03    /* periph bank 3 config reg            */
   #define pb4cr       0x04    /* periph bank 4 config reg            */
+#ifndef CONFIG_405EP
   #define pb5cr       0x05    /* periph bank 5 config reg            */
   #define pb6cr       0x06    /* periph bank 6 config reg            */
   #define pb7cr       0x07    /* periph bank 7 config reg            */
+#endif
   #define pb0ap       0x10    /* periph bank 0 access parameters     */
   #define pb1ap       0x11    /* periph bank 1 access parameters     */
   #define pb2ap       0x12    /* periph bank 2 access parameters     */
   #define pb3ap       0x13    /* periph bank 3 access parameters     */
   #define pb4ap       0x14    /* periph bank 4 access parameters     */
+#ifndef CONFIG_405EP
   #define pb5ap       0x15    /* periph bank 5 access parameters     */
   #define pb6ap       0x16    /* periph bank 6 access parameters     */
   #define pb7ap       0x17    /* periph bank 7 access parameters     */
+#endif
   #define pbear       0x20    /* periph bus error addr reg           */
   #define pbesr0      0x21    /* periph bus error status reg 0       */
   #define pbesr1      0x22    /* periph bus error status reg 1       */
@@ -448,30 +457,36 @@
  *-------------------------------------------------------------------------------
  */
 #define PLLMR0_266_133_66  (PLL_CPUDIV_1 | PLL_PLBDIV_2 |  \
-                            PLL_OPBDIV_2 | PLL_EXTBUSDIV_2 |  \
-                            PLL_MALDIV_1 | PLL_PCIDIV_4)
+			    PLL_OPBDIV_2 | PLL_EXTBUSDIV_2 |  \
+			    PLL_MALDIV_1 | PLL_PCIDIV_4)
 #define PLLMR1_266_133_66  (PLL_FBKDIV_8  |  \
-                            PLL_FWDDIVA_3 | PLL_FWDDIVB_3 |  \
-                            PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
+			    PLL_FWDDIVA_3 | PLL_FWDDIVB_3 |  \
+			    PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
 
 #define PLLMR0_133_66_66_33  (PLL_CPUDIV_1 | PLL_PLBDIV_1 |  \
-                              PLL_OPBDIV_2 | PLL_EXTBUSDIV_4 |  \
-                              PLL_MALDIV_1 | PLL_PCIDIV_4)
+			      PLL_OPBDIV_2 | PLL_EXTBUSDIV_4 |  \
+			      PLL_MALDIV_1 | PLL_PCIDIV_4)
 #define PLLMR1_133_66_66_33  (PLL_FBKDIV_4  |  \
-                              PLL_FWDDIVA_6 | PLL_FWDDIVB_6 |  \
-                              PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
+			      PLL_FWDDIVA_6 | PLL_FWDDIVB_6 |  \
+			      PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
 #define PLLMR0_200_100_50_33 (PLL_CPUDIV_1 | PLL_PLBDIV_2 |  \
-                              PLL_OPBDIV_2 | PLL_EXTBUSDIV_3 |  \
-                              PLL_MALDIV_1 | PLL_PCIDIV_4)
+			      PLL_OPBDIV_2 | PLL_EXTBUSDIV_3 |  \
+			      PLL_MALDIV_1 | PLL_PCIDIV_4)
 #define PLLMR1_200_100_50_33 (PLL_FBKDIV_6  |  \
-                              PLL_FWDDIVA_4 | PLL_FWDDIVB_4 |  \
-                              PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
+			      PLL_FWDDIVA_4 | PLL_FWDDIVB_4 |  \
+			      PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
 #define PLLMR0_266_133_66_33 (PLL_CPUDIV_1 | PLL_PLBDIV_2 |  \
-                              PLL_OPBDIV_2 | PLL_EXTBUSDIV_4 |  \
-                              PLL_MALDIV_1 | PLL_PCIDIV_4)
+			      PLL_OPBDIV_2 | PLL_EXTBUSDIV_4 |  \
+			      PLL_MALDIV_1 | PLL_PCIDIV_4)
 #define PLLMR1_266_133_66_33 (PLL_FBKDIV_8  |  \
-                              PLL_FWDDIVA_3 | PLL_FWDDIVB_3 |  \
-                              PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
+			      PLL_FWDDIVA_3 | PLL_FWDDIVB_3 |  \
+			      PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
+#define PLLMR0_266_66_33_33 (PLL_CPUDIV_1 | PLL_PLBDIV_4 |  \
+			      PLL_OPBDIV_2 | PLL_EXTBUSDIV_2 |  \
+			      PLL_MALDIV_1 | PLL_PCIDIV_2)
+#define PLLMR1_266_66_33_33 (PLL_FBKDIV_8  |  \
+			      PLL_FWDDIVA_3 | PLL_FWDDIVB_3 |  \
+			      PLL_TUNE_15_M_40 | PLL_TUNE_VCO_LOW)
 
 /*
  * PLL Voltage Controlled Oscillator (VCO) definitions
@@ -548,12 +563,14 @@
 #define PSR_PCI_ARBIT_EN        0x00000400
 #define PSR_NEW_MODE_EN         0x00000020     /* PPC405GPr only */
 
+#ifndef CONFIG_IOP480
 /*
  * PLL Voltage Controlled Oscillator (VCO) definitions
  * Maximum and minimum values (in MHz) for correct PLL operation.
  */
 #define VCO_MIN     400
 #define VCO_MAX     800
+#endif /* #ifndef CONFIG_IOP480 */
 #endif /* #ifdef CONFIG_405EP */
 
 /******************************************************************************
@@ -574,8 +591,11 @@
 #define malrxdeir  (MAL_DCR_BASE+0x13)  /* RX Descr. Error Int reg           */
 #define maltxctp0r (MAL_DCR_BASE+0x20)  /* TX 0 Channel table pointer reg    */
 #define maltxctp1r (MAL_DCR_BASE+0x21)  /* TX 1 Channel table pointer reg    */
+#define maltxctp2r (MAL_DCR_BASE+0x22)  /* TX 2 Channel table pointer reg    */
 #define malrxctp0r (MAL_DCR_BASE+0x40)  /* RX 0 Channel table pointer reg    */
+#define malrxctp1r (MAL_DCR_BASE+0x41)  /* RX 1 Channel table pointer reg    */
 #define malrcbs0   (MAL_DCR_BASE+0x60)  /* RX 0 Channel buffer size reg      */
+#define malrcbs1   (MAL_DCR_BASE+0x61)  /* RX 1 Channel buffer size reg      */
 
 /*-----------------------------------------------------------------------------
 | IIC Register Offsets
@@ -663,6 +683,7 @@ typedef struct
   unsigned long freqPCI;
   unsigned long pciIntArbEn;            /* Internal PCI arbiter is enabled */
   unsigned long pciClkSync;             /* PCI clock is synchronous        */
+  unsigned long freqVCOHz;
 } PPC405_SYS_INFO;
 
 #endif  /* _ASMLANGUAGE */
@@ -672,4 +693,3 @@ typedef struct
 						     line aligned data. */
 
 #endif	/* __PPC405_H__ */
-

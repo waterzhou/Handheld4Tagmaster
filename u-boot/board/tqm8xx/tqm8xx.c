@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000, 2001, 2002
+ * (C) Copyright 2000-2004
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -21,8 +21,15 @@
  * MA 02111-1307 USA
  */
 
+#if 0
+#define DEBUG
+#endif
+
 #include <common.h>
 #include <mpc8xx.h>
+#ifdef CONFIG_PS2MULT
+#include <ps2mult.h>
+#endif
 
 /* ------------------------------------------------------------------------- */
 
@@ -92,14 +99,14 @@ const uint sdram_table[] =
  * If present, check for "L" type (no second DRAM bank),
  * otherwise "L" type is assumed as default.
  *
- * Set board_type to 'L' for "L" type, 0 else.
+ * Set board_type to 'L' for "L" type, 'M' for "M" type, 0 else.
  */
 
 int checkboard (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
-	unsigned char *s = getenv ("serial#");
+	char *s = getenv ("serial#");
 
 	puts ("Board: ");
 
@@ -110,6 +117,10 @@ int checkboard (void)
 
 	if ((*(s + 6) == 'L')) {	/* a TQM8xxL type */
 		gd->board_type = 'L';
+	}
+
+	if ((*(s + 6) == 'M')) {	/* a TQM8xxM type */
+		gd->board_type = 'M';
 	}
 
 	for (; *s; ++s) {
@@ -128,7 +139,7 @@ long int initdram (int board_type)
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	long int size8, size9;
+	long int size8, size9, size10;
 	long int size_b0 = 0;
 	long int size_b1 = 0;
 
@@ -167,7 +178,8 @@ long int initdram (int board_type)
 	memctl->memc_br2 = CFG_BR2_PRELIM;
 
 #ifndef	CONFIG_CAN_DRIVER
-	if (board_type != 'L') {	/* "L" type boards have only one bank SDRAM */
+	if ((board_type != 'L') &&
+	    (board_type != 'M') ) {	/* "L" and "M" type boards have only one bank SDRAM */
 		memctl->memc_or3 = CFG_OR3_PRELIM;
 		memctl->memc_br3 = CFG_BR3_PRELIM;
 	}
@@ -185,7 +197,8 @@ long int initdram (int board_type)
 	udelay (1);
 
 #ifndef	CONFIG_CAN_DRIVER
-	if (board_type != 'L') {	/* "L" type boards have only one bank SDRAM */
+	if ((board_type != 'L') &&
+	    (board_type != 'M') ) {	/* "L" and "M" type boards have only one bank SDRAM */
 		memctl->memc_mcr = 0x80006105;	/* SDRAM bank 1 */
 		udelay (1);
 		memctl->memc_mcr = 0x80006230;	/* SDRAM bank 1 - execute twice */
@@ -202,43 +215,61 @@ long int initdram (int board_type)
 	 *
 	 * try 8 column mode
 	 */
-	size8 = dram_size (CFG_MAMR_8COL, (ulong *) SDRAM_BASE2_PRELIM,
+	size8 = dram_size (CFG_MAMR_8COL, SDRAM_BASE2_PRELIM,
 					   SDRAM_MAX_SIZE);
+	debug ("SDRAM Bank 0 in 8 column mode: %ld MB\n", size8 >> 20);
 
 	udelay (1000);
 
 	/*
 	 * try 9 column mode
 	 */
-	size9 = dram_size (CFG_MAMR_9COL, (ulong *) SDRAM_BASE2_PRELIM,
+	size9 = dram_size (CFG_MAMR_9COL, SDRAM_BASE2_PRELIM,
 					   SDRAM_MAX_SIZE);
+	debug ("SDRAM Bank 0 in 9 column mode: %ld MB\n", size9 >> 20);
 
-	if (size8 < size9) {		/* leave configuration at 9 columns */
+	udelay(1000);
+
+#if defined(CFG_MAMR_10COL)
+	/*
+	 * try 10 column mode
+	 */
+	size10 = dram_size (CFG_MAMR_10COL, (ulong *) SDRAM_BASE2_PRELIM,
+					     SDRAM_MAX_SIZE);
+	debug ("SDRAM Bank 0 in 10 column mode: %ld MB\n", size10 >> 20);
+#else
+	size10 = 0;
+#endif /* CFG_MAMR_10COL */
+
+	if ((size8 < size10) && (size9 < size10)) {
+		size_b0 = size10;
+	} else if ((size8 < size9) && (size10 < size9)) {
 		size_b0 = size9;
-/*	debug ("SDRAM Bank 0 in 9 column mode: %ld MB\n", size >> 20);	*/
-	} else {					/* back to 8 columns            */
+		memctl->memc_mamr = CFG_MAMR_9COL;
+		udelay (500);
+	} else {
 		size_b0 = size8;
 		memctl->memc_mamr = CFG_MAMR_8COL;
 		udelay (500);
-/*	debug ("SDRAM Bank 0 in 8 column mode: %ld MB\n", size >> 20);	*/
 	}
+	debug ("SDRAM Bank 0: %ld MB\n", size_b0 >> 20);
 
 #ifndef	CONFIG_CAN_DRIVER
-	if (board_type != 'L') {	/* "L" type boards have only one bank SDRAM */
+	if ((board_type != 'L') &&
+	    (board_type != 'M') ) {	/* "L" and "M" type boards have only one bank SDRAM */
 		/*
 		 * Check Bank 1 Memory Size
 		 * use current column settings
 		 * [9 column SDRAM may also be used in 8 column mode,
 		 *  but then only half the real size will be used.]
 		 */
-		size_b1 =
-				dram_size (memctl->memc_mamr, (ulong *) SDRAM_BASE3_PRELIM,
-						   SDRAM_MAX_SIZE);
-/*	debug ("SDRAM Bank 1: %ld MB\n", size8 >> 20);	*/
+		size_b1 = dram_size (memctl->memc_mamr, (long int *)SDRAM_BASE3_PRELIM,
+				     SDRAM_MAX_SIZE);
+		debug ("SDRAM Bank 1: %ld MB\n", size_b1 >> 20);
 	} else {
 		size_b1 = 0;
 	}
-#endif							/* CONFIG_CAN_DRIVER */
+#endif	/* CONFIG_CAN_DRIVER */
 
 	udelay (1000);
 
@@ -258,18 +289,15 @@ long int initdram (int board_type)
 	if (size_b1 > size_b0) {	/* SDRAM Bank 1 is bigger - map first   */
 
 		memctl->memc_or3 = ((-size_b1) & 0xFFFF0000) | CFG_OR_TIMING_SDRAM;
-		memctl->memc_br3 =
-				(CFG_SDRAM_BASE & BR_BA_MSK) | BR_MS_UPMA | BR_V;
+		memctl->memc_br3 = (CFG_SDRAM_BASE & BR_BA_MSK) | BR_MS_UPMA | BR_V;
 
 		if (size_b0 > 0) {
 			/*
 			 * Position Bank 0 immediately above Bank 1
 			 */
-			memctl->memc_or2 =
-					((-size_b0) & 0xFFFF0000) | CFG_OR_TIMING_SDRAM;
-			memctl->memc_br2 =
-					((CFG_SDRAM_BASE & BR_BA_MSK) | BR_MS_UPMA | BR_V)
-					+ size_b1;
+			memctl->memc_or2 = ((-size_b0) & 0xFFFF0000) | CFG_OR_TIMING_SDRAM;
+			memctl->memc_br2 = ((CFG_SDRAM_BASE & BR_BA_MSK) | BR_MS_UPMA | BR_V)
+					   + size_b1;
 		} else {
 			unsigned long reg;
 
@@ -328,7 +356,7 @@ long int initdram (int board_type)
 	memctl->memc_br3 = CFG_BR3_CAN;
 
 	/* Initialize MBMR */
-	memctl->memc_mbmr = MAMR_GPL_B4DIS;	/* GPL_B4 ouput line Disable */
+	memctl->memc_mbmr = MBMR_GPL_B4DIS;	/* GPL_B4 ouput line Disable */
 
 	/* Initialize UPMB for CAN: single read */
 	memctl->memc_mdr = 0xFFFFC004;
@@ -363,6 +391,12 @@ long int initdram (int board_type)
 	memctl->memc_mcr = 0x011C | UPMB;
 #endif							/* CONFIG_CAN_DRIVER */
 
+#ifdef	CONFIG_ISP1362_USB
+	/* Initialize OR5 / BR5 */
+	memctl->memc_or5 = CFG_OR5_ISP1362;
+	memctl->memc_br5 = CFG_BR5_ISP1362;
+#endif							/* CONFIG_ISP1362_USB */
+
 
 	return (size_b0 + size_b1);
 }
@@ -377,47 +411,91 @@ long int initdram (int board_type)
  * - short between data lines
  */
 
-static long int dram_size (long int mamr_value, long int *base,
-						   long int maxsize)
+static long int dram_size (long int mamr_value, long int *base, long int maxsize)
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	volatile long int *addr;
-	ulong cnt, val;
-	ulong save[32];				/* to make test non-destructive */
-	unsigned char i = 0;
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	save[i] = *addr;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		val = *addr;
-		*addr = save[--i];
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (get_ram_size(base, maxsize));
 }
+
+/* ------------------------------------------------------------------------- */
+
+#ifdef CONFIG_PS2MULT
+
+#ifdef CONFIG_HMI10
+#define BASE_BAUD ( 1843200 / 16 )
+struct serial_state rs_table[] = {
+	{ BASE_BAUD, 4,  (void*)0xec140000 },
+	{ BASE_BAUD, 2,  (void*)0xec150000 },
+	{ BASE_BAUD, 6,  (void*)0xec160000 },
+	{ BASE_BAUD, 10, (void*)0xec170000 },
+};
+
+#ifdef CONFIG_BOARD_EARLY_INIT_R
+int board_early_init_r (void)
+{
+	ps2mult_early_init();
+	return (0);
+}
+#endif
+#endif /* CONFIG_HMI10 */
+
+#endif /* CONFIG_PS2MULT */
+
+/* ---------------------------------------------------------------------------- */
+/* HMI10 specific stuff								*/
+/* ---------------------------------------------------------------------------- */
+#ifdef CONFIG_HMI10
+
+int misc_init_r (void)
+{
+# ifdef CONFIG_IDE_LED
+	volatile immap_t *immap = (immap_t *) CFG_IMMR;
+
+	/* Configure PA15 as output port */
+	immap->im_ioport.iop_padir |= 0x0001;
+	immap->im_ioport.iop_paodr |= 0x0001;
+	immap->im_ioport.iop_papar &= ~0x0001;
+	immap->im_ioport.iop_padat &= ~0x0001;	/* turn it off */
+# endif
+	return (0);
+}
+
+# ifdef CONFIG_IDE_LED
+void ide_led (uchar led, uchar status)
+{
+	volatile immap_t *immap = (immap_t *) CFG_IMMR;
+
+	/* We have one led for both pcmcia slots */
+	if (status) {				/* led on */
+		immap->im_ioport.iop_padat |= 0x0001;
+	} else {
+		immap->im_ioport.iop_padat &= ~0x0001;
+	}
+}
+# endif
+#endif	/* CONFIG_HMI10 */
+
+/* ---------------------------------------------------------------------------- */
+/* NSCU specific stuff								*/
+/* ---------------------------------------------------------------------------- */
+#ifdef CONFIG_NSCU
+
+int misc_init_r (void)
+{
+	volatile immap_t *immr = (immap_t *) CFG_IMMR;
+
+	/* wake up ethernet module */
+	immr->im_ioport.iop_pcpar &= ~0x0004; /* GPIO pin	*/
+	immr->im_ioport.iop_pcdir |=  0x0004; /* output		*/
+	immr->im_ioport.iop_pcso  &= ~0x0004; /* for clarity	*/
+	immr->im_ioport.iop_pcdat |=  0x0004; /* enable		*/
+
+	return (0);
+}
+#endif	/* CONFIG_NSCU */
 
 /* ------------------------------------------------------------------------- */

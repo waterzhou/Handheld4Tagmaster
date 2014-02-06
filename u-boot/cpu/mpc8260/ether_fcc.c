@@ -47,6 +47,10 @@
 #include <config.h>
 #include <net.h>
 
+#if defined(CONFIG_MII) || (CONFIG_COMMANDS & CFG_CMD_MII)
+#include <miiphy.h>
+#endif
+
 #if defined(CONFIG_ETHER_ON_FCC) && (CONFIG_COMMANDS & CFG_CMD_NET) && \
 	defined(CONFIG_NET_MULTI)
 
@@ -149,7 +153,7 @@ static int fec_send(struct eth_device* dev, volatile void *packet, int length)
 
     for(i=0; rtx.txbd[txIdx].cbd_sc & BD_ENET_TX_READY; i++) {
 	if (i >= TOUT_LOOP) {
-	    printf("fec: tx buffer not ready\n");
+	    puts ("fec: tx buffer not ready\n");
 	    goto out;
 	}
     }
@@ -161,7 +165,7 @@ static int fec_send(struct eth_device* dev, volatile void *packet, int length)
 
     for(i=0; rtx.txbd[txIdx].cbd_sc & BD_ENET_TX_READY; i++) {
 	if (i >= TOUT_LOOP) {
-	    printf("fec: tx error\n");
+	    puts ("fec: tx error\n");
 	    goto out;
 	}
     }
@@ -233,7 +237,7 @@ static int fec_init(struct eth_device* dev, bd_t *bis)
     /* 28.9 - (3): connect FCC's tx and rx clocks */
     immr->im_cpmux.cmx_uar = 0;
     immr->im_cpmux.cmx_fcr = (immr->im_cpmux.cmx_fcr & ~info->cmxfcr_mask) |
-    							info->cmxfcr_value;
+							info->cmxfcr_value;
 
     /* 28.9 - (4): GFMR: disable tx/rx, CCITT CRC, Mode Ethernet */
     immr->im_fcc[info->ether_index].fcc_gfmr =
@@ -378,7 +382,7 @@ int fec_initialize(bd_t *bis)
 		memset(dev, 0, sizeof *dev);
 
 		sprintf(dev->name, "FCC%d ETHERNET",
-		        ether_fcc_info[i].ether_index + 1);
+			ether_fcc_info[i].ether_index + 1);
 		dev->priv   = &ether_fcc_info[i];
 		dev->init   = fec_init;
 		dev->halt   = fec_halt;
@@ -386,6 +390,12 @@ int fec_initialize(bd_t *bis)
 		dev->recv   = fec_recv;
 
 		eth_register(dev);
+
+#if (defined(CONFIG_MII) || (CONFIG_COMMANDS & CFG_CMD_MII)) \
+		&& defined(CONFIG_BITBANGMII)
+		miiphy_register(dev->name,
+				bb_miiphy_read,	bb_miiphy_write);
+#endif
 	}
 
 	return 1;
@@ -522,7 +532,7 @@ print_desc (elbt_prdesc descs[], int ndesc, uchar *bases[], int nbase)
 	for (i = 0; i < nbase; i++)
 		printf ("  Channel %d", i);
 
-	puts ("\n");
+	putc ('\n');
 
 	while (dp < edp) {
 
@@ -534,7 +544,7 @@ print_desc (elbt_prdesc descs[], int ndesc, uchar *bases[], int nbase)
 			printf (" %10u", val);
 		}
 
-		puts ("\n");
+		putc ('\n');
 
 		dp++;
 	}
@@ -628,6 +638,9 @@ swap16 (unsigned short x)
 	return (((x & 0xff) << 8) | ((x & 0xff00) >> 8));
 }
 
+/* broadcast is not an error - we send them like that */
+#define BD_ENET_RX_ERRS	(BD_ENET_RX_STATS & ~BD_ENET_RX_BC)
+
 void
 eth_loopback_test (void)
 {
@@ -652,6 +665,15 @@ eth_loopback_test (void)
 #if defined(CONFIG_HYMOD)
 	/*
 	 * Attention: this is board-specific
+	 * 0, FCC1
+	 * 1, FCC2
+	 * 2, FCC3
+	 */
+#       define FCC_START_LOOP 0
+#       define FCC_END_LOOP   2
+
+	/*
+	 * Attention: this is board-specific
 	 * - FCC1 Rx-CLK is CLK10
 	 * - FCC1 Tx-CLK is CLK11
 	 * - FCC2 Rx-CLK is CLK13
@@ -665,13 +687,30 @@ eth_loopback_test (void)
 	immr->im_cpmux.cmx_fcr = CMXFCR_RF1CS_CLK10|CMXFCR_TF1CS_CLK11|\
 	    CMXFCR_RF2CS_CLK13|CMXFCR_TF2CS_CLK14|\
 	    CMXFCR_RF3CS_CLK15|CMXFCR_TF3CS_CLK16;
+#elif defined(CONFIG_SBC8260) || defined(CONFIG_SACSng)
+	/*
+	 * Attention: this is board-specific
+	 * 1, FCC2
+	 */
+#       define FCC_START_LOOP 1
+#       define FCC_END_LOOP   1
+
+	/*
+	 * Attention: this is board-specific
+	 * - FCC2 Rx-CLK is CLK13
+	 * - FCC2 Tx-CLK is CLK14
+	 */
+
+	/* 28.9 - (3): connect FCC's tx and rx clocks */
+	immr->im_cpmux.cmx_uar = 0;
+	immr->im_cpmux.cmx_fcr = CMXFCR_RF2CS_CLK13|CMXFCR_TF2CS_CLK14;
 #else
 #error "eth_loopback_test not supported on your board"
 #endif
 
 	puts ("Initialise FCC channels:");
 
-	for (c = 0; c < 3; c++) {
+	for (c = FCC_START_LOOP; c <= FCC_END_LOOP; c++) {
 		elbt_chan *ecp = &elbt_chans[c];
 		volatile fcc_t *fcp = &immr->im_fcc[c];
 		volatile fcc_enet_t *fpp;
@@ -853,7 +892,7 @@ eth_loopback_test (void)
 	do {
 		nclosed = 0;
 
-		for (c = 0; c < 3; c++) {
+		for (c = FCC_START_LOOP; c <= FCC_END_LOOP; c++) {
 			volatile fcc_t *fcp = &immr->im_fcc[c];
 			elbt_chan *ecp = &elbt_chans[c];
 			int i;
@@ -976,7 +1015,7 @@ eth_loopback_test (void)
 							ecp->rxeacc._f++;
 					}
 
-					if (sc & BD_ENET_RX_STATS) {
+					if (sc & BD_ENET_RX_ERRS) {
 						ulong n;
 
 						/*
@@ -1007,7 +1046,7 @@ eth_loopback_test (void)
 							ecp->rxeacc.cl++;
 
 						bdp->cbd_sc &= \
-							~BD_ENET_RX_STATS;
+							~BD_ENET_RX_ERRS;
 					}
 					else {
 						ushort datlen = bdp->cbd_datlen;
@@ -1082,7 +1121,7 @@ eth_loopback_test (void)
 			}
 		}
 
-	} while (nclosed < 3);
+	} while (nclosed < (FCC_END_LOOP - FCC_START_LOOP + 1));
 
 	runtime = get_timer (runtime);
 	if (runtime <= ELBT_CLSWAIT) {
@@ -1099,7 +1138,7 @@ eth_loopback_test (void)
 	 * now print stats
 	 */
 
-	for (c = 0; c < 3; c++) {
+	for (c = FCC_START_LOOP; c <= FCC_END_LOOP; c++) {
 		elbt_chan *ecp = &elbt_chans[c];
 		uint rxpps, txpps, nerr;
 
@@ -1117,7 +1156,7 @@ eth_loopback_test (void)
 			printf ("\tFirst %d rx errs:", nerr);
 			for (i = 0; i < nerr; i++)
 				printf (" %04x", ecp->rxerrs[i]);
-			puts ("\n");
+			putc ('\n');
 		}
 
 		if ((nerr = ecp->ntxerr) > 0) {
@@ -1126,22 +1165,22 @@ eth_loopback_test (void)
 			printf ("\tFirst %d tx errs:", nerr);
 			for (i = 0; i < nerr; i++)
 				printf (" %04x", ecp->txerrs[i]);
-			puts ("\n");
+			putc ('\n');
 		}
 	}
 
 	puts ("Receive Error Counts:\n");
-	for (c = 0; c < 3; c++)
+	for (c = FCC_START_LOOP; c <= FCC_END_LOOP; c++)
 		bases[c] = (uchar *)&elbt_chans[c].rxeacc;
 	print_desc (rxeacc_descs, rxeacc_ndesc, bases, 3);
 
 	puts ("\nTransmit Error Counts:\n");
-	for (c = 0; c < 3; c++)
+	for (c = FCC_START_LOOP; c <= FCC_END_LOOP; c++)
 		bases[c] = (uchar *)&elbt_chans[c].txeacc;
 	print_desc (txeacc_descs, txeacc_ndesc, bases, 3);
 
 	puts ("\nRMON(-like) Counters:\n");
-	for (c = 0; c < 3; c++)
+	for (c = FCC_START_LOOP; c <= FCC_END_LOOP; c++)
 		bases[c] = (uchar *)&immr->im_dprambase[elbt_chans[c].proff];
 	print_desc (epram_descs, epram_ndesc, bases, 3);
 }

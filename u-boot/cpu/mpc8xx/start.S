@@ -27,12 +27,12 @@
  *
  *  The processor starts at 0x00000100 and the code is executed
  *  from flash. The code is organized to be at an other address
- *  in memory, but as long we don't jump around before relocating.
+ *  in memory, but as long we don't jump around before relocating,
  *  board_init lies at a quite high address and when the cpu has
  *  jumped there, everything is ok.
  *  This works because the cpu gives the FLASH (CS0) the whole
  *  address space at startup, and board_init lies as a echo of
- *  the flash somewhere up there in the memorymap.
+ *  the flash somewhere up there in the memory map.
  *
  *  board_init will change CS0 to be positioned at the correct
  *  address and (s)dram will be positioned at address 0
@@ -76,9 +76,6 @@
 	GOT_ENTRY(__init_end)
 	GOT_ENTRY(_end)
 	GOT_ENTRY(__bss_start)
-#if defined(CONFIG_FADS) || defined(CONFIG_ICU862)
-	GOT_ENTRY(environment)
-#endif
 	END_GOT
 
 /*
@@ -209,7 +206,6 @@ in_flash:
 	bl	board_init_f	/* run 1st part of board init code (from Flash) */
 
 
-
 	.globl	_start_of_vectors
 _start_of_vectors:
 
@@ -267,75 +263,7 @@ ProgramCheck:
 	STD_EXCEPTION(0x900, Decrementer, timer_interrupt)
 	STD_EXCEPTION(0xa00, Trap_0a, UnknownException)
 	STD_EXCEPTION(0xb00, Trap_0b, UnknownException)
-
-	. = 0xc00
-/*
- * r0 - SYSCALL number
- * r3-... arguments
- */
-SystemCall:
-	addis	r11,r0,0		/* get functions table addr */
-	ori	r11,r11,0		/* Note: this code is patched in trap_init */
-	addis	r12,r0,0		/* get number of functions */
-	ori	r12,r12,0
-
-	cmplw	0, r0, r12
-	bge	1f
-
-	rlwinm	r0,r0,2,0,31		/* fn_addr = fn_tbl[r0] */
-	add	r11,r11,r0
-	lwz	r11,0(r11)
-
-	li	r20,0xd00-4		/* Get stack pointer */
-	lwz	r12,0(r20)
-	subi	r12,r12,12		/* Adjust stack pointer */
-	li	r0,0xc00+_end_back-SystemCall
-	cmplw	0, r0, r12		/* Check stack overflow */
-	bgt	1f
-	stw	r12,0(r20)
-
-	mflr	r0
-	stw	r0,0(r12)
-	mfspr	r0,SRR0
-	stw	r0,4(r12)
-	mfspr	r0,SRR1
-	stw	r0,8(r12)
-
-	li	r12,0xc00+_back-SystemCall
-	mtlr	r12
-	mtspr	SRR0,r11
-
-1:	SYNC
-	rfi
-
-_back:
-
-	mfmsr	r11			/* Disable interrupts */
-	li	r12,0
-	ori	r12,r12,MSR_EE
-	andc	r11,r11,r12
-	SYNC				/* Some chip revs need this... */
-	mtmsr	r11
-	SYNC
-
-	li	r12,0xd00-4		/* restore regs */
-	lwz	r12,0(r12)
-
-	lwz	r11,0(r12)
-	mtlr	r11
-	lwz	r11,4(r12)
-	mtspr	SRR0,r11
-	lwz	r11,8(r12)
-	mtspr	SRR1,r11
-
-	addi	r12,r12,12		/* Adjust stack pointer */
-	li	r20,0xd00-4
-	stw	r12,0(r20)
-
-	SYNC
-	rfi
-_end_back:
-
+	STD_EXCEPTION(0xc00, SystemCall, UnknownException)
 	STD_EXCEPTION(0xd00, SingleStep, UnknownException)
 
 	STD_EXCEPTION(0xe00, Trap_0e, UnknownException)
@@ -650,8 +578,8 @@ in_ram:
 	/*
 	 * Relocation Function, r14 point to got2+0x8000
 	 *
-         * Adjust got2 pointers, no need to check for 0, this code
-         * already puts a few entries in the table.
+	 * Adjust got2 pointers, no need to check for 0, this code
+	 * already puts a few entries in the table.
 	 */
 	li	r0,__got2_entries@sectoff@l
 	la	r3,GOT(_GOT2_TABLE_)
@@ -665,7 +593,7 @@ in_ram:
 	bdnz	1b
 
 	/*
-         * Now adjust the fixups and the pointers to the fixups
+	 * Now adjust the fixups and the pointers to the fixups
 	 * in case we need to move ourselves again.
 	 */
 2:	li	r0,__fixup_entries@sectoff@l
@@ -686,16 +614,7 @@ clear_bss:
 	 * Now clear BSS segment
 	 */
 	lwz	r3,GOT(__bss_start)
-#if defined(CONFIG_FADS) || defined(CONFIG_ICU862)
-	/*
-	 * For the FADS - the environment is the very last item in flash.
-	 * The real .bss stops just before environment starts, so only
-	 * clear up to that point.
-	 */
-	lwz	r4,GOT(environment)
-#else
 	lwz	r4,GOT(_end)
-#endif
 
 	cmplw	0, r3, r4
 	beq	6f

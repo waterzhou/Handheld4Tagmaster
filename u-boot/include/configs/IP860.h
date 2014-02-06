@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000
+ * (C) Copyright 2000-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -35,22 +35,20 @@
 
 #define CONFIG_MPC860		1	/* This is a MPC860 CPU		*/
 #define CONFIG_IP860		1	/* ...on a IP860 board		*/
-#define CONFIG_BOARD_PRE_INIT	1	    /* Call board_pre_init	*/
+#define CONFIG_BOARD_EARLY_INIT_F 1	/* Call board_early_init_f	*/
 
 #define	CONFIG_8xx_CONS_SMC1	1	/* Console is on SMC1		*/
 #define CONFIG_BAUDRATE		9600
 #define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 
-#define	CONFIG_CLOCKS_IN_MHZ	1	/* clocks passsed to Linux in MHz */
-
 #define CONFIG_PREBOOT	"echo;echo Type \"run flash_nfs\" to mount root filesystem over NFS;echo" \
-"\0load=tftp \"/tftpboot/u-boot.bin\"\0update=protect off 1:0;era 1:0;cp.b 100000 10000000 $(filesize)\0"
+"\0load=tftp \"/tftpboot/u-boot.bin\"\0update=protect off 1:0;era 1:0;cp.b 100000 10000000 ${filesize}\0"
 
 #undef	CONFIG_BOOTARGS
 #define CONFIG_BOOTCOMMAND							\
 	"bootp; "								\
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) "	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; "	\
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} "	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; "	\
 	"bootm"
 
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
@@ -88,10 +86,14 @@
 #define CFG_EEPROM_PAGE_WRITE_BITS	4
 #define CFG_EEPROM_PAGE_WRITE_DELAY_MS	10	/* takes up to 10 msec */
 
-#define CONFIG_COMMANDS		(CONFIG_CMD_DFL | \
-				 CFG_CMD_BEDBUG	| \
-				 CFG_CMD_I2C	| \
-				 CFG_CMD_EEPROM)
+#define	CONFIG_TIMESTAMP		/* Print image info with timestamp */
+
+#define CONFIG_COMMANDS	       (CONFIG_CMD_DFL	| \
+				CFG_CMD_BEDBUG	| \
+				CFG_CMD_I2C	| \
+				CFG_CMD_EEPROM	| \
+				CFG_CMD_NFS	| \
+				CFG_CMD_SNTP	)
 
 #define CONFIG_BOOTP_MASK	CONFIG_BOOTP_DEFAULT
 
@@ -227,7 +229,7 @@
 			 SIUMCR_DBGC11 | SIUMCR_MLRC10)
 
 /*-----------------------------------------------------------------------
- * Clock Setting - get clock frequency from Board Revision Register 
+ * Clock Setting - get clock frequency from Board Revision Register
  *-----------------------------------------------------------------------
  */
 #ifndef __ASSEMBLY__

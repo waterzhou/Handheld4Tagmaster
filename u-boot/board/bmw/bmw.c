@@ -27,7 +27,6 @@
 #include <command.h>
 #include <malloc.h>
 #include <devices.h>
-#include <syscall.h>
 #include <net.h>
 #include <version.h>
 #include <dtt.h>
@@ -92,9 +91,6 @@ int misc_init_f (void)
     sys_led_msg("BOOT");
     return 0;
 }
-
-
-
 
 
 /*

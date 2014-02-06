@@ -1,5 +1,8 @@
 /*
- * (C) Copyright 2002
+ * (C) Copyright 2005
+ * Stefan Roese, DENX Software Engineering, sr@denx.de.
+ *
+ * (C) Copyright 2002-2004
  * Stefan Roese, esd gmbh germany, stefan.roese@esd-electronics.com
  *
  * See file CREDITS for list of people who contributed to this
@@ -24,49 +27,51 @@
 #include <common.h>
 #include <ppc4xx.h>
 #include <asm/processor.h>
-#include <pci.h>
 
 
 #ifdef CONFIG_SDRAM_BANK0
 
 
-#define MAGIC0 0x00000000
-#define MAGIC1 0x11111111
-#define MAGIC2 0x22222222
-#define MAGIC3 0x33333333
-#define MAGIC4 0x44444444
-#define MAGIC5 0x55555555
-#define MAGIC6 0x66666666
-
-#define ADDR_ZERO 0x00000000
-#define ADDR_400  0x00000400
-#define ADDR_01MB 0x00100000
-#define ADDR_08MB 0x00800000
-#define ADDR_16MB 0x01000000
-#define ADDR_32MB 0x02000000
-#define ADDR_64MB 0x04000000
-#define ADDR_128MB 0x08000000
-
 #define mtsdram0(reg, data)  mtdcr(memcfga,reg);mtdcr(memcfgd,data)
 
 
-/*-----------------------------------------------------------------------
+struct sdram_conf_s {
+	unsigned long size;
+	unsigned long reg;
+};
+
+typedef struct sdram_conf_s sdram_conf_t;
+
+#ifndef CFG_SDRAM_TABLE
+sdram_conf_t mb0cf[] = {
+	{(128 << 20), 0x000A4001},      /* (0-128MB) Address Mode 3, 13x10(4) */
+	{(64 << 20),  0x00084001},      /* (0-64MB) Address Mode 3, 13x9(4)   */
+	{(32 << 20),  0x00062001},      /* (0-32MB) Address Mode 2, 12x9(4)   */
+	{(16 << 20),  0x00046001},      /* (0-16MB) Address Mode 4, 12x8(4)   */
+	{(4 << 20),   0x00008001},      /* (0-4MB) Address Mode 5, 11x8(2)    */
+};
+#else
+sdram_conf_t mb0cf[] = CFG_SDRAM_TABLE;
+#endif
+
+#define	N_MB0CF (sizeof(mb0cf) / sizeof(mb0cf[0]))
+
+
+#ifndef CONFIG_440
+
+/*
+ * Autodetect onboard SDRAM on 405 platforms
  */
 void sdram_init(void)
 {
-	ulong speed;
 	ulong sdtr1;
 	ulong rtr;
-
-	/*
-	 * Determine SDRAM speed
-	 */
-	speed = get_bus_freq(0); /* parameter not used on ppc4xx */
+	int i;
 
 	/*
 	 * Support for 100MHz and 133MHz SDRAM
 	 */
-	if (speed > 100000000) {
+	if (get_bus_freq(0) > 100000000) {
 		/*
 		 * 133 MHz SDRAM
 		 */
@@ -80,213 +85,94 @@ void sdram_init(void)
 		rtr = 0x05f00000;
 	}
 
-	/*
-	 * Set MB0CF for bank 0. (0-128MB) Address Mode 3 since 13x10(4)
-	 */
-	mtsdram0(mem_mb0cf, 0x000A4001);
-
-	mtsdram0(mem_sdtr1, sdtr1);
-	mtsdram0(mem_rtr, rtr);
-
-	/*
-	 * Wait for 200us
-	 */
-	udelay(200);
-
-	/*
-	 * Set memory controller options reg, MCOPT1.
-	 * Set DC_EN to '1' and BRD_PRF to '01' for 16 byte PLB Burst
-	 * read/prefetch.
-	 */
-	mtsdram0(mem_mcopt1, 0x80800000);
-
-	/*
-	 * Wait for 10ms
-	 */
-	udelay(10000);
-
-	/*
-	 * Test if 128 MByte are equipped (mirror test)
-	 */
-	*(volatile ulong *)ADDR_ZERO = MAGIC0;
-	*(volatile ulong *)ADDR_08MB = MAGIC1;
-	*(volatile ulong *)ADDR_16MB = MAGIC2;
-	*(volatile ulong *)ADDR_32MB = MAGIC3;
-	*(volatile ulong *)ADDR_64MB = MAGIC4;
-
-	if ((*(volatile ulong *)ADDR_ZERO == MAGIC0) &&
-	    (*(volatile ulong *)ADDR_08MB == MAGIC1) &&
-	    (*(volatile ulong *)ADDR_16MB == MAGIC2) &&
-	    (*(volatile ulong *)ADDR_32MB == MAGIC3)) {
+	for (i=0; i<N_MB0CF; i++) {
 		/*
-		 * OK, 128MB detected -> all done
+		 * Disable memory controller.
 		 */
-		return;
-	}
+		mtsdram0(mem_mcopt1, 0x00000000);
 
-	/*
-	 * Now test for 64 MByte...
-	 */
-
-        /*
-	 * Disable memory controller.
-	 */
-	mtsdram0(mem_mcopt1, 0x00000000);
-
-	/*
-	 * Set MB0CF for bank 0. (0-64MB) Address Mode 3 since 13x9(4)
-	 */
-	mtsdram0(mem_mb0cf, 0x00084001);
-
-	mtsdram0(mem_sdtr1, sdtr1);
-	mtsdram0(mem_rtr, rtr);
-
-	/*
-	 * Wait for 200us
-	 */
-	udelay(200);
-
-	/*
-	 * Set memory controller options reg, MCOPT1.
-	 * Set DC_EN to '1' and BRD_PRF to '01' for 16 byte PLB Burst
-	 * read/prefetch.
-	 */
-	mtsdram0(mem_mcopt1, 0x80800000);
-
-	/*
-	 * Wait for 10ms
-	 */
-	udelay(10000);
-
-	/*
-	 * Test if 64 MByte are equipped (mirror test)
-	 */
-	*(volatile ulong *)ADDR_ZERO = MAGIC0;
-	*(volatile ulong *)ADDR_08MB = MAGIC1;
-	*(volatile ulong *)ADDR_16MB = MAGIC2;
-	*(volatile ulong *)ADDR_32MB = MAGIC3;
-
-	if ((*(volatile ulong *)ADDR_ZERO == MAGIC0) &&
-	    (*(volatile ulong *)ADDR_08MB == MAGIC1) &&
-	    (*(volatile ulong *)ADDR_16MB == MAGIC2)) {
 		/*
-		 * OK, 64MB detected -> all done
+		 * Set MB0CF for bank 0.
 		 */
-		return;
-	}
+		mtsdram0(mem_mb0cf, mb0cf[i].reg);
+		mtsdram0(mem_sdtr1, sdtr1);
+		mtsdram0(mem_rtr, rtr);
 
-	/*
-	 * Now test for 32 MByte...
-	 */
+		udelay(200);
 
-        /*
-	 * Disable memory controller.
-	 */
-	mtsdram0(mem_mcopt1, 0x00000000);
-
-	/*
-	 * Set MB0CF for bank 0. (0-32MB) Address Mode 2 since 12x9(4)
-	 */
-	mtsdram0(mem_mb0cf, 0x00062001);
-
-	/*
-	 * Set memory controller options reg, MCOPT1.
-	 * Set DC_EN to '1' and BRD_PRF to '01' for 16 byte PLB Burst
-	 * read/prefetch.
-	 */
-	mtsdram0(mem_mcopt1, 0x80800000);
-
-	/*
-	 * Wait for 10ms
-	 */
-	udelay(10000);
-
-	/*
-	 * Test if 32 MByte are equipped (mirror test)
-	 */
-	*(volatile ulong *)ADDR_ZERO = MAGIC0;
-	*(volatile ulong *)ADDR_400  = MAGIC1;
-	*(volatile ulong *)ADDR_08MB = MAGIC2;
-	*(volatile ulong *)ADDR_16MB = MAGIC3;
-
-	if ((*(volatile ulong *)ADDR_ZERO == MAGIC0) &&
-	    (*(volatile ulong *)ADDR_400  == MAGIC1) &&
-	    (*(volatile ulong *)ADDR_08MB == MAGIC2)) {
 		/*
-		 * OK, 32MB detected -> all done
+		 * Set memory controller options reg, MCOPT1.
+		 * Set DC_EN to '1' and BRD_PRF to '01' for 16 byte PLB Burst
+		 * read/prefetch.
 		 */
-		return;
+		mtsdram0(mem_mcopt1, 0x80800000);
+
+		udelay(10000);
+
+		if (get_ram_size(0, mb0cf[i].size) == mb0cf[i].size) {
+			/*
+			 * OK, size detected -> all done
+			 */
+			return;
+		}
 	}
-
-	/*
-	 * Now test for 16 MByte...
-	 */
-        /*
-	 * Disable memory controller.
-	 */
-	mtsdram0(mem_mcopt1, 0x00000000);
-
-	/*
-	 * Set MB0CF for bank 0. (0-16MB) Address Mode 4 since 12x8(4)
-	 */
-	mtsdram0(mem_mb0cf, 0x00046001);
-
-	/*
-	 * Set memory controller options reg, MCOPT1.
-	 * Set DC_EN to '1' and BRD_PRF to '01' for 16 byte PLB Burst
-	 * read/prefetch.
-	 */
-	mtsdram0(mem_mcopt1, 0x80800000);
-
-	/*
-	 * Wait for 10ms
-	 */
-	udelay(10000);
-
-	/*
-	 * Test if 16 MByte are equipped (mirror test)
-	 */
-	*(volatile ulong *)ADDR_ZERO = MAGIC0;
-	*(volatile ulong *)ADDR_400  = MAGIC1;
-	*(volatile ulong *)ADDR_01MB = MAGIC5;
-	*(volatile ulong *)ADDR_08MB = MAGIC2;
-/*	*(volatile ulong *)ADDR_16MB = MAGIC3;*/
-
-	if ((*(volatile ulong *)ADDR_ZERO == MAGIC0) &&
-	    (*(volatile ulong *)ADDR_400  == MAGIC1) &&
-	    (*(volatile ulong *)ADDR_01MB == MAGIC5) &&
-	    (*(volatile ulong *)ADDR_08MB == MAGIC2)) {
-		/*
-		 * OK, 16MB detected -> all done
-		 */
-		return;
-	}
-
-	/*
-	 * Setup for 4 MByte...
-	 */
-
-        /*
-	 * Disable memory controller.
-	 */
-	mtsdram0(mem_mcopt1, 0x00000000);
-
-	/*
-	 * Set MB0CF for bank 0. (0-4MB) Address Mode 5 since 11x8(2)
-	 */
-	mtsdram0(mem_mb0cf, 0x00008001);
-
-	/*
-	 * Set memory controller options reg, MCOPT1.
-	 * Set DC_EN to '1' and BRD_PRF to '01' for 16 byte PLB Burst
-	 * read/prefetch.
-	 */
-	mtsdram0(mem_mcopt1, 0x80800000);
-
-	/*
-	 * Wait for 10ms
-	 */
-	udelay(10000);
 }
+
+#else /* CONFIG_440 */
+
+/*
+ * Autodetect onboard DDR SDRAM on 440 platforms
+ *
+ * NOTE: Some of the hardcoded values are hardware dependant,
+ *       so this should be extended for other future boards
+ *       using this routine!
+ */
+long int initdram(int board_type)
+{
+	int i;
+
+	for (i=0; i<N_MB0CF; i++) {
+		/*
+		 * Disable memory controller.
+		 */
+		mtsdram(mem_cfg0, 0x00000000);
+
+		/*
+		 * Setup some default
+		 */
+		mtsdram(mem_uabba, 0x00000000);	/* ubba=0 (default)             */
+		mtsdram(mem_slio, 0x00000000);	/* rdre=0 wrre=0 rarw=0         */
+		mtsdram(mem_devopt, 0x00000000); /* dll=0 ds=0 (normal)		*/
+		mtsdram(mem_wddctr, 0x00000000); /* wrcp=0 dcd=0		*/
+		mtsdram(mem_clktr, 0x40000000);	/* clkp=1 (90 deg wr) dcdt=0    */
+
+		/*
+		 * Following for CAS Latency = 2.5 @ 133 MHz PLB
+		 */
+		mtsdram(mem_b0cr, mb0cf[i].reg);
+		mtsdram(mem_tr0, 0x41094012);
+		mtsdram(mem_tr1, 0x80800800);	/* SS=T2 SL=STAGE 3 CD=1 CT=0x00*/
+		mtsdram(mem_rtr, 0x7e000000);	/* Interval 15.20µs @ 133MHz PLB*/
+		mtsdram(mem_cfg1, 0x00000000);	/* Self-refresh exit, disable PM*/
+		udelay(400);			/* Delay 200 usecs (min)	*/
+
+		/*
+		 * Enable the controller, then wait for DCEN to complete
+		 */
+		mtsdram(mem_cfg0, 0x86000000);	/* DCEN=1, PMUD=1, 64-bit       */
+		udelay(10000);
+
+		if (get_ram_size(0, mb0cf[i].size) == mb0cf[i].size) {
+			/*
+			 * OK, size detected -> all done
+			 */
+			return mb0cf[i].size;
+		}
+	}
+
+	return 0;				/* nothing found !		*/
+}
+
+#endif /* CONFIG_440 */
 
 #endif /* CONFIG_SDRAM_BANK0 */

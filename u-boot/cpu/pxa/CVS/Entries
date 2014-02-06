@@ -1,0 +1,10 @@
+/Makefile/1.2/Sun Jun 15 22:40:43 2003/-ko/
+/config.mk/1.4/Tue Oct  4 21:11:35 2005/-ko/
+/cpu.c/1.6/Sun Apr  3 17:23:43 2005/-ko/
+/i2c.c/1.3/Tue Mar 23 20:18:28 2004/-ko/
+/interrupts.c/1.7/Mon Apr  4 12:08:34 2005/-ko/
+/mmc.c/1.5/Wed Apr  6 00:04:18 2005/-ko/
+/pxafb.c/1.3/Sat Oct  9 23:26:00 2004/-ko/
+/serial.c/1.2/Thu Sep 18 09:21:35 2003/-ko/
+/start.S/1.9/Mon Apr  4 12:44:17 2005/-ko/
+D

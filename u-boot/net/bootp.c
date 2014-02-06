@@ -5,12 +5,12 @@
  *	(See License)
  *	Copyright 2000 Roland Borde
  *	Copyright 2000 Paolo Scaffardi
- *	Copyright 2000-2002 Wolfgang Denk, wd@denx.de
+ *	Copyright 2000-2004 Wolfgang Denk, wd@denx.de
  */
 
 #if 0
-#define	DEBUG		1	/* general debug */
-#define DEBUG_BOOTP_EXT	1	/* Debug received vendor fields	*/
+#define DEBUG		1	/* general debug */
+#define DEBUG_BOOTP_EXT 1	/* Debug received vendor fields */
 #endif
 
 #ifdef DEBUG_BOOTP_EXT
@@ -24,26 +24,27 @@
 #include <net.h>
 #include "bootp.h"
 #include "tftp.h"
+#include "nfs.h"
 #ifdef CONFIG_STATUS_LED
 #include <status_led.h>
 #endif
 
-#define	BOOTP_VENDOR_MAGIC	0x63825363 	/* RFC1048 Magic Cookie 	*/
+#define BOOTP_VENDOR_MAGIC	0x63825363	/* RFC1048 Magic Cookie		*/
 
 #if (CONFIG_COMMANDS & CFG_CMD_NET)
 
 #define TIMEOUT		5		/* Seconds before trying BOOTP again	*/
-#ifndef	CONFIG_NET_RETRY_COUNT
+#ifndef CONFIG_NET_RETRY_COUNT
 # define TIMEOUT_COUNT	5		/* # of timeouts before giving up  */
 #else
-# define TIMEOUT_COUNT  (CONFIG_NET_RETRY_COUNT)
+# define TIMEOUT_COUNT	(CONFIG_NET_RETRY_COUNT)
 #endif
 
 #define PORT_BOOTPS	67		/* BOOTP server UDP port		*/
 #define PORT_BOOTPC	68		/* BOOTP client UDP port		*/
 
 #ifndef CONFIG_DHCP_MIN_EXT_LEN		/* minimal length of extension list	*/
-#define	CONFIG_DHCP_MIN_EXT_LEN	64
+#define CONFIG_DHCP_MIN_EXT_LEN 64
 #endif
 
 ulong		BootpID;
@@ -63,13 +64,13 @@ static void DhcpHandler(uchar * pkt, unsigned dest, unsigned src, unsigned len);
 static char *dhcpmsg2str(int type)
 {
 	switch (type) {
-	case 1:  return "DHCPDISCOVER";	break;
-	case 2:  return "DHCPOFFER";	break;
-	case 3:  return "DHCPREQUEST";	break;
-	case 4:  return "DHCPDECLINE";	break;
-	case 5:  return "DHCPACK";	break;
-	case 6:  return "DHCPNACK";	break;
-	case 7:  return "DHCPRELEASE";	break;
+	case 1:	 return "DHCPDISCOVER"; break;
+	case 2:	 return "DHCPOFFER";	break;
+	case 3:	 return "DHCPREQUEST";	break;
+	case 4:	 return "DHCPDECLINE";	break;
+	case 5:	 return "DHCPACK";	break;
+	case 6:	 return "DHCPNACK";	break;
+	case 7:	 return "DHCPRELEASE";	break;
 	default: return "UNKNOWN/INVALID MSG TYPE"; break;
 	}
 }
@@ -116,15 +117,20 @@ static int BootpCheckPkt(uchar *pkt, unsigned dest, unsigned src, unsigned len)
  */
 static void BootpCopyNetParams(Bootp_t *bp)
 {
+	IPaddr_t tmp_ip;
+
 	NetCopyIP(&NetOurIP, &bp->bp_yiaddr);
-	NetCopyIP(&NetServerIP, &bp->bp_siaddr);
+	NetCopyIP(&tmp_ip, &bp->bp_siaddr);
+	if (tmp_ip != 0)
+		NetCopyIP(&NetServerIP, &bp->bp_siaddr);
 	memcpy (NetServerEther, ((Ethernet_t *)NetRxPkt)->et_src, 6);
-	copy_filename (BootFile, bp->bp_file, sizeof(BootFile));
+	if (strlen(bp->bp_file) > 0)
+		copy_filename (BootFile, bp->bp_file, sizeof(BootFile));
 
 	debug ("Bootfile: %s\n", BootFile);
 
 	/* Propagate to environment:
-         * don't delete exising entry when BOOTP / DHCP reply does
+	 * don't delete exising entry when BOOTP / DHCP reply does
 	 * not contain a new value
 	 */
 	if (*BootFile) {
@@ -144,154 +150,158 @@ static int truncate_sz (const char *name, int maxlen, int curlen)
 
 #if !(CONFIG_COMMANDS & CFG_CMD_DHCP)
 
-static void BootpVendorFieldProcess(u8 *ext)
+static void BootpVendorFieldProcess (u8 * ext)
 {
-    int size = *(ext+1) ;
+	int size = *(ext + 1);
 
-    debug_ext ("[BOOTP] Processing extension %d... (%d bytes)\n", *ext, *(ext+1));
+	debug_ext ("[BOOTP] Processing extension %d... (%d bytes)\n", *ext,
+		   *(ext + 1));
 
-    NetBootFileSize = 0;
+	NetBootFileSize = 0;
 
-    switch (*ext) {
-    /* Fixed length fields */
-	case 1:		/* Subnet mask					*/
+	switch (*ext) {
+		/* Fixed length fields */
+	case 1:			/* Subnet mask                                  */
 		if (NetOurSubnetMask == 0)
-			NetCopyIP(&NetOurSubnetMask, (IPaddr_t*)(ext+2));
+			NetCopyIP (&NetOurSubnetMask, (IPaddr_t *) (ext + 2));
 		break;
-	case 2:		/* Time offset - Not yet supported		*/
+	case 2:			/* Time offset - Not yet supported              */
 		break;
-    /* Variable length fields */
-	case 3:		/* Gateways list				*/
+		/* Variable length fields */
+	case 3:			/* Gateways list                                */
 		if (NetOurGatewayIP == 0) {
-			NetCopyIP(&NetOurGatewayIP, (IPaddr_t*)(ext+2));
+			NetCopyIP (&NetOurGatewayIP, (IPaddr_t *) (ext + 2));
 		}
 		break;
-	case 4:		/* Time server - Not yet supported		*/
+	case 4:			/* Time server - Not yet supported              */
 		break;
-	case 5:		/* IEN-116 name server - Not yet supported	*/
+	case 5:			/* IEN-116 name server - Not yet supported      */
 		break;
 	case 6:
 		if (NetOurDNSIP == 0) {
-			NetCopyIP(&NetOurDNSIP, (IPaddr_t*)(ext+2));
+			NetCopyIP (&NetOurDNSIP, (IPaddr_t *) (ext + 2));
 		}
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_DNS2)
+		if ((NetOurDNS2IP == 0) && (size > 4)) {
+			NetCopyIP (&NetOurDNS2IP, (IPaddr_t *) (ext + 2 + 4));
+		}
+#endif
 		break;
-	case 7:		/* Log server - Not yet supported		*/
+	case 7:			/* Log server - Not yet supported               */
 		break;
-	case 8:		/* Cookie/Quote server - Not yet supported	*/
+	case 8:			/* Cookie/Quote server - Not yet supported      */
 		break;
-	case 9:		/* LPR server - Not yet supported		*/
+	case 9:			/* LPR server - Not yet supported               */
 		break;
-	case 10:	/* Impress server - Not yet supported		*/
+	case 10:		/* Impress server - Not yet supported           */
 		break;
-	case 11:	/* RPL server - Not yet supported		*/
+	case 11:		/* RPL server - Not yet supported               */
 		break;
-	case 12:	/* Host name					*/
+	case 12:		/* Host name                                    */
 		if (NetOurHostName[0] == 0) {
-		    size = truncate_sz("Host Name", sizeof(NetOurHostName), size);
-		    memcpy(&NetOurHostName, ext+2, size);
-		    NetOurHostName[size] = 0 ;
+			size = truncate_sz ("Host Name", sizeof (NetOurHostName), size);
+			memcpy (&NetOurHostName, ext + 2, size);
+			NetOurHostName[size] = 0;
 		}
 		break;
-	case 13:	/* Boot file size				*/
+	case 13:		/* Boot file size                               */
 		if (size == 2)
-			NetBootFileSize = ntohs(*(ushort*)(ext+2));
+			NetBootFileSize = ntohs (*(ushort *) (ext + 2));
 		else if (size == 4)
-			NetBootFileSize = ntohl(*(ulong*)(ext+2));
+			NetBootFileSize = ntohl (*(ulong *) (ext + 2));
 		break;
-	case 14:	/* Merit dump file - Not yet supported		*/
+	case 14:		/* Merit dump file - Not yet supported          */
 		break;
-	case 15:	/* Domain name - Not yet supported		*/
+	case 15:		/* Domain name - Not yet supported              */
 		break;
-	case 16:	/* Swap server - Not yet supported		*/
+	case 16:		/* Swap server - Not yet supported              */
 		break;
-	case 17:	/* Root path					*/
+	case 17:		/* Root path                                    */
 		if (NetOurRootPath[0] == 0) {
-		    size = truncate_sz("Root Path", sizeof(NetOurRootPath), size);
-		    memcpy(&NetOurRootPath, ext+2, size);
-		    NetOurRootPath[size] = 0 ;
+			size = truncate_sz ("Root Path", sizeof (NetOurRootPath), size);
+			memcpy (&NetOurRootPath, ext + 2, size);
+			NetOurRootPath[size] = 0;
 		}
 		break;
-	case 18:	/* Extension path - Not yet supported		*/
+	case 18:		/* Extension path - Not yet supported           */
 		/*
-                 * This can be used to send the information of the
-                 * vendor area in another file that the client can
-                 * access via TFTP.
+		 * This can be used to send the information of the
+		 * vendor area in another file that the client can
+		 * access via TFTP.
 		 */
 		break;
-    /* IP host layer fields */
-	case 40:	/* NIS Domain name				*/
+		/* IP host layer fields */
+	case 40:		/* NIS Domain name                              */
 		if (NetOurNISDomain[0] == 0) {
-		    size = truncate_sz ("NIS Domain Name",
-		    			sizeof(NetOurNISDomain),
-					size);
-		    memcpy(&NetOurNISDomain, ext+2, size);
-		    NetOurNISDomain[size] = 0 ;
+			size = truncate_sz ("NIS Domain Name", sizeof (NetOurNISDomain), size);
+			memcpy (&NetOurNISDomain, ext + 2, size);
+			NetOurNISDomain[size] = 0;
 		}
 		break;
-    /* Application layer fields */
-	case 43:	/* Vendor specific info - Not yet supported	*/
+		/* Application layer fields */
+	case 43:		/* Vendor specific info - Not yet supported     */
 		/*
-                 * Binary information to exchange specific
-                 * product information.
+		 * Binary information to exchange specific
+		 * product information.
 		 */
 		break;
-    /* Reserved (custom) fields (128..254) */
-    }
+		/* Reserved (custom) fields (128..254) */
+	}
 }
 
-static void BootpVendorProcess(u8 *ext, int size)
+static void BootpVendorProcess (u8 * ext, int size)
 {
-    u8 *end = ext + size ;
+	u8 *end = ext + size;
 
-    debug_ext ("[BOOTP] Checking extension (%d bytes)...\n", size);
+	debug_ext ("[BOOTP] Checking extension (%d bytes)...\n", size);
 
-    while ((ext < end) && (*ext != 0xff)) {
-	if (*ext == 0) {
-	    ext ++ ;
-	} else {
-		u8 *opt = ext ;
-		ext += ext[1] + 2 ;
-		if (ext <= end)
-		    BootpVendorFieldProcess (opt) ;
+	while ((ext < end) && (*ext != 0xff)) {
+		if (*ext == 0) {
+			ext++;
+		} else {
+			u8 *opt = ext;
+
+			ext += ext[1] + 2;
+			if (ext <= end)
+				BootpVendorFieldProcess (opt);
+		}
 	}
-    }
 
 #ifdef DEBUG_BOOTP_EXT
-    printf("[BOOTP] Received fields: \n");
-    if (NetOurSubnetMask) {
-	puts ("NetOurSubnetMask	: ");
-	print_IPaddr (NetOurSubnetMask);
-	putc('\n');
-    }
+	puts ("[BOOTP] Received fields: \n");
+	if (NetOurSubnetMask) {
+		puts ("NetOurSubnetMask : ");
+		print_IPaddr (NetOurSubnetMask);
+		putc ('\n');
+	}
 
-    if (NetOurGatewayIP) {
-	puts ("NetOurGatewayIP	: ");
-	print_IPaddr (NetOurGatewayIP);
-	putc('\n');
-    }
+	if (NetOurGatewayIP) {
+		puts ("NetOurGatewayIP	: ");
+		print_IPaddr (NetOurGatewayIP);
+		putc ('\n');
+	}
 
-    if (NetBootFileSize) {
-	printf("NetBootFileSize : %d\n", NetBootFileSize);
-    }
+	if (NetBootFileSize) {
+		printf ("NetBootFileSize : %d\n", NetBootFileSize);
+	}
 
-    if (NetOurHostName[0]) {
-	printf("NetOurHostName  : %s\n", NetOurHostName);
-    }
+	if (NetOurHostName[0]) {
+		printf ("NetOurHostName  : %s\n", NetOurHostName);
+	}
 
-    if (NetOurRootPath[0]) {
-	printf("NetOurRootPath  : %s\n", NetOurRootPath);
-    }
+	if (NetOurRootPath[0]) {
+		printf ("NetOurRootPath  : %s\n", NetOurRootPath);
+	}
 
-    if (NetOurNISDomain[0]) {
-        printf("NetOurNISDomain : %s\n", NetOurNISDomain);
-    }
+	if (NetOurNISDomain[0]) {
+		printf ("NetOurNISDomain : %s\n", NetOurNISDomain);
+	}
 
-    if (NetBootFileSize) {
-	printf("NetBootFileSize: %d\n", NetBootFileSize);
-    }
-#endif	/* DEBUG_BOOTP_EXT */
+	if (NetBootFileSize) {
+		printf ("NetBootFileSize: %d\n", NetBootFileSize);
+	}
+#endif /* DEBUG_BOOTP_EXT */
 }
-
 /*
  *	Handle a BOOTP received packet.
  */
@@ -306,11 +316,11 @@ BootpHandler(uchar * pkt, unsigned dest, unsigned src, unsigned len)
 
 	bp = (Bootp_t *)pkt;
 
-	if (BootpCheckPkt(pkt, dest, src, len))	/* Filter out pkts we don't want */
+	if (BootpCheckPkt(pkt, dest, src, len)) /* Filter out pkts we don't want */
 		return;
 
 	/*
-	 *	Got a good BOOTP reply.  Copy the data into our variables.
+	 *	Got a good BOOTP reply.	 Copy the data into our variables.
 	 */
 #ifdef CONFIG_STATUS_LED
 	status_led_set (STATUS_LED_BOOT, STATUS_LED_OFF);
@@ -320,19 +330,29 @@ BootpHandler(uchar * pkt, unsigned dest, unsigned src, unsigned len)
 
 	/* Retrieve extended information (we must parse the vendor area) */
 	if (NetReadLong((ulong*)&bp->bp_vend[0]) == htonl(BOOTP_VENDOR_MAGIC))
-		BootpVendorProcess(&bp->bp_vend[4], len);
+		BootpVendorProcess((uchar *)&bp->bp_vend[4], len);
 
 	NetSetTimeout(0, (thand_f *)0);
 
 	debug ("Got good BOOTP\n");
 
-	if (((s = getenv("autoload")) != NULL) && (*s == 'n')) {
-		/*
-		 * Just use BOOTP to configure system;
-		 * Do not use TFTP to load the bootfile.
-		 */
-		NetState = NETLOOP_SUCCESS;
-		return;
+	if ((s = getenv("autoload")) != NULL) {
+		if (*s == 'n') {
+			/*
+			 * Just use BOOTP to configure system;
+			 * Do not use TFTP to load the bootfile.
+			 */
+			NetState = NETLOOP_SUCCESS;
+			return;
+#if (CONFIG_COMMANDS & CFG_CMD_NFS)
+		} else if (strcmp(s, "NFS") == 0) {
+			/*
+			 * Use NFS to load the bootfile.
+			 */
+			NfsStart();
+			return;
+#endif
+		}
 	}
 
 	TftpStart();
@@ -358,166 +378,188 @@ BootpTimeout(void)
  *	Initialize BOOTP extension fields in the request.
  */
 #if (CONFIG_COMMANDS & CFG_CMD_DHCP)
-static int DhcpExtended(u8 *e, int message_type, IPaddr_t ServerID, IPaddr_t RequestedIP)
+static int DhcpExtended (u8 * e, int message_type, IPaddr_t ServerID, IPaddr_t RequestedIP)
 {
-    u8 *start = e ;
-    u8 *cnt;
-#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_VENDOREX)
-    u8 *x;
-#endif
-
-    *e++ =  99;		/* RFC1048 Magic Cookie */
-    *e++ = 130;
-    *e++ =  83;
-    *e++ =  99;
-
-    *e++ = 53;		/* DHCP Message Type */
-    *e++ = 1;
-    *e++ = message_type;
-
-    *e++ = 57;		/* Maximum DHCP Message Size */
-    *e++ = 2;
-    *e++ = (576-312+OPT_SIZE) >> 8;
-    *e++ = (576-312+OPT_SIZE) & 0xff;
-
-    if ( ServerID ) {
-    	    int tmp = ntohl(ServerID);
-
-	    *e++ = 54;	/* ServerID */
-	    *e++ = 4;
-	    *e++ = tmp >> 24;
-	    *e++ = tmp >> 16;
-	    *e++ = tmp >> 8;
-	    *e++ = tmp & 0xff;
-    }
-
-    if ( RequestedIP ) {
-    	    int tmp = ntohl(RequestedIP);
-
-	    *e++ = 50;	/* Requested IP */
-	    *e++ = 4;
-	    *e++ = tmp >> 24;
-	    *e++ = tmp >> 16;
-	    *e++ = tmp >> 8;
-	    *e++ = tmp & 0xff;
-    }
+	u8 *start = e;
+	u8 *cnt;
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_VENDOREX)
-    if ((x = dhcp_vendorex_prep (e)))
-    	return x - start ;
+	u8 *x;
+#endif
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_SEND_HOSTNAME)
+	char *hostname;
 #endif
 
-    *e++ = 55;		/* Parameter Request List */
-    cnt  = e++;		/* Pointer to count of requested items */
-    *cnt = 0;
+	*e++ = 99;		/* RFC1048 Magic Cookie */
+	*e++ = 130;
+	*e++ = 83;
+	*e++ = 99;
+
+	*e++ = 53;		/* DHCP Message Type */
+	*e++ = 1;
+	*e++ = message_type;
+
+	*e++ = 57;		/* Maximum DHCP Message Size */
+	*e++ = 2;
+	*e++ = (576 - 312 + OPT_SIZE) >> 8;
+	*e++ = (576 - 312 + OPT_SIZE) & 0xff;
+
+	if (ServerID) {
+		int tmp = ntohl (ServerID);
+
+		*e++ = 54;	/* ServerID */
+		*e++ = 4;
+		*e++ = tmp >> 24;
+		*e++ = tmp >> 16;
+		*e++ = tmp >> 8;
+		*e++ = tmp & 0xff;
+	}
+
+	if (RequestedIP) {
+		int tmp = ntohl (RequestedIP);
+
+		*e++ = 50;	/* Requested IP */
+		*e++ = 4;
+		*e++ = tmp >> 24;
+		*e++ = tmp >> 16;
+		*e++ = tmp >> 8;
+		*e++ = tmp & 0xff;
+	}
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_SEND_HOSTNAME)
+	if ((hostname = getenv ("hostname"))) {
+		int hostnamelen = strlen (hostname);
+
+		*e++ = 12;	/* Hostname */
+		*e++ = hostnamelen;
+		memcpy (e, hostname, hostnamelen);
+		e += hostnamelen;
+	}
+#endif
+
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_VENDOREX)
+	if ((x = dhcp_vendorex_prep (e)))
+		return x - start;
+#endif
+
+	*e++ = 55;		/* Parameter Request List */
+	 cnt = e++;		/* Pointer to count of requested items */
+	*cnt = 0;
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_SUBNETMASK)
-    *e++ = 1;		/* Subnet Mask */
-    *cnt += 1;
+	*e++  = 1;		/* Subnet Mask */
+	*cnt += 1;
+#endif
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_TIMEOFFSET)
+	*e++  = 2;
+	*cnt += 1;
 #endif
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_GATEWAY)
-    *e++ = 3;		/* Router Option */
-    *cnt += 1;
+	*e++  = 3;		/* Router Option */
+	*cnt += 1;
 #endif
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_DNS)
-    *e++ = 6;		/* DNS Server(s) */
-    *cnt += 1;
+	*e++  = 6;		/* DNS Server(s) */
+	*cnt += 1;
 #endif
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_HOSTNAME)
-    *e++ = 12;		/* Hostname */
-    *cnt += 1;
+	*e++  = 12;		/* Hostname */
+	*cnt += 1;
 #endif
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_BOOTFILESIZE)
-    *e++ = 13;		/* Boot File Size */
-    *cnt += 1;
+	*e++  = 13;		/* Boot File Size */
+	*cnt += 1;
 #endif
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_BOOTPATH)
-    *e++ = 17;		/* Boot path */
-    *cnt += 1;
+	*e++  = 17;		/* Boot path */
+	*cnt += 1;
 #endif
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_NISDOMAIN)
-    *e++ = 40;		/* NIS Domain name request */
-    *cnt += 1;
+	*e++  = 40;		/* NIS Domain name request */
+	*cnt += 1;
 #endif
-    *e++ = 255;		/* End of the list */
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_NTPSERVER)
+	*e++  = 42;
+	*cnt += 1;
+#endif
+	*e++  = 255;		/* End of the list */
 
-    /* Pad to minimal length */
+	/* Pad to minimal length */
 #ifdef	CONFIG_DHCP_MIN_EXT_LEN
-    while ((e - start) <= CONFIG_DHCP_MIN_EXT_LEN)
-	*e++ = 0;
+	while ((e - start) <= CONFIG_DHCP_MIN_EXT_LEN)
+		*e++ = 0;
 #endif
 
-    return e - start ;
+	return e - start;
 }
 
 #else	/* CFG_CMD_DHCP */
 /*
  *	Warning: no field size check - change CONFIG_BOOTP_MASK at your own risk!
  */
-static int BootpExtended (u8 *e)
+static int BootpExtended (u8 * e)
 {
-    u8 *start = e ;
+	u8 *start = e;
 
-    *e++ =  99;		/* RFC1048 Magic Cookie */
-    *e++ = 130;
-    *e++ =  83;
-    *e++ =  99;
+	*e++ = 99;		/* RFC1048 Magic Cookie */
+	*e++ = 130;
+	*e++ = 83;
+	*e++ = 99;
 
 #if (CONFIG_COMMANDS & CFG_CMD_DHCP)
-    *e++ = 53;		/* DHCP Message Type */
-    *e++ = 1;
-    *e++ = DHCP_DISCOVER;
+	*e++ = 53;		/* DHCP Message Type */
+	*e++ = 1;
+	*e++ = DHCP_DISCOVER;
 
-    *e++ = 57;		/* Maximum DHCP Message Size */
-    *e++ = 2;
-    *e++ = (576-312+OPT_SIZE) >> 16;
-    *e++ = (576-312+OPT_SIZE) & 0xff;
-#endif	/* CFG_CMD_DHCP */
+	*e++ = 57;		/* Maximum DHCP Message Size */
+	*e++ = 2;
+	*e++ = (576 - 312 + OPT_SIZE) >> 16;
+	*e++ = (576 - 312 + OPT_SIZE) & 0xff;
+#endif /* CFG_CMD_DHCP */
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_SUBNETMASK)
-    *e++ =  1;		/* Subnet mask request */
-    *e++ =  4;
-     e  +=  4;
+	*e++ = 1;		/* Subnet mask request */
+	*e++ = 4;
+	e   += 4;
 #endif
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_GATEWAY)
-    *e++ =  3;		/* Default gateway request */
-    *e++ =  4;
-     e  +=  4;
+	*e++ = 3;		/* Default gateway request */
+	*e++ = 4;
+	e   += 4;
 #endif
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_DNS)
-    *e++ =  6;		/* Domain Name Server */
-    *e++ =  4;
-     e  +=  4;
+	*e++ = 6;		/* Domain Name Server */
+	*e++ = 4;
+	e   += 4;
 #endif
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_HOSTNAME)
-    *e++ = 12;		/* Host name request */
-    *e++ = 32;
-     e  += 32;
+	*e++ = 12;		/* Host name request */
+	*e++ = 32;
+	e   += 32;
 #endif
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_BOOTFILESIZE)
-    *e++ = 13;		/* Boot file size */
-    *e++ =  2;
-     e  +=  2;
+	*e++ = 13;		/* Boot file size */
+	*e++ = 2;
+	e   += 2;
 #endif
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_BOOTPATH)
-    *e++ = 17;		/* Boot path */
-    *e++ = 32;
-     e  += 32;
+	*e++ = 17;		/* Boot path */
+	*e++ = 32;
+	e   += 32;
 #endif
 
 #if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_NISDOMAIN)
-    *e++ = 40;		/* NIS Domain name request */
-    *e++ = 32;
-     e  += 32;
+	*e++ = 40;		/* NIS Domain name request */
+	*e++ = 32;
+	e   += 32;
 #endif
 
-    *e++ = 255;		/* End of the list */
+	*e++ = 255;		/* End of the list */
 
-    return e - start ;
+	return e - start;
 }
 #endif	/* CFG_CMD_DHCP */
 
@@ -536,7 +578,7 @@ BootpRequest (void)
 	unsigned char bi_enetaddr[6];
 	int   reg;
 	char  *e,*s;
-	uchar tmp[64];
+	char tmp[64];
 	ulong tst1, tst2, sum, m_mask, m_value = 0;
 
 	if (BootpTry ==0) {
@@ -551,7 +593,7 @@ BootpRequest (void)
 			}
 		}
 #ifdef DEBUG
-		printf("BootpRequest => Our Mac: ");
+		puts ("BootpRequest => Our Mac: ");
 		for (reg=0; reg<6; reg++) {
 			printf ("%x%c",
 				bi_enetaddr[reg],
@@ -590,7 +632,7 @@ BootpRequest (void)
 		sum = seed1 + seed2;
 		if (sum < seed1 || sum < seed2)
 			sum++;
-	        seed2 = seed1;
+		seed2 = seed1;
 		seed1 = sum;
 
 		if (BootpTry<=2) {	/* Start with max 1024 * 1ms */
@@ -610,8 +652,7 @@ BootpRequest (void)
 	pkt = NetTxPacket;
 	memset ((void*)pkt, 0, PKTSIZE);
 
-	NetSetEther(pkt, NetBcastAddr, PROT_IP);
-	pkt += ETHER_HDR_SIZE;
+	pkt += NetSetEther(pkt, NetBcastAddr, PROT_IP);
 
 	/*
 	 * Next line results in incorrect packet size being transmitted, resulting
@@ -638,9 +679,9 @@ BootpRequest (void)
 
 	/* Request additional information from the BOOTP/DHCP server */
 #if (CONFIG_COMMANDS & CFG_CMD_DHCP)
-	ext_len = DhcpExtended(bp->bp_vend, DHCP_DISCOVER, 0, 0);
+	ext_len = DhcpExtended((u8 *)bp->bp_vend, DHCP_DISCOVER, 0, 0);
 #else
-	ext_len = BootpExtended(bp->bp_vend);
+	ext_len = BootpExtended((u8 *)bp->bp_vend);
 #endif	/* CFG_CMD_DHCP */
 
 	/*
@@ -652,7 +693,7 @@ BootpRequest (void)
 		| ((ulong)NetOurEther[4] << 8)
 		| (ulong)NetOurEther[5];
 	BootpID += get_timer(0);
-	BootpID  = htonl(BootpID);
+	BootpID	 = htonl(BootpID);
 	NetCopyLong(&bp->bp_id, &BootpID);
 
 	/*
@@ -674,59 +715,70 @@ BootpRequest (void)
 }
 
 #if (CONFIG_COMMANDS & CFG_CMD_DHCP)
-static void DhcpOptionsProcess(uchar *popt)
+static void DhcpOptionsProcess (uchar * popt)
 {
 	uchar *end = popt + BOOTP_HDR_SIZE;
 	int oplen, size;
 
-	while ( popt < end && *popt != 0xff ) {
+	while (popt < end && *popt != 0xff) {
 		oplen = *(popt + 1);
-		switch(*popt) {
-			case  1:
-				NetCopyIP(&NetOurSubnetMask, (popt+2));
-				break;
-			case  3:
-				NetCopyIP(&NetOurGatewayIP, (popt+2));
-				break;
-			case  6:
-				NetCopyIP(&NetOurDNSIP, (popt+2));
-				break;
-			case 12:
-				size = truncate_sz ("Host Name",
-						    sizeof(NetOurHostName),
-						    oplen);
-				memcpy(&NetOurHostName, popt+2, size);
-				NetOurHostName[size] = 0 ;
-				break;
-			case 15:		/* Ignore Domain Name Option */
-				break;
-			case 17:
-				size = truncate_sz ("Root Path",
-						    sizeof(NetOurRootPath),
-						    oplen);
-				memcpy(&NetOurRootPath, popt+2, size);
-				NetOurRootPath[size] = 0 ;
-				break;
-			case 51:
-				NetCopyLong (&dhcp_leasetime, (ulong *)(popt + 2));
-				break;
-			case 53:		/* Ignore Message Type Option */
-				break;
-			case 54:
-				NetCopyIP(&NetDHCPServerIP, (popt+2));
-				break;
-			case 58:		/* Ignore Renewal Time Option */
-				break;
-			case 59:		/* Ignore Rebinding Time Option */
-				break;
-			default:
-#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_VENDOREX)
-			    if (dhcp_vendorex_proc(popt))
-        			break;
+		switch (*popt) {
+		case 1:
+			NetCopyIP (&NetOurSubnetMask, (popt + 2));
+			break;
+#if (CONFIG_COMMANDS & CFG_CMD_SNTP) && (CONFIG_BOOTP_MASK & CONFIG_BOOTP_TIMEOFFSET)
+		case 2:		/* Time offset	*/
+			NetCopyLong (&NetTimeOffset, (ulong *) (popt + 2));
+			NetTimeOffset = ntohl (NetTimeOffset);
+			break;
 #endif
-				printf("*** Unhandled DHCP Option in OFFER/ACK: %d\n",
-					*popt);
+		case 3:
+			NetCopyIP (&NetOurGatewayIP, (popt + 2));
+			break;
+		case 6:
+			NetCopyIP (&NetOurDNSIP, (popt + 2));
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_DNS2)
+			if (*(popt + 1) > 4) {
+				NetCopyIP (&NetOurDNS2IP, (popt + 2 + 4));
+			}
+#endif
+			break;
+		case 12:
+			size = truncate_sz ("Host Name", sizeof (NetOurHostName), oplen);
+			memcpy (&NetOurHostName, popt + 2, size);
+			NetOurHostName[size] = 0;
+			break;
+		case 15:	/* Ignore Domain Name Option */
+			break;
+		case 17:
+			size = truncate_sz ("Root Path", sizeof (NetOurRootPath), oplen);
+			memcpy (&NetOurRootPath, popt + 2, size);
+			NetOurRootPath[size] = 0;
+			break;
+#if (CONFIG_COMMANDS & CFG_CMD_SNTP) && (CONFIG_BOOTP_MASK & CONFIG_BOOTP_NTPSERVER)
+		case 42:	/* NTP server IP */
+			NetCopyIP (&NetNtpServerIP, (popt + 2));
+			break;
+#endif
+		case 51:
+			NetCopyLong (&dhcp_leasetime, (ulong *) (popt + 2));
+			break;
+		case 53:	/* Ignore Message Type Option */
+			break;
+		case 54:
+			NetCopyIP (&NetDHCPServerIP, (popt + 2));
+			break;
+		case 58:	/* Ignore Renewal Time Option */
+			break;
+		case 59:	/* Ignore Rebinding Time Option */
+			break;
+		default:
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_VENDOREX)
+			if (dhcp_vendorex_proc (popt))
 				break;
+#endif
+			printf ("*** Unhandled DHCP Option in OFFER/ACK: %d\n", *popt);
+			break;
 		}
 		popt += oplen + 2;	/* Process next option */
 	}
@@ -757,8 +809,7 @@ static void DhcpSendRequestPkt(Bootp_t *bp_offer)
 	pkt = NetTxPacket;
 	memset ((void*)pkt, 0, PKTSIZE);
 
-	NetSetEther(pkt, NetBcastAddr, PROT_IP);
-	pkt += ETHER_HDR_SIZE;
+	pkt += NetSetEther(pkt, NetBcastAddr, PROT_IP);
 
 	iphdr = pkt;		/* We'll need this later to set proper pkt size */
 	pkt += IP_HDR_SIZE;
@@ -785,7 +836,7 @@ static void DhcpSendRequestPkt(Bootp_t *bp_offer)
 	 * Copy options from OFFER packet if present
 	 */
 	NetCopyIP(&OfferedIP, &bp->bp_yiaddr);
-	extlen = DhcpExtended(bp->bp_vend, DHCP_REQUEST, NetDHCPServerIP, OfferedIP);
+	extlen = DhcpExtended((u8 *)bp->bp_vend, DHCP_REQUEST, NetDHCPServerIP, OfferedIP);
 
 	pktlen = BOOTP_SIZE - sizeof(bp->bp_vend) + extlen;
 	iplen = BOOTP_HDR_SIZE - sizeof(bp->bp_vend) + extlen;
@@ -806,7 +857,7 @@ DhcpHandler(uchar * pkt, unsigned dest, unsigned src, unsigned len)
 	debug ("DHCPHandler: got packet: (src=%d, dst=%d, len=%d) state: %d\n",
 		src, dest, len, dhcp_state);
 
-	if (BootpCheckPkt(pkt, dest, src, len))	/* Filter out pkts we don't want */
+	if (BootpCheckPkt(pkt, dest, src, len)) /* Filter out pkts we don't want */
 		return;
 
 	debug ("DHCPHandler: got DHCP packet: (src=%d, dst=%d, len=%d) state: %d\n",
@@ -831,9 +882,9 @@ DhcpHandler(uchar * pkt, unsigned dest, unsigned src, unsigned len)
 			dhcp_state = REQUESTING;
 
 			if (NetReadLong((ulong*)&bp->bp_vend[0]) == htonl(BOOTP_VENDOR_MAGIC))
-				DhcpOptionsProcess(&bp->bp_vend[4]);
+				DhcpOptionsProcess((u8 *)&bp->bp_vend[4]);
 
-			BootpCopyNetParams(bp);	/* Store net params from reply */
+			BootpCopyNetParams(bp); /* Store net params from reply */
 
 			NetSetTimeout(TIMEOUT * CFG_HZ, BootpTimeout);
 			DhcpSendRequestPkt(bp);
@@ -846,28 +897,42 @@ DhcpHandler(uchar * pkt, unsigned dest, unsigned src, unsigned len)
 	case REQUESTING:
 		debug ("DHCP State: REQUESTING\n");
 
-		if ( DhcpMessageType(bp->bp_vend) == DHCP_ACK ) {
+		if ( DhcpMessageType((u8 *)bp->bp_vend) == DHCP_ACK ) {
 			char *s;
 
 			if (NetReadLong((ulong*)&bp->bp_vend[0]) == htonl(BOOTP_VENDOR_MAGIC))
-				DhcpOptionsProcess(&bp->bp_vend[4]);
-			BootpCopyNetParams(bp);	/* Store net params from reply */
+				DhcpOptionsProcess((u8 *)&bp->bp_vend[4]);
+			BootpCopyNetParams(bp); /* Store net params from reply */
 			dhcp_state = BOUND;
-			printf("DHCP client bound to address ");
+			puts ("DHCP client bound to address ");
 			print_IPaddr(NetOurIP);
-			printf("\n");
+			putc ('\n');
 
 			/* Obey the 'autoload' setting */
-			if (((s = getenv("autoload")) != NULL) && (*s == 'n')) {
-				NetState = NETLOOP_SUCCESS;
-				return;
+			if ((s = getenv("autoload")) != NULL) {
+				if (*s == 'n') {
+					/*
+					 * Just use BOOTP to configure system;
+					 * Do not use TFTP to load the bootfile.
+					 */
+					NetState = NETLOOP_SUCCESS;
+					return;
+#if (CONFIG_COMMANDS & CFG_CMD_NFS)
+				} else if (strcmp(s, "NFS") == 0) {
+					/*
+					 * Use NFS to load the bootfile.
+					 */
+					NfsStart();
+					return;
+#endif
+				}
 			}
 			TftpStart();
 			return;
 		}
 		break;
 	default:
-		printf("DHCP: INVALID STATE\n");
+		puts ("DHCP: INVALID STATE\n");
 		break;
 	}
 

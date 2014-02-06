@@ -50,7 +50,7 @@ int post_init_f (void)
 			res = -1;
 		}
 	}
-	
+
 	gd->post_init_f_time = post_time_ms(0);
 	if (!gd->post_init_f_time)
 	{
@@ -64,16 +64,27 @@ void post_bootmode_init (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
 	int bootmode = post_bootmode_get (0);
+	int newword;
 
-	if (bootmode == 0) {
-		bootmode = POST_POWERON;
-	} else if (bootmode == POST_POWERON) {
-		bootmode = POST_POWERNORMAL;
+	if (post_hotkeys_pressed() && !(bootmode & POST_POWERTEST)) {
+		newword = BOOTMODE_MAGIC | POST_SLOWTEST;
+	} else if (bootmode == 0) {
+		newword = BOOTMODE_MAGIC | POST_POWERON;
+	} else if (bootmode == POST_POWERON || bootmode == POST_SLOWTEST) {
+		newword = BOOTMODE_MAGIC | POST_NORMAL;
 	} else {
-		return;
+		/* Use old value */
+		newword = post_word_load () & ~POST_COLDBOOT;
 	}
 
-	post_word_store (BOOTMODE_MAGIC | bootmode);
+	if (bootmode == 0)
+	{
+		/* We are booting after power-on */
+		newword |= POST_COLDBOOT;
+	}
+
+	post_word_store (newword);
+
 	/* Reset activity record */
 	gd->post_log_word = 0;
 }
@@ -87,18 +98,13 @@ int post_bootmode_get (unsigned int *last_test)
 		return 0;
 	}
 
-	bootmode = word & 0xFF;
+	bootmode = word & 0x7F;
 
 	if (last_test && (bootmode & POST_POWERTEST)) {
 		*last_test = (word >> 8) & 0xFF;
 	}
 
 	return bootmode;
-}
-
-void post_bootmode_clear (void)
-{
-	post_word_store (0);
 }
 
 /* POST tests run before relocation only mark status bits .... */
@@ -125,8 +131,12 @@ void post_output_backlog ( void )
 			post_log ("POST %s ", post_list[j].cmd);
 			if (gd->post_log_word & post_list[j].testid)
 				post_log ("PASSED\n");
-			else
+			else {
 				post_log ("FAILED\n");
+#ifdef CONFIG_SHOW_BOOT_PROGRESS
+				show_boot_progress(-31);
+#endif
+			}
 		}
 	}
 }
@@ -153,8 +163,8 @@ static void post_bootmode_test_off (void)
 
 static void post_get_flags (int *test_flags)
 {
-	int flag[] = { POST_POWERON, POST_POWERNORMAL, POST_POWERFAIL };
-	char *var[] = { "post_poweron", "post_normal", "post_shutdown" };
+	int  flag[] = {  POST_POWERON,   POST_NORMAL,   POST_SLOWTEST };
+	char *var[] = { "post_poweron", "post_normal", "post_slowtest" };
 	int varnum = sizeof (var) / sizeof (var[0]);
 	char list[128];			/* long enough for POST list */
 	char *name;
@@ -203,6 +213,12 @@ static void post_get_flags (int *test_flags)
 			name = s + 1;
 		}
 	}
+
+	for (j = 0; j < post_list_size; j++) {
+		if (test_flags[j] & POST_POWERON) {
+			test_flags[j] |= POST_SLOWTEST;
+		}
+	}
 }
 
 static int post_run_single (struct post_test *test,
@@ -227,8 +243,12 @@ static int post_run_single (struct post_test *test,
 			if ((*test->test) (flags) == 0)
 				post_log_mark_succ ( test->testid );
 		} else {
-		if ((*test->test) (flags) != 0)
+		if ((*test->test) (flags) != 0) {
 			post_log ("FAILED\n");
+#ifdef CONFIG_SHOW_BOOT_PROGRESS
+			show_boot_progress(-32);
+#endif
+		}
 		else
 			post_log ("PASSED\n");
 		}
@@ -398,7 +418,7 @@ void post_reloc (void)
 		if (test->reloc) {
 			addr = (ulong) (test->reloc) + gd->reloc_off;
 			test->reloc = (void (*)(void)) addr;
-			
+
 			test->reloc();
 		}
 	}

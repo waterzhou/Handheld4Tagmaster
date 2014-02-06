@@ -83,9 +83,14 @@
  * downloading RAM microcode.
  */
 #define CPM_DATAONLY_BASE	((uint)128)
-#define CPM_DATAONLY_SIZE	((uint)(16 * 1024) - CPM_DATAONLY_BASE)
 #define CPM_DP_NOSPACE		((uint)0x7fffffff)
+#ifndef CONFIG_MPC8272_FAMILY
+#define CPM_DATAONLY_SIZE	((uint)(8 * 1024) - CPM_DATAONLY_BASE)
 #define CPM_FCC_SPECIAL_BASE	((uint)0x0000b000)
+#else  /* 8247/48/71/72 */
+#define CPM_DATAONLY_SIZE	((uint)(4 * 1024) - CPM_DATAONLY_BASE)
+#define CPM_FCC_SPECIAL_BASE	((uint)0x00009000)
+#endif /* !CONFIG_MPC8272_FAMILY */
 
 /* The number of pages of host memory we allocate for CPM.  This is
  * done early in kernel initialization to get physically contiguous
@@ -141,6 +146,13 @@ typedef struct cpm_buf_desc {
 #else
 #define CPM_POST_WORD_ADDR	CFG_CPM_POST_WORD_ADDR
 #endif
+
+#ifndef CFG_CPM_BOOTCOUNT_ADDR
+#define CPM_BOOTCOUNT_ADDR	(CPM_POST_WORD_ADDR - 2*sizeof(ulong))
+#else
+#define CPM_BOOTCOUNT_ADDR	CFG_CPM_BOOTCOUNT_ADDR
+#endif
+
 #define PROFF_SCC1		((uint)0x8000)
 #define PROFF_SCC2		((uint)0x8100)
 #define PROFF_SCC3		((uint)0x8200)
@@ -676,6 +688,7 @@ typedef struct fcc_enet {
 #define FCC_PSMR_PRO	((uint)0x00400000)	/* Promiscuous Enable */
 #define FCC_PSMR_FCE	((uint)0x00200000)	/* Flow Control Enable */
 #define FCC_PSMR_RSH	((uint)0x00100000)	/* Receive Short Frames */
+#define FCC_PSMR_RMII	((uint)0x00020000)	/* Use RMII interface */
 #define FCC_PSMR_CAM	((uint)0x00000400)	/* CAM enable */
 #define FCC_PSMR_BRO	((uint)0x00000200)	/* Broadcast pkt discard */
 #define FCC_PSMR_ENCRC	((uint)0x00000080)	/* Use 32-bit CRC */

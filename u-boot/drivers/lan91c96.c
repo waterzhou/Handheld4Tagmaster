@@ -139,7 +139,9 @@ extern int eth_init (bd_t * bd);
 extern void eth_halt (void);
 extern int eth_rx (void);
 extern int eth_send (volatile void *packet, int length);
+#if 0
 static int smc_hw_init (void);
+#endif
 
 /*
  * This is called by  register_netdev().  It is responsible for
@@ -162,7 +164,7 @@ void smc_destructor (void);
  * The kernel calls this function when someone wants to use the device,
  * typically 'ifconfig ethX up'.
  */
-static int smc_open (void);
+static int smc_open (bd_t *bd);
 
 
 /*
@@ -178,7 +180,12 @@ static int smc_close (void);
  */
 static int smc_rcv (void);
 
-
+/* See if a MAC address is defined in the current environment. If so use it. If not
+ . print a warning and set the environment and other globals with the default.
+ . If an EEPROM is present it really should be consulted.
+*/
+int smc_get_ethaddr(bd_t *bd);
+int get_rom_mac(char *v_rom_mac);
 
 /* ------------------------------------------------------------
  * Internal routines
@@ -250,7 +257,6 @@ static void print_packet (byte *, int);
 #endif
 
 /* #define tx_done(dev) 1 */
-
 
 
 /* this does a soft reset on the device */
@@ -590,9 +596,9 @@ void smc_destructor ()
  * Set up everything, reset the card, etc ..
  *
  */
-static int smc_open ()
+static int smc_open (bd_t *bd)
 {
-	int i;			/* used to set hw ethernet address */
+	int i, err;			/* used to set hw ethernet address */
 
 	PRINTK2 ("%s:smc_open\n", SMC_DEV_NAME);
 
@@ -603,6 +609,12 @@ static int smc_open ()
 
 	SMC_SELECT_BANK (1);
 
+	err = smc_get_ethaddr (bd);	/* set smc_mac_addr, and sync it with u-boot globals */
+	if (err < 0) {
+		memset (bd->bi_enetaddr, 0, 6); /* hack to make error stick! upper code will abort if not set */
+		return (-1);	/* upper code ignores this, but NOT bi_enetaddr */
+	}
+#ifdef USE_32_BIT
 	for (i = 0; i < 6; i += 2) {
 		word address;
 
@@ -610,6 +622,10 @@ static int smc_open ()
 		address |= smc_mac_addr[i];
 		SMC_outw (address, LAN91C96_IA0 + i);
 	}
+#else
+	for (i = 0; i < 6; i++)
+		SMC_outb (smc_mac_addr[i], LAN91C96_IA0 + i);
+#endif
 	return 0;
 }
 
@@ -666,7 +682,6 @@ static int smc_rcv ()
 	if (!(status & FRAME_FILTER)) {
 		/* Adjust for having already read the first two words */
 		packet_length -= 4;		/*4; */
-
 
 
 		/* set odd length for bug in LAN91C111, */
@@ -785,8 +800,7 @@ static void print_packet (byte * buf, int length)
 
 int eth_init (bd_t * bd)
 {
-	smc_open ();
-	return 0;
+	return (smc_open(bd));
 }
 
 void eth_halt ()
@@ -804,11 +818,8 @@ int eth_send (volatile void *packet, int length)
 	return smc_send_packet (packet, length);
 }
 
-int eth_hw_init ()
-{
-	return smc_hw_init ();
-}
 
+#if 0
 /*-------------------------------------------------------------------------
  * smc_hw_init()
  *
@@ -852,7 +863,105 @@ static int smc_hw_init ()
 	}
 	return 0;
 }
+#endif /* 0 */
 
 #endif /* COMMANDS & CFG_NET */
+
+
+/* smc_get_ethaddr (bd_t * bd)
+ *
+ * This checks both the environment and the ROM for an ethernet address. If
+ * found, the environment takes precedence.
+ */
+
+int smc_get_ethaddr (bd_t * bd)
+{
+	int env_size = 0;
+	int rom_valid = 0;
+	int env_present = 0;
+	int reg = 0;
+	char *s = NULL;
+	char *e = NULL;
+	char *v_mac, es[] = "11:22:33:44:55:66";
+	uchar s_env_mac[64];
+	uchar v_env_mac[6];
+	uchar v_rom_mac[6];
+
+	env_size = getenv_r ("ethaddr", s_env_mac, sizeof (s_env_mac));
+	if (env_size != sizeof(es)) {	/* Ignore if env is bad or not set */
+		printf ("\n*** Warning: ethaddr is not set properly, ignoring!!\n");
+	} else {
+		env_present = 1;
+		s = s_env_mac;
+
+		for (reg = 0; reg < 6; ++reg) { /* turn string into mac value */
+			v_env_mac[reg] = s ? simple_strtoul (s, &e, 16) : 0;
+			if (s)
+				s = (*e) ? e + 1 : e;
+		}
+	}
+
+	rom_valid = get_rom_mac (v_rom_mac);	/* get ROM mac value if any */
+
+	if (!env_present) {	/* if NO env */
+		if (rom_valid) {	/* but ROM is valid */
+			v_mac = v_rom_mac;
+			sprintf (s_env_mac, "%02X:%02X:%02X:%02X:%02X:%02X",
+				 v_mac[0], v_mac[1], v_mac[2], v_mac[3],
+				 v_mac[4], v_mac[5]);
+			setenv ("ethaddr", s_env_mac);
+		} else {	/* no env, bad ROM */
+			printf ("\n*** ERROR: ethaddr is NOT set !!\n");
+			return (-1);
+		}
+	} else {		/* good env, don't care ROM */
+		v_mac = v_env_mac;	/* always use a good env over a ROM */
+	}
+
+	if (env_present && rom_valid) { /* if both env and ROM are good */
+		if (memcmp (v_env_mac, v_rom_mac, 6) != 0) {
+			printf ("\nWarning: MAC addresses don't match:\n");
+			printf ("\tHW MAC address:  "
+				"%02X:%02X:%02X:%02X:%02X:%02X\n",
+				v_rom_mac[0], v_rom_mac[1],
+				v_rom_mac[2], v_rom_mac[3],
+				v_rom_mac[4], v_rom_mac[5] );
+			printf ("\t\"ethaddr\" value: "
+				"%02X:%02X:%02X:%02X:%02X:%02X\n",
+				v_env_mac[0], v_env_mac[1],
+				v_env_mac[2], v_env_mac[3],
+				v_env_mac[4], v_env_mac[5]) ;
+			debug ("### Set MAC addr from environment\n");
+		}
+	}
+	memcpy (bd->bi_enetaddr, v_mac, 6);	/* update global address to match env (allows env changing) */
+	smc_set_mac_addr (v_mac);	/* use old function to update smc default */
+	PRINTK("Using MAC Address %02X:%02X:%02X:%02X:%02X:%02X\n", v_mac[0], v_mac[1],
+		v_mac[2], v_mac[3], v_mac[4], v_mac[5]);
+	return (0);
+}
+
+/*
+ * get_rom_mac()
+ * Note, this has omly been tested for the OMAP730 P2.
+ */
+
+int get_rom_mac (char *v_rom_mac)
+{
+#ifdef HARDCODE_MAC	/* used for testing or to supress run time warnings */
+	char hw_mac_addr[] = { 0x02, 0x80, 0xad, 0x20, 0x31, 0xb8 };
+
+	memcpy (v_rom_mac, hw_mac_addr, 6);
+	return (1);
+#else
+	int i;
+	SMC_SELECT_BANK (1);
+	for (i=0; i<6; i++)
+	{
+		v_rom_mac[i] = SMC_inb (LAN91C96_IA0 + i);
+	}
+	return (1);
+#endif
+}
 
 #endif /* CONFIG_DRIVER_LAN91C96 */

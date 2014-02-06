@@ -1,0 +1,21 @@
+/Makefile/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skaddr.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skcsum.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skge.c/1.4/Sun Apr 25 14:37:30 2004/-ko/
+/skgehwt.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skgeinit.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skgemib.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skgepnmi.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skgesirq.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/ski2c.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/sklm80.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skproc.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skqueue.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skrlmt.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/sktimer.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skvpd.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/skxmac2.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+/u-boot_compat.h/1.1/Fri Sep  5 23:19:31 2003/-ko/
+/uboot_drv.c/1.2/Wed Oct 15 23:53:54 2003/-ko/
+/uboot_skb.c/1.3/Wed Oct 15 23:53:54 2003/-ko/
+D/h////

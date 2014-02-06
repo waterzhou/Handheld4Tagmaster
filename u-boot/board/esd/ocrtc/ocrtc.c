@@ -26,11 +26,12 @@
 #include <asm/processor.h>
 #include <i2c.h>
 #include <command.h>
-#include <cmd_boot.h>
 
-/* ------------------------------------------------------------------------- */
 
-int board_pre_init (void)
+extern void lxt971_no_sleep(void);
+
+
+int board_early_init_f (void)
 {
 	/*
 	 * IRQ 0-15  405GP internally generated; active high; level sensitive
@@ -62,8 +63,6 @@ int board_pre_init (void)
 }
 
 
-/* ------------------------------------------------------------------------- */
-
 int misc_init_f (void)
 {
 	return 0;					/* dummy implementation */
@@ -73,10 +72,9 @@ int misc_init_f (void)
 /*
  * Check Board Identity:
  */
-
 int checkboard (void)
 {
-	unsigned char str[64];
+	char str[64];
 	int i = getenv_r ("serial#", str, sizeof (str));
 
 	puts ("Board: ");
@@ -94,10 +92,14 @@ int checkboard (void)
 
 	putc ('\n');
 
+	/*
+	 * Disable sleep mode in LXT971
+	 */
+	lxt971_no_sleep();
+
 	return (0);
 }
 
-/* ------------------------------------------------------------------------- */
 
 long int initdram (int board_type)
 {
@@ -114,7 +116,6 @@ long int initdram (int board_type)
 	return (4 * 1024 * 1024 << ((val & 0x000e0000) >> 17));
 }
 
-/* ------------------------------------------------------------------------- */
 
 int testdram (void)
 {
@@ -123,5 +124,3 @@ int testdram (void)
 
 	return (0);
 }
-
-/* ------------------------------------------------------------------------- */

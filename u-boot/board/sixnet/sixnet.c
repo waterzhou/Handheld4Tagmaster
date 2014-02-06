@@ -24,6 +24,7 @@
 
 #include <common.h>
 #include <config.h>
+#include <jffs2/jffs2.h>
 #include <mpc8xx.h>
 #include <net.h>	/* for eth_init() */
 #include <rtc.h>
@@ -174,7 +175,7 @@ int board_postclk_init (void)
 
 	/* write program data to FPGA at the programming address
 	 * so extra /CS1 strobes at end of configuration don't actually
-         * write to any registers.
+	 * write to any registers.
 	 */
 	fpga = 0xff;		/* first write is ignored	*/
 	fpga = 0xff;		/* fill byte			*/
@@ -329,11 +330,9 @@ int misc_init_r (void)
 #if (CONFIG_COMMANDS & CFG_CMD_NAND)
 void nand_init(void)
 {
-	nand_probe(CFG_DFLASH_BASE);	/* see if any NAND flash present */
-	if (nand_dev_desc[0].ChipID != NAND_ChipID_UNKNOWN) {
-		puts("NAND:  ");
-		print_size(nand_dev_desc[0].totlen, "\n");
-	}
+	unsigned long totlen = nand_probe(CFG_DFLASH_BASE);
+
+	printf ("%4lu MB\n", totlen >> 20);
 }
 #endif
 
@@ -357,7 +356,7 @@ void nand_init(void)
 static long ram_size(ulong *base, long maxsize)
 {
     volatile long	*test_addr;
-    volatile long	*base_addr = base;
+    volatile ulong	*base_addr = base;
     ulong		ofs;		/* byte offset from base_addr */
     ulong		save;		/* to make test non-destructive */
     ulong		save2;		/* to make test non-destructive */
@@ -378,7 +377,7 @@ static long ram_size(ulong *base, long maxsize)
 	ramsize = 0;		/* no RAM present, or defective */
     else {
 	*base_addr = 0xaaaa5555;
-        *(base_addr + 1) = 0x5555aaaa;	/* use write to modify data bus */
+	*(base_addr + 1) = 0x5555aaaa;	/* use write to modify data bus */
 	if (*base_addr != 0xaaaa5555)
 	    ramsize = 0;	/* no RAM present, or defective */
     }
@@ -422,7 +421,7 @@ const uint sdram_table[] =
 	_not_used_, _not_used_, _not_used_, _not_used_,
 
 	/* single write. (offset 18 in upm RAM) */
-        /* FADS had 0x1f27fc04, ...
+	/* FADS had 0x1f27fc04, ...
 	 * but most other boards have 0x1f07fc04, which
 	 * sets GPL0 from A11MPC to 0 1/4 clock earlier,
 	 * like the single read.
@@ -518,7 +517,7 @@ long int initdram(int board_type)
 	 * This may be too fast, but works for any memory.
 	 * It is adjusted to 4096 cycles in 64 milliseconds if
 	 * possible once we know what memory we have.
-         *
+	 *
 	 * We have to be careful changing UPM registers after we
 	 * ask it to run these commands.
 	 *
@@ -532,7 +531,7 @@ long int initdram(int board_type)
 	 *    SCCR[DFBRG] 0
 	 *    PTP divide by 8
 	 *    1 chip select
-         */
+	 */
 	memctl->memc_mptpr = MPTPR_PTP_DIV8;	/* 0x0800 */
 	memctl->memc_mamr = SDRAM_MAMR_8COL & (~MAMR_PTAE); /* no refresh yet */
 
@@ -602,4 +601,3 @@ long int initdram(int board_type)
 
 	return (size_sdram);
 }
-

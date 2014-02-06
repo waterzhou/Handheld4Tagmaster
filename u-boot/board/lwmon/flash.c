@@ -47,6 +47,9 @@ flash_info_t	flash_info[CFG_MAX_FLASH_BANKS]; /* info for FLASH chips	*/
  */
 static ulong flash_get_size (vu_long *addr, flash_info_t *info);
 static int write_data (flash_info_t *info, ulong dest, ulong data);
+#ifdef CFG_FLASH_USE_BUFFER_WRITE
+static int write_data_buf (flash_info_t * info, ulong dest, uchar * cp, int len);
+#endif
 static void flash_get_offsets (ulong base, flash_info_t *info);
 
 /*-----------------------------------------------------------------------
@@ -400,6 +403,26 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 			/* Disable interrupts which might cause a timeout here */
 			flag = disable_interrupts();
 
+			*addr = 0x00600060;	/* clear lock bit setup */
+			*addr = 0x00D000D0;	/* clear lock bit confirm */
+
+			udelay (1000);
+			/* This takes awfully long - up to 50 ms and more */
+			while (((status = *addr) & 0x00800080) != 0x00800080) {
+				if ((now=get_timer(start)) > CFG_FLASH_ERASE_TOUT) {
+					printf ("Timeout\n");
+					*addr = 0x00FF00FF; /* reset to read mode */
+					return 1;
+				}
+
+				/* show that we're waiting */
+				if ((now - last) > 1000) {	/* every second */
+					putc ('.');
+					last = now;
+				}
+				udelay (1000);	/* to trigger the watchdog */
+			}
+
 			*addr = 0x00500050;	/* clear status register */
 			*addr = 0x00200020;	/* erase setup */
 			*addr = 0x00D000D0;	/* erase confirm */
@@ -424,6 +447,7 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 					putc ('.');
 					last = now;
 				}
+				udelay (1000);	/* to trigger the watchdog */
 			}
 
 			*addr = 0x00FF00FF;	/* reset to read mode */
@@ -480,6 +504,17 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 	/*
 	 * handle FLASH_WIDTH aligned part
 	 */
+#ifdef CFG_FLASH_USE_BUFFER_WRITE
+	while(cnt >= FLASH_WIDTH) {
+		i = CFG_FLASH_BUFFER_SIZE > cnt ?
+		    (cnt & ~(FLASH_WIDTH - 1)) : CFG_FLASH_BUFFER_SIZE;
+		if((rc = write_data_buf(info, wp, src,i)) != 0)
+			return rc;
+		wp += i;
+		src += i;
+		cnt -=i;
+	}
+#else
 	while (cnt >= FLASH_WIDTH) {
 		data = 0;
 		for (i=0; i<FLASH_WIDTH; ++i) {
@@ -491,6 +526,7 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 		wp  += FLASH_WIDTH;
 		cnt -= FLASH_WIDTH;
 	}
+#endif /* CFG_FLASH_USE_BUFFER_WRITE */
 
 	if (cnt == 0) {
 		return (0);
@@ -512,6 +548,28 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 }
 
 /*-----------------------------------------------------------------------
+ * Check flash status, returns:
+ * 0 - OK
+ * 1 - timeout
+ */
+static int flash_status_check(vu_long *addr, ulong tout, char * prompt)
+{
+	ulong status;
+	ulong start;
+
+	/* Wait for command completion */
+	start = get_timer (0);
+	while(((status = *addr) & 0x00800080) != 0x00800080) {
+		if (get_timer(start) > tout) {
+			printf("Flash %s timeout at address %p\n", prompt, addr);
+			*addr = 0x00FF00FF;	/* restore read mode */
+			return (1);
+		}
+	}
+	return 0;
+}
+
+/*-----------------------------------------------------------------------
  * Write a word to Flash, returns:
  * 0 - OK
  * 1 - write timeout
@@ -520,8 +578,6 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 static int write_data (flash_info_t *info, ulong dest, ulong data)
 {
 	vu_long *addr = (vu_long *)dest;
-	ulong status;
-	ulong start;
 	int flag;
 
 	/* Check if Flash is (sufficiently) erased */
@@ -538,19 +594,55 @@ static int write_data (flash_info_t *info, ulong dest, ulong data)
 	if (flag)
 		enable_interrupts();
 
-	start = get_timer (0);
-
-	while (((status = *addr) & 0x00800080) != 0x00800080) {
-		if (get_timer(start) > CFG_FLASH_WRITE_TOUT) {
-			*addr = 0x00FF00FF;	/* restore read mode */
-			return (1);
-		}
+	if (flash_status_check(addr, CFG_FLASH_WRITE_TOUT, "write") != 0) {
+		return (1);
 	}
 
 	*addr = 0x00FF00FF;	/* restore read mode */
 
 	return (0);
 }
+
+#ifdef CFG_FLASH_USE_BUFFER_WRITE
+/*-----------------------------------------------------------------------
+ * Write a buffer to Flash, returns:
+ * 0 - OK
+ * 1 - write timeout
+ */
+static int write_data_buf(flash_info_t * info, ulong dest, uchar * cp, int len)
+{
+	vu_long *addr = (vu_long *)dest;
+	int sector;
+	int cnt;
+	int retcode;
+	vu_long * src = (vu_long *)cp;
+	vu_long * dst = (vu_long *)dest;
+
+	/* find sector */
+	for(sector = info->sector_count - 1; sector >= 0; sector--) {
+		if(dest >= info->start[sector])
+			break;
+	}
+
+	*addr = 0x00500050;		/* clear status */
+	*addr = 0x00e800e8;		/* write buffer */
+
+	if((retcode = flash_status_check(addr, CFG_FLASH_BUFFER_WRITE_TOUT,
+					 "write to buffer")) == 0) {
+		cnt = len / FLASH_WIDTH;
+		*addr = (cnt-1) | ((cnt-1) << 16);
+		while(cnt-- > 0) {
+			*dst++ = *src++;
+		}
+		*addr = 0x00d000d0;		/* write buffer confirm */
+		retcode = flash_status_check(addr, CFG_FLASH_BUFFER_WRITE_TOUT,
+						 "buffer write");
+	}
+	*addr = 0x00FF00FF;	/* restore read mode */
+	*addr = 0x00500050;	/* clear status */
+	return retcode;
+}
+#endif /* CFG_USE_FLASH_BUFFER_WRITE */
 
 /*-----------------------------------------------------------------------
  */

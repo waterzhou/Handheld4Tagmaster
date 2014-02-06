@@ -24,6 +24,7 @@
 #include <common.h>
 #include <command.h>
 #include <net.h>
+#include "nfs.h"
 #include "bootp.h"
 #include "rarp.h"
 #include "tftp.h"
@@ -46,9 +47,25 @@ int		RarpTry;
 static void
 RarpHandler(uchar * dummi0, unsigned dummi1, unsigned dummi2, unsigned dummi3)
 {
+	char *s;
 #ifdef	DEBUG
-	printf("Got good RARP\n");
+	puts ("Got good RARP\n");
 #endif
+	if ((s = getenv("autoload")) != NULL) {
+		if (*s == 'n') {
+			/*
+			 * Just use RARP to configure system;
+			 * Do not use TFTP/NFS to to load the bootfile.
+			 */
+			NetState = NETLOOP_SUCCESS;
+			return;
+#if (CONFIG_COMMANDS & CFG_CMD_NFS)
+		} else if ((s != NULL) && !strcmp(s, "NFS")) {
+			NfsStart();
+			return;
+#endif
+		}
+	}
 	TftpStart ();
 }
 
@@ -79,8 +96,7 @@ RarpRequest (void)
 	printf("RARP broadcast %d\n", ++RarpTry);
 	pkt = NetTxPacket;
 
-	NetSetEther(pkt, NetBcastAddr, PROT_RARP);
-	pkt += ETHER_HDR_SIZE;
+	pkt += NetSetEther(pkt, NetBcastAddr, PROT_RARP);
 
 	rarp = (ARP_t *)pkt;
 
@@ -97,7 +113,7 @@ RarpRequest (void)
 		rarp->ar_data[16 + i] = 0xff;
 	}
 
-	NetSendPacket(NetTxPacket, ETHER_HDR_SIZE + ARP_HDR_SIZE);
+	NetSendPacket(NetTxPacket, (pkt - NetTxPacket) + ARP_HDR_SIZE);
 
 	NetSetTimeout(TIMEOUT * CFG_HZ, RarpTimeout);
 	NetSetHandler(RarpHandler);

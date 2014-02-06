@@ -28,8 +28,6 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-#include <asm/processor.h>
-
 #undef  DEBUG
 #define GTREGREAD(x) 0xffffffff         /* needed for debug */
 
@@ -61,8 +59,8 @@
 #define CONFIG_BOOTCOMMAND                                  \
     "bootp 1000000; "                                       \
     "setenv bootargs root=ramfs console=ttyS00,9600 "       \
-    "ip=$(ipaddr):$(serverip):$(rootpath):$(gatewayip):"    \
-    "$(netmask):$(hostname):eth0:none; "                    \
+    "ip=${ipaddr}:${serverip}:${rootpath}:${gatewayip}:"    \
+    "${netmask}:${hostname}:eth0:none; "                    \
     "bootm"
 
 #define CONFIG_LOADS_ECHO       0       /* echo off for serial download */
@@ -71,8 +69,8 @@
 #define CONFIG_BOOTP_MASK       (CONFIG_BOOTP_DEFAULT | CONFIG_BOOTP_BOOTFILESIZE)
 
 #define CONFIG_COMMANDS         (CONFIG_CMD_DFL | CFG_CMD_PCI | CFG_CMD_JFFS2 |\
-                                 CFG_CMD_SCSI   | CFG_CMD_IDE | CFG_CMD_DATE  |\
-                                 CFG_CMD_FDC    | CFG_CMD_ELF)
+				 CFG_CMD_SCSI   | CFG_CMD_IDE | CFG_CMD_DATE  |\
+				 CFG_CMD_FDC    | CFG_CMD_ELF)
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -201,8 +199,25 @@
 #define CFG_FLASH_ERASE_TOUT    120000      /* Timeout for Flash Erase (in ms) */
 #define CFG_FLASH_WRITE_TOUT    500         /* Timeout for Flash Write (in ms) */
 
-#define CFG_JFFS2_FIRST_BANK    0           /* use for JFFS2 */
-#define CFG_JFFS2_NUM_BANKS     1           /* ! second bank contains U-Boot */
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support
+ *
+ * Note: fake mtd_id used, no linux mtd map file
+ */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor0=bab7xx-0"
+#define MTDPARTS_DEFAULT	"mtdparts=bab7xx-0:-(jffs2)"
+*/
 
 #define CFG_MONITOR_BASE        CFG_FLASH_BASE
 #define CFG_MONITOR_LEN         0x40000     /* Reserve 256 kB for Monitor */
@@ -319,14 +334,14 @@ extern unsigned char   scsi_sym53c8xx_ccf;
 #define CFG_NS87308                    /* Nat Semi super-io cntr on ISA bus */
 #define CFG_NS87308_BADDR_10    1
 #define CFG_NS87308_DEVS        (CFG_NS87308_UART1   | \
-                                 CFG_NS87308_UART2   | \
-                                 CFG_NS87308_KBC1    | \
-                                 CFG_NS87308_MOUSE   | \
-                                 CFG_NS87308_FDC     | \
-                                 CFG_NS87308_RARP    | \
-                                 CFG_NS87308_GPIO    | \
-                                 CFG_NS87308_POWRMAN | \
-                                 CFG_NS87308_RTC_APC )
+				 CFG_NS87308_UART2   | \
+				 CFG_NS87308_KBC1    | \
+				 CFG_NS87308_MOUSE   | \
+				 CFG_NS87308_FDC     | \
+				 CFG_NS87308_RARP    | \
+				 CFG_NS87308_GPIO    | \
+				 CFG_NS87308_POWRMAN | \
+				 CFG_NS87308_RTC_APC )
 
 #define CFG_NS87308_PS2MOD
 #define CFG_NS87308_GPIO_BASE   0x0220
@@ -431,7 +446,7 @@ extern  unsigned long           bab7xx_get_gclk_freq (void);
  */
 #undef  CFG_L2
 #define L2_INIT     (L2CR_L2SIZ_HM | L2CR_L2CLK_3 | L2CR_L2RAM_BURST | \
-                     L2CR_L2OH_5   | L2CR_L2CTL   | L2CR_L2WT)
+		     L2CR_L2OH_5   | L2CR_L2CTL   | L2CR_L2WT)
 #define L2_ENABLE   (L2_INIT | L2CR_L2E)
 
 #define CFG_L2_BAB7xx

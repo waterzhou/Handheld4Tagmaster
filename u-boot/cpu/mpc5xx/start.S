@@ -3,7 +3,7 @@
  *  Copyright (C) 1999	Magnus Damm <kieraypc01.p.y.kie.era.ericsson.se>
  *  Copyright (C) 2000, 2001, 2002 Wolfgang Denk <wd@denx.de>
  *  Copyright (C) 2003  Martin Winistoerfer, martinwinistoerfer@gmx.ch.
- * 
+ *
  * See file CREDITS for list of people who contributed to this
  * project.
  *
@@ -25,7 +25,7 @@
 
 /*
  * File:		start.S
- * 
+ *
  * Discription:		startup code
  *
  */
@@ -39,9 +39,9 @@
 
 #include <ppc_asm.tmpl>
 #include <ppc_defs.h>
-	
+
 #include <linux/config.h>
-#include <asm/processor.h>	
+#include <asm/processor.h>
 
 #ifndef  CONFIG_IDENT_STRING
 #define  CONFIG_IDENT_STRING ""
@@ -88,7 +88,7 @@ version_string:
 _start:
 	mfspr	r3, 638
 	li	r4, CFG_ISB			/* Set ISB bit */
-	or	r3, r3, r4 
+	or	r3, r3, r4
 	mtspr	638, r3
 	li	r21, BOOTFLAG_COLD		/* Normal Power-On: Boot from FLASH	*/
 	b	boot_cold
@@ -117,6 +117,29 @@ boot_warm:
 	mtspr	COUNTA, r0
 	mtspr	COUNTB, r0
 
+#if defined(CONFIG_PATI)
+	/* the external flash access on PATI fails if programming the PLL to 40MHz.
+	 * Copy the PLL programming code to the internal RAM and execute it
+	 *----------------------------------------------------------------------*/
+	lis	r3, CFG_MONITOR_BASE@h
+	ori	r3, r3, CFG_MONITOR_BASE@l
+	addi	r3, r3, pll_prog_code_start - _start + EXC_OFF_SYS_RESET
+
+	lis	r4, CFG_INIT_RAM_ADDR@h
+	ori	r4, r4, CFG_INIT_RAM_ADDR@l
+	mtlr	r4
+	addis	r5,0,0x0
+	ori	r5,r5,((pll_prog_code_end - pll_prog_code_start) >>2)
+	mtctr	r5
+	addi	r3, r3, -4
+	addi	r4, r4, -4
+0:
+	lwzu	r0,4(r3)
+	stwu	r0,4(r4)
+	bdnz	0b                /* copy loop */
+	blrl
+#endif
+
 	/*
 	 * Calculate absolute address in FLASH and jump there
 	 *----------------------------------------------------------------------*/
@@ -131,7 +154,7 @@ in_flash:
 
 	/* Initialize some SPRs that are hard to access from C			*/
 	/*----------------------------------------------------------------------*/
-	
+
 	lis     r3, CFG_IMMR@h          	/* Pass IMMR as arg1 to C routine */
 	lis	r2, CFG_INIT_SP_ADDR@h
 	ori	r1, r2, CFG_INIT_SP_ADDR@l	/* Set up the stack in internal SRAM */
@@ -167,7 +190,6 @@ in_flash:
 	mr	r3, r21
 	/* r3: BOOTFLAG */
 	bl	board_init_f	/* run 1st part of board init code (from Flash) */
-
 
 
 	.globl	_start_of_vectors
@@ -227,75 +249,7 @@ ProgramCheck:
 	STD_EXCEPTION(0x900, Decrementer, timer_interrupt)
 	STD_EXCEPTION(0xa00, Trap_0a, UnknownException)
 	STD_EXCEPTION(0xb00, Trap_0b, UnknownException)
-
-	. = 0xc00
-/*
- * r0 - SYSCALL number
- * r3-... arguments
- */
-SystemCall:
-	addis	r11,r0,0		/* get functions table addr */
-	ori	r11,r11,0		/* Note: this code is patched in trap_init */
-	addis	r12,r0,0		/* get number of functions */
-	ori	r12,r12,0
-
-	cmplw	0, r0, r12
-	bge	1f
-
-	rlwinm	r0,r0,2,0,31		/* fn_addr = fn_tbl[r0] */
-	add	r11,r11,r0
-	lwz	r11,0(r11)
-
-	li	r20,0xd00-4		/* Get stack pointer */
-	lwz	r12,0(r20)
-	subi	r12,r12,12		/* Adjust stack pointer */
-	li	r0,0xc00+_end_back-SystemCall
-	cmplw	0, r0, r12		/* Check stack overflow */
-	bgt	1f
-	stw	r12,0(r20)
-
-	mflr	r0
-	stw	r0,0(r12)
-	mfspr	r0,SRR0
-	stw	r0,4(r12)
-	mfspr	r0,SRR1
-	stw	r0,8(r12)
-
-	li	r12,0xc00+_back-SystemCall
-	mtlr	r12
-	mtspr	SRR0,r11
-
-1:	SYNC
-	rfi
-
-_back:
-
-	mfmsr	r11			/* Disable interrupts */
-	li	r12,0
-	ori	r12,r12,MSR_EE
-	andc	r11,r11,r12
-	SYNC				/* Some chip revs need this... */
-	mtmsr	r11
-	SYNC
-
-	li	r12,0xd00-4		/* restore regs */
-	lwz	r12,0(r12)
-
-	lwz	r11,0(r12)
-	mtlr	r11
-	lwz	r11,4(r12)
-	mtspr	SRR0,r11
-	lwz	r11,8(r12)
-	mtspr	SRR1,r11
-
-	addi	r12,r12,12		/* Adjust stack pointer */
-	li	r20,0xd00-4
-	stw	r12,0(r20)
-
-	SYNC
-	rfi
-_end_back:
-
+	STD_EXCEPTION(0xc00, SystemCall, UnknownException)
 	STD_EXCEPTION(0xd00, SingleStep, UnknownException)
 
 	STD_EXCEPTION(0xe00, Trap_0e, UnknownException)
@@ -389,7 +343,7 @@ int_return:
 	SYNC
 	rfi
 
-		
+
 /*
  * unsigned int get_immr (unsigned int mask)
  *
@@ -476,7 +430,7 @@ relocate_code:
 	stwu	r0,-4(r7)
 	bdnz	3b
 
-4:	sync			
+4:	sync
 	isync
 
 /*
@@ -493,8 +447,8 @@ in_ram:
 	/*
 	 * Relocation Function, r14 point to got2+0x8000
 	 *
-         * Adjust got2 pointers, no need to check for 0, this code
-         * already puts a few entries in the table.
+	 * Adjust got2 pointers, no need to check for 0, this code
+	 * already puts a few entries in the table.
 	 */
 	li	r0,__got2_entries@sectoff@l
 	la	r3,GOT(_GOT2_TABLE_)
@@ -508,7 +462,7 @@ in_ram:
 	bdnz	1b
 
 	/*
-         * Now adjust the fixups and the pointers to the fixups
+	 * Now adjust the fixups and the pointers to the fixups
 	 * in case we need to move ourselves again.
 	 */
 2:	li	r0,__fixup_entries@sectoff@l
@@ -622,3 +576,28 @@ trap_reloc:
 	isync
 
 	blr
+
+
+#if defined(CONFIG_PATI)
+/* Program the PLL */
+pll_prog_code_start:
+	lis	r4, (CFG_IMMR + 0x002fc384)@h
+	ori	r4, r4, (CFG_IMMR + 0x002fc384)@l
+	lis	r3, (0x55ccaa33)@h
+	ori	r3, r3, (0x55ccaa33)@l
+	stw	r3, 0(r4)
+	lis	r4, (CFG_IMMR + 0x002fc284)@h
+	ori	r4, r4, (CFG_IMMR + 0x002fc284)@l
+	lis	r3, CFG_PLPRCR@h
+	ori	r3, r3, CFG_PLPRCR@l
+	stw	r3, 0(r4)
+	addis	r3,0,0x0
+	ori	r3,r3,0xA000
+	mtctr	r3
+..spinlp:
+  bdnz    ..spinlp                /* spin loop */
+	blr
+pll_prog_code_end:
+	nop
+	blr
+#endif

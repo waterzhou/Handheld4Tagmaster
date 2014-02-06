@@ -37,7 +37,7 @@ int do_coninfo (cmd_tbl_t * cmd, int flag, int argc, char *argv[])
 
 	/* Scan for valid output and input devices */
 
-	printf ("List of available devices:\n");
+	puts ("List of available devices:\n");
 
 	for (i = 1; i <= ListNumItems (devlist); i++) {
 		device_t *dev = ListGetPtrToItem (devlist, i);
@@ -58,4 +58,14 @@ int do_coninfo (cmd_tbl_t * cmd, int flag, int argc, char *argv[])
 	}
 	return 0;
 }
+
+
+/***************************************************/
+
+U_BOOT_CMD(
+	coninfo,	3,	1,	do_coninfo,
+	"coninfo - print console devices and information\n",
+	""
+);
+
 #endif /* CFG_CMD_CONSOLE */

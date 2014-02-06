@@ -25,9 +25,6 @@
 #include <asm/processor.h>
 #include <405gp_i2c.h>
 #include <command.h>
-#include <cmd_nvedit.h>
-#include <cmd_bootm.h>
-#include <cmd_boot.h>
 #include <rtc.h>
 #include <post.h>
 #include <net.h>
@@ -112,7 +109,7 @@ extern char bootscript[];
 static void init_sdram (void);
 
 /* ------------------------------------------------------------------------- */
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	/* Running from ROM: global data is still READONLY */
 	init_sdram ();
@@ -136,7 +133,7 @@ int checkboard (void)
 /* ------------------------------------------------------------------------- */
 int misc_init_r (void)
 {
-	unsigned char *s, *e;
+	char *s, *e;
 	image_header_t *hdr;
 	time_t timestamp;
 	struct rtc_time tm;
@@ -149,7 +146,7 @@ int misc_init_r (void)
 
 #define FACTORY_SETTINGS 0xFFFC0000
 	if ((s = getenv ("ethaddr")) == NULL) {
-		e = (unsigned char *) (FACTORY_SETTINGS);
+		e = (char *) (FACTORY_SETTINGS);
 		if (*(e + 0) != '0'
 			|| *(e + 1) != '0'
 			|| *(e + 2) != ':'
@@ -249,7 +246,7 @@ int testdram (void)
 			*p = 0xaaaaaaaa;
 		for (p = pstart; p < pend; p++) {
 			if (*p != 0xaaaaaaaa) {
-				printf ("SDRAM test fails at: %08x, was %08x expected %08x\n", 
+				printf ("SDRAM test fails at: %08x, was %08x expected %08x\n",
 						(uint) p, *p, 0xaaaaaaaa);
 				return 1;
 			}
@@ -259,7 +256,7 @@ int testdram (void)
 			*p = 0x55555555;
 		for (p = pstart; p < pend; p++) {
 			if (*p != 0x55555555) {
-				printf ("SDRAM test fails at: %08x, was %08x expected %08x\n", 
+				printf ("SDRAM test fails at: %08x, was %08x expected %08x\n",
 						(uint) p, *p, 0x55555555);
 				return 1;
 			}
@@ -269,7 +266,7 @@ int testdram (void)
 			*p = (unsigned)p;
 		for (p = pstart; p < pend; p++) {
 			if (*p != (unsigned)p) {
-				printf ("SDRAM test fails at: %08x, was %08x expected %08x\n", 
+				printf ("SDRAM test fails at: %08x, was %08x expected %08x\n",
 						(uint) p, *p, (uint)p);
 				return 1;
 			}
@@ -317,7 +314,7 @@ static u8 *dhcp_env_update (u8 thing, u8 * pop)
 	{
 		setenv (Things[thing].envname, Things[thing].dhcpvalue);
 	}
-	return (Things[thing].dhcpvalue);
+	return ((u8 *)(Things[thing].dhcpvalue));
 }
 
 /* ------------------------------------------------------------------------- */

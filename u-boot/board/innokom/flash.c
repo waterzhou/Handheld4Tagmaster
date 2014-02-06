@@ -10,7 +10,7 @@
  * Robert Schwebel, Pengutronix, <r.schwebel@pengutronix.de>
  *
  * (C) Copyright 2002
- * Auerswald GmbH & Co KG, Germany 
+ * Auerswald GmbH & Co KG, Germany
  * Kai-Uwe Bloem <kai-uwe.bloem@auerswald.de>
  *
  * See file CREDITS for list of people who contributed to this
@@ -35,14 +35,9 @@
 #include <common.h>
 #include <asm/arch/pxa-regs.h>
 
-#if defined CFG_JFFS_CUSTOM_PART
-#include <jffs2/jffs2.h>
-#endif
-
 /* Debugging macros ------------------------------------------------------  */
 
 #undef FLASH_DEBUG
-//#define FLASH_DEBUG 1
 
 /* Some debug macros */
 #if (FLASH_DEBUG > 2 )
@@ -79,179 +74,6 @@
 
 flash_info_t    flash_info[CFG_MAX_FLASH_BANKS];
 
-
-#if defined CFG_JFFS_CUSTOM_PART
-
-/**
- * jffs2_part_info - get information about a JFFS2 partition
- *
- * @part_num: number of the partition you want to get info about
- * @return:   struct part_info* in case of success, 0 if failure
- */
-
-static struct part_info part;
-static int current_part = -1;
-
-#ifdef CONFIG_MTD_INNOKOM_16MB
-#ifdef CONFIG_MTD_INNOKOM_64MB
-#error Please define only one CONFIG_MTD_INNOKOM_XXMB option.
-#endif
-struct part_info* jffs2_part_info(int part_num) {
-	void *jffs2_priv_saved = part.jffs2_priv;
-
-	PRINTK2("jffs2_part_info: part_num=%i\n",part_num);
-
-	if (current_part == part_num)
-		return &part;
-
-	/* u-boot partition                                                 */
-	if(part_num==0){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x00000000;
-		part.size=256*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-
-	/* primary OS+firmware partition                                    */
-	if(part_num==1){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x00040000;
-		part.size=768*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-	
-	/* secondary OS+firmware partition                                  */
-	if(part_num==2){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x00100000;
-		part.size=8*1024*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-
-	/* data partition */
-	if(part_num==3){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x00900000;
-		part.size=7*1024*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-	
-	if (current_part == part_num) {
-		part.usr_priv = &current_part;
-		part.jffs2_priv = jffs2_priv_saved;
-		return &part;
-	}
-
-	PRINTK("jffs2_part_info: end of partition table\n");
-	return 0;
-}
-#endif /* CONFIG_MTD_INNOKOM_16MB */
-
-#ifdef CONFIG_MTD_INNOKOM_64MB
-#ifdef CONFIG_MTD_INNOKOM_16MB
-#error Please define only one CONFIG_MTD_INNOKOM_XXMB option.
-#endif
-struct part_info* jffs2_part_info(int part_num) {
-	void *jffs2_priv_saved = part.jffs2_priv;
-
-	PRINTK2("jffs2_part_info: part_num=%i\n",part_num);
-
-	if (current_part == part_num)
-		return &part;
-
-	/* u-boot partition                                                 */
-	if(part_num==0){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x00000000;
-		part.size=256*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-
-	/* primary OS+firmware partition                                    */
-	if(part_num==1){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x00040000;
-		part.size=16*1024*1024-128*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-	
-	/* secondary OS+firmware partition                                  */
-	if(part_num==2){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x01020000;
-		part.size=16*1024*1024-128*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-
-	/* data partition */
-	if(part_num==3){
-		memset(&part, 0, sizeof(part));
-		
-		part.offset=(char*)0x02000000;
-		part.size=32*1024*1024;
-		
-		/* Mark the struct as ready */
-		current_part = part_num;
-
-		PRINTK("part.offset = 0x%08x\n",(unsigned int)part.offset);
-		PRINTK("part.size   = 0x%08x\n",(unsigned int)part.size);
-	}
-	
-	if (current_part == part_num) {
-		part.usr_priv = &current_part;
-		part.jffs2_priv = jffs2_priv_saved;
-		return &part;
-	}
-
-	PRINTK("jffs2_part_info: end of partition table\n");
-	return 0;
-}
-#endif /* CONFIG_MTD_INNOKOM_64MB */
-#endif /* defined CFG_JFFS_CUSTOM_PART */
-
-
 /**
  * flash_init: - initialize data structures for flash chips
  *
@@ -277,7 +99,7 @@ ulong flash_init(void)
 				flashbase = PHYS_FLASH_1;
 				break;
 			default:
-				panic("configured to many flash banks!\n");
+				panic("configured too many flash banks!\n");
 				break;
 		}
 		for (j = 0; j < flash_info[i].sector_count; j++) {
@@ -335,13 +157,13 @@ void flash_print_info  (flash_info_t *info)
 				return;
 		}
 
-		printf("  Size: %ld MB in %d Sectors\n", 
+		printf("  Size: %ld MB in %d Sectors\n",
 			info->size >> 20, info->sector_count);
 
 		printf("  Sector Start Addresses:");
 		for (i = 0; i < info->sector_count; i++) {
 			if ((i % 5) == 0) printf ("\n   ");
-	        
+
 			printf (" %08lX%s", info->start[i],
 				info->protect[i] ? " (RO)" : "     ");
 		}
@@ -370,7 +192,7 @@ int flash_erase(flash_info_t *info, int s_first, int s_last)
 
 	if ((info->flash_id & FLASH_VENDMASK) != (INTEL_MANUFACT & FLASH_VENDMASK))
 		return ERR_UNKNOWN_FLASH_VENDOR;
-	
+
 	prot = 0;
 	for (sect=s_first; sect<=s_last; ++sect) {
 		if (info->protect[sect]) prot++;
@@ -420,13 +242,13 @@ int flash_erase(flash_info_t *info, int s_first, int s_last)
 					goto outahere;
 				}
 			}
-			
+
 			PRINTK("clearing status register\n");
-			*addr = 0x0050; 
+			*addr = 0x0050;
 			PRINTK("resetting to read mode");
-			*addr = 0x00FF; 
+			*addr = 0x00FF;
 		}
-		
+
 		printf("ok.\n");
 	}
 
@@ -595,4 +417,3 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 
 	return write_word(info, wp, data);
 }
-

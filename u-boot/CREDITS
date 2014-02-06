@@ -18,25 +18,40 @@ N: Dr. Bruno Achauer
 E: bruno@exet-ag.de
 D: Support for NetBSD (both as host and target system)
 
-N: Swen Anderson
-E: sand@peppercon.de
-D: ERIC Support
-
 N: Guillaume Alexandre
 E: guillaume.alexandre@gespac.ch
 D: Add PCIPPC6 configuration
 
+N: Swen Anderson
+E: sand@peppercon.de
+D: ERIC Support
+
 N: Pantelis Antoniou
 E: panto@intracom.gr
-D: NETVIA board support, ARTOS support.
+D: NETVIA & NETPHONE board support, ARTOS support.
+D: Support for Silicon Turnkey eXpress XTc
 
 N: Pierre Aubert
 E: <p.aubert@staubli.com>
 D: Support for RPXClassic board
 
+N: Yuli Barcohen
+E: yuli@arabellasw.com
+D: Unified support for Motorola MPC826xADS/MPC8272ADS/PQ2FADS boards.
+D: Support for Zephyr Engineering ZPC.1900 board.
+D: Support for Interphase iSPAN boards.
+D: Support for Analogue&Micro Adder boards.
+D: Support for Analogue&Micro Rattler boards.
+W: http://www.arabellasw.com
+
 N: Jerry van Baren
 E: <vanbaren@cideas.com>
 D: BedBug port to 603e core (MPC82xx). Code for enhanced memory test.
+
+N: Pavel Bartusek
+E: <pba@sysgo.com>
+D: Reiserfs support
+W: http://www.elinos.com
 
 N: Andre Beaudin
 E: <andre.beaudin@colubris.com>
@@ -50,6 +65,12 @@ N: Raphael Bossek
 E: raphael.bossek@solutions4linux.de
 D: 8xxrom-0.3.0
 
+N: Cliff Brake
+E: cliff.brake@gmail.com
+D: Port to Vibren PXA255 IDP platform
+W: http://www.vibren.com
+W: http://bec-systems.com
+
 N: Rick Bronson
 E: rick@efn.org
 D: Atmel AT91RM9200DK and NAND support
@@ -62,12 +83,18 @@ N: Oliver Brown
 E: obrown@adventnetworks.com
 D: Port to the gw8260 board
 
+N: Curt Brune
+E: curt@cucy.com
+D: Added support for Samsung S3C4510B CPU (ARM7tdmi based SoC)
+D: Added support for ESPD-Inc. EVB4510 Board
+W: http://www.cucy.com
+
 N: Jonathan De Bruyne
 E: jonathan.debruyne@siemens.atea.be
 D: Port to Siemens IAD210 board
 
 N: Ken Chou
-E: kchou@ieee.org	
+E: kchou@ieee.org
 D: Support for A3000 SBC board
 
 N: Conn Clark
@@ -75,8 +102,12 @@ E: clark@esteem.com
 D: ESTEEM192E support
 
 N: Magnus Damm
-E: eramdam@kieray1.p.y.ki.era.ericsson.se
+E: damm@opensource.se
 D: 8xxrom
+
+N: George G. Davis
+E: gdavis@mvista.com
+D: Board ports for ADS GraphicsClient+ and Intel Assabet
 
 N: Arun Dharankar
 E: ADharankar@ATTBI.Com
@@ -102,6 +133,11 @@ D: Port to the MOUSSE board
 N: Dave Ellis
 E: DGE@sixnetio.com
 D: EEPROM Speedup, SXNI855T port
+
+N: Thomas Elste
+E: info@elste.org
+D: Port for the ModNET50 Board, NET+50 CPU Port
+W: http://www.imms.de
 
 N: Daniel Engström
 E: daniel@omicron.se
@@ -169,39 +205,89 @@ D: Support for Samsung ARM920T S3C2400X, ARM920T "TRAB"
 W: www.denx.de
 
 N: Murray Jensen
-E: Murray.Jensen@cmst.csiro.au
+E: Murray.Jensen@csiro.au
 D: Initial 8260 support; GDB support
 D: Port to Cogent+Hymod boards; Hymod Board Database
-W: http://www.msa.cmst.csiro.au/ourstaff/MurrayJensen/mjj.html
 
 N: Yoo. Jonghoon
 E: yooth@ipone.co.kr
 D: Added port to the RPXlite board
 
+N: Mark Jonas
+E: mark.jonas@freescale.com
+D: Support for Freescale Total5200 platform
+W: http://www.mobilegt.com/
+
+N: Sam Song
+E: samsongshu@yahoo.com.cn
+D: Port to the RPXlite_DW board
+
 N: Brad Kemp
 E: Brad.Kemp@seranoa.com
 D: Port to Windriver ppmc8260 board
+
+N: Sangmoon Kim
+E: dogoil@etinsys.com
+D: Support for debris board
+
+N: Frederick W. Klatt
+E: fred.klatt@windriver.com
+D: Support for Wind River SBC8540/SBC8560 boards
 
 N: Thomas Koeller
 E: tkoeller@gmx.net
 D: Port to Motorola Sandpoint 3 (MPC8240)
 
+N: Raghu Krishnaprasad
+E: Raghu.Krishnaprasad@fci.com
+D: Support for Adder-II MPC852T evaluation board
+W: http://www.forcecomputers.com
+
+N: Bernhard Kuhn
+E: bkuhn@metrowerks.com
+D Support for Coldfire CPU; Support for Motorola M5272C3 and M5282EVB boards
+
+N: Prakash Kumar
+E: prakash@embedx.com
+D  Support for Intrinsyc CERF PXA250 board.
+
 N: Thomas Lange
-E: thomas@corelatus.com
-D: Support for GTH board; lots of PCMCIA fixes
+E: thomas@corelatus.se
+D: Support for GTH and dbau1x00 boards; lots of PCMCIA fixes
+
+N: Marc Leeman
+E: marc.leeman@barco.com
+D: Support for Barco Streaming Video Card (SVC) and Sample Compress Network (SCN)
+W: www.barco.com
 
 N: The LEOX team
 E: team@leox.org
 D: Support for LEOX boards, DS164x RTC
 W: http://www.leox.org
 
+N: Leif Lindholm
+E: leif.lindholm@i3micro.com
+D: Support for AMD dbau1550 board.
+
+N: Stephan Linz
+E: linz@li-pro.net
+D: Support for Nios Stratix Development Kit (DK-1S10)
+D: Support for SSV ADNP/ESC1 (Nios Cyclone)
+W: http://www.li-pro.net
+
 N: Raymond Lo
 E: lo@routefree.com
 D: Support for DOS partitions
 
 N: Dan Malek
-E: dan@netx4.com
+E: dan@embeddedalley.com
 D: FADSROM, the grandfather of all of this
+D: Support for Silicon Turnkey eXpress XTc
+
+N: Andrea "llandre" Marson
+E: andrea.marson@dave-tech.it
+D: Port to PPChameleonEVB board
+W: www.dave-tech.it
 
 N: Reinhard Meyer
 E: r.meyer@emk-elektronik.de
@@ -219,10 +305,21 @@ N: David Müller
 E: d.mueller@elsoft.ch
 D: Support for Samsung ARM920T SMDK2410 eval board
 
+N: Scott McNutt
+E: smcnutt@psyent.com
+D: Support for Altera Nios-32 CPU
+D: Support for Altera Nios-II CPU
+D: Support for Nios Cyclone Development Kit (DK-1C20)
+W: http://www.psyent.com
+
 N: Rolf Offermanns
 E: rof@sysgo.de
 D: Initial support for SSV-DNP1110, SMC91111 driver
 W: www.elinos.com
+
+N: Tolunay Orkun
+E: torkun@nextio.com
+D: Support for Cogent CSB272 & CSB472 boards
 
 N: Keith Outwater
 E: keith_outwater@mvis.com
@@ -238,21 +335,39 @@ D: Support for 4xx SCSI, floppy, CDROM, CT69000 video, ...
 D: Support for PIP405 board
 D: Support for MIP405 board
 
+N: Dave Peverley
+E: dpeverley@mpc-data.co.uk
+W: http://www.mpc-data.co.uk
+D: OMAP730 P2 board support
+
 N: Bill Pitts
 E: wlp@mindspring.com
 D: BedBug embedded debugger code
 
+N: Daniel Poirot
+E: dan.poirot@windriver.com
+D: Support for the Wind River sbc405, sbc8240 board
+W: http://www.windriver.com
+
 N: Stefan Roese
 E: stefan.roese@esd-electronics.com
-D: IBM PPC401/403/405GP Support; Windows environment support
+D: AMCC PPC401/403/405GP Support; Windows environment support
 
 N: Erwin Rol
 E: erwin@muffin.org
 D: boot support for RTEMS
 
+N: Paul Ruhland
+E: pruhland@rochester.rr.com
+D: Port to Logic Zoom LH7A40x SDK board(s)
+
 N: Neil Russell
 E: caret@c-side.com
 D: Author of LiMon-1.4.2, which contributed some ideas
+
+N: Travis B. Sawyer
+E: travis.sawyer@sandburst.com
+D: Support for AMCC PPC440GX, XES XPedite1000 440GX PrPMC board.  AMCC 440gx Ref Platform (Ocotea)
 
 N: Paolo Scaffardi
 E: arsenio@tin.it
@@ -261,6 +376,23 @@ D: FADS823 configuration, MPC823 video support, I2C, wireless keyboard, lots mor
 N: Robert Schwebel
 E: r.schwebel@pengutronix.de
 D: Support for csb226, logodl and innokom boards (PXA2xx)
+
+N: Art Shipkowski
+E: art@videon-central.com
+D: Support for NetSilicon NS7520
+
+N: Yasushi Shoji
+E: yashi@atmark-techno.com
+D: Support for Xilinx MicroBlaze, for Atmark Techno SUZAKU FPGA board
+
+N: Kurt Stremerch
+E: kurt@exys.be
+D: Support for Exys XSEngine board
+
+N: Andrea Scian
+E: andrea.scian@dave-tech.it
+D: Port to B2 board
+W: www.dave-tech.it
 
 N: Rob Taylor
 E: robt@flyingpig.com
@@ -278,17 +410,34 @@ N: Rune Torgersen
 E: <runet@innovsys.com>
 D: Support for Motorola MPC8266ADS board
 
+N: Greg Ungerer
+E: greg.ungerer@opengear.com
+D: Support for ks8695 CPU, and OpenGear cmXXXX boards
+
 N: David Updegraff
 E: dave@cray.com
 D: Port to Cray L1 board; DHCP vendor extensions
+
+N: Christian Vejlbo
+E: christian.vejlbo@tellabs.com
+D: FADS860T ethernet support
+
+N: Robert Whaley
+E: rwhaley@applieddata.net
+D: Port to ARM PXA27x adsvix SBC
 
 N: Martin Winistoerfer
 E: martinwinistoerfer@gmx.ch
 D: Port to MPC555/556 microcontrollers and support for cmi board
 
-N: Christian Vejlbo
-E: christian.vejlbo@tellabs.com
-D: FADS860T ethernet support
+N: Ming-Len Wu
+E: minglen_wu@techware.com.tw
+D: Motorola MX1ADS board support
+W: http://www.techware.com.tw/
+
+N: Xianghua Xiao
+E: x.xiao@motorola.com
+D: Support for Motorola 85xx(PowerQUICC III) chip, MPC8540ADS and MPC8560ADS boards.
 
 N: John Zhan
 E: zhanz@sinovee.com
@@ -299,6 +448,7 @@ E: azu@sysgo.de
 D: Overall improvements on StrongARM, ARM720TDMI; Support for Tuxscreen; initial PCMCIA support for ARM
 W: www.elinos.com
 
-N: Pantelis Antoniou
-E: panto@intracom.gr
-D: NETVIA board support, ARTOS support.
+N: James MacAulay
+E: james.macaulay@amirix.com
+D: Suppport for Amirix AP1000
+W: www.amirix.com

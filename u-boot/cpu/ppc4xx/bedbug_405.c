@@ -5,8 +5,7 @@
 #include <common.h>
 #include <command.h>
 #include <linux/ctype.h>
-
-#include <cmd_bedbug.h>
+#include <bedbug/type.h>
 #include <bedbug/bedbug.h>
 #include <bedbug/regs.h>
 #include <bedbug/ppc.h>
@@ -26,7 +25,7 @@ int bedbug405_clear __P ((int));
 
 
 /* ======================================================================
- * Initialize the global bug_ctx structure for the IBM PPC405.	Clear all
+ * Initialize the global bug_ctx structure for the AMCC PPC405.	Clear all
  * of the breakpoints.
  * ====================================================================== */
 

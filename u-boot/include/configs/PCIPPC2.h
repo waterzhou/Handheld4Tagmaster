@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2002
+ * (C) Copyright 2002-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -43,32 +43,32 @@
 
 #define CONFIG_PCIPPC2		1	/* this is a PCIPPC2 board	*/
 
-#define CONFIG_BOARD_PRE_INIT	1
+#define CONFIG_BOARD_EARLY_INIT_F 1
 #define CONFIG_MISC_INIT_R	1
 
 #define CONFIG_CONS_INDEX	1
 #define CONFIG_BAUDRATE		9600
 #define CFG_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
 
-#define CONFIG_CLOCKS_IN_MHZ	1	/* clocks passed to Linux in MHz */
-
 #define CONFIG_PREBOOT		""
 #define CONFIG_BOOTDELAY	5
 
 #define CONFIG_BOOTP_MASK	(CONFIG_BOOTP_DEFAULT | \
-			         CONFIG_BOOTP_BOOTFILESIZE)
+				 CONFIG_BOOTP_BOOTFILESIZE)
 
 #define CONFIG_MAC_PARTITION
 #define CONFIG_DOS_PARTITION
 
-#define CONFIG_COMMANDS	        (CONFIG_CMD_DFL	| \
-				 CFG_CMD_ASKENV	| \
-				 CFG_CMD_BSP	| \
-				 CFG_CMD_DATE	| \
-				 CFG_CMD_DHCP	| \
-				 CFG_CMD_DOC	| \
-				 CFG_CMD_ELF	| \
-				 CFG_CMD_PCI	)
+#define CONFIG_COMMANDS	       (CONFIG_CMD_DFL	| \
+				CFG_CMD_ASKENV	| \
+				CFG_CMD_BSP	| \
+				CFG_CMD_DATE	| \
+				CFG_CMD_DHCP	| \
+				CFG_CMD_DOC	| \
+				CFG_CMD_ELF	| \
+				CFG_CMD_NFS	| \
+				CFG_CMD_PCI	| \
+				CFG_CMD_SNTP	)
 
 #define CONFIG_PCI		1
 #define CONFIG_PCI_PNP		1	/* PCI plug-and-play */
@@ -231,7 +231,7 @@
  */
 #undef CFG_L2
 #define L2_INIT   (L2CR_L2SIZ_2M | L2CR_L2CLK_3 | L2CR_L2RAM_BURST | \
-                   L2CR_L2OH_5 | L2CR_L2CTL | L2CR_L2WT)
+		   L2CR_L2OH_5 | L2CR_L2CTL | L2CR_L2WT)
 #define L2_ENABLE (L2_INIT | L2CR_L2E)
 
 /*

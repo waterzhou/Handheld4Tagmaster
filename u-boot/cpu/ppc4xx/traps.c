@@ -164,19 +164,18 @@ MachineCheckException(struct pt_regs *regs)
 	printf("Machine check in kernel mode.\n");
 	printf("Caused by (from msr): ");
 	printf("regs %p ",regs);
-	switch( regs->msr & 0x0000F000)
-	{
-	case (1<<12) :
+	switch( regs->msr & 0x000F0000) {
+	case (0x80000000>>12):
 		printf("Machine check signal - probably due to mm fault\n"
 		       "with mmu off\n");
 		break;
-	case (1<<13) :
+	case (0x80000000>>13):
 		printf("Transfer error ack signal\n");
 		break;
-	case (1<<14) :
+	case (0x80000000>>14):
 		printf("Data parity signal\n");
 		break;
-	case (1<<15) :
+	case (0x80000000>>15):
 		printf("Address parity signal\n");
 		break;
 	default:
@@ -203,7 +202,7 @@ AlignmentException(struct pt_regs *regs)
 void
 ProgramCheckException(struct pt_regs *regs)
 {
-        long esr_val;
+	long esr_val;
 
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 	if (debugger_exception_handler && (*debugger_exception_handler)(regs))
@@ -212,12 +211,12 @@ ProgramCheckException(struct pt_regs *regs)
 
 	show_regs(regs);
 
-        esr_val = get_esr();
-        if( esr_val & ESR_PIL )
+	esr_val = get_esr();
+	if( esr_val & ESR_PIL )
 		printf( "** Illegal Instruction **\n" );
-        else if( esr_val & ESR_PPR )
+	else if( esr_val & ESR_PPR )
 		printf( "** Privileged Instruction **\n" );
-        else if( esr_val & ESR_PTR )
+	else if( esr_val & ESR_PTR )
 		printf( "** Trap Instruction **\n" );
 
 	print_backtrace((unsigned long *)regs->gpr[1]);
@@ -227,15 +226,15 @@ ProgramCheckException(struct pt_regs *regs)
 void
 PITException(struct pt_regs *regs)
 {
-        /*
-         * Reset PIT interrupt
-         */
-        set_tsr(0x08000000);
+	/*
+	 * Reset PIT interrupt
+	 */
+	set_tsr(0x08000000);
 
-        /*
-         * Call timer_interrupt routine in interrupts.c
-         */
-        timer_interrupt(NULL);
+	/*
+	 * Call timer_interrupt routine in interrupts.c
+	 */
+	timer_interrupt(NULL);
 }
 
 

@@ -66,12 +66,12 @@
 	"setenv bootargs root=/dev/ram rw ramdisk_size=4690 "			\
 	"U-Boot_version=U-Boot-1.0.x-Date "					\
 	"panic=1 "								\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; "	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; "	\
 	"bootm"
 #define CONFIG_NFSBOOTCOMMAND							\
 	"bootp; "								\
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(nfsip):$(rootpath) "	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; "	\
+	"setenv bootargs root=/dev/nfs rw nfsroot=${nfsip}:${rootpath} "	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; "	\
 	"bootm"
 #define CONFIG_BOOTCOMMAND CONFIG_RAMBOOTCOMMAND
 
@@ -282,7 +282,7 @@
 
 /* FLASH timing: ACS = 11, TRLX = 1, CSNT = 0, SCY = 2, EHTR = 0	*/
 #define CFG_OR_TIMING_FLASH    (OR_ACS_DIV2 | OR_BI | \
-                               OR_SCY_2_CLK | OR_TRLX )
+			       OR_SCY_2_CLK | OR_TRLX )
 
 #define CFG_OR0_REMAP	(CFG_REMAP_OR_AM  | CFG_OR_TIMING_FLASH)
 #define CFG_OR0_PRELIM	(CFG_PRELIM_OR_AM | CFG_OR_TIMING_FLASH)

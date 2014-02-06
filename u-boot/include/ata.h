@@ -37,10 +37,13 @@
  * 8-bit (register) and 16-bit (data) accesses might use different
  * address spaces. This is implemented by the following definitions.
  */
+#ifndef CFG_ATA_STRIDE
+#define CFG_ATA_STRIDE	1
+#endif
 
-#define ATA_IO_DATA(x)	(CFG_ATA_DATA_OFFSET+(x))
-#define ATA_IO_REG(x)	(CFG_ATA_REG_OFFSET +(x))
-#define ATA_IO_ALT(x)	(CFG_ATA_ALT_OFFSET +(x))
+#define ATA_IO_DATA(x)	(CFG_ATA_DATA_OFFSET+((x) * CFG_ATA_STRIDE))
+#define ATA_IO_REG(x)	(CFG_ATA_REG_OFFSET +((x) * CFG_ATA_STRIDE))
+#define ATA_IO_ALT(x)	(CFG_ATA_ALT_OFFSET +((x) * CFG_ATA_STRIDE))
 
 /*
  * I/O Register Descriptions
@@ -53,6 +56,8 @@
 #define ATA_CYL_HIGH	ATA_IO_REG(5)
 #define ATA_DEV_HD	ATA_IO_REG(6)
 #define ATA_COMMAND	ATA_IO_REG(7)
+#define ATA_DATA_EVEN	ATA_IO_REG(8)
+#define ATA_DATA_ODD	ATA_IO_REG(9)
 #define ATA_STATUS	ATA_COMMAND
 #define ATA_DEV_CTL	ATA_IO_ALT(6)
 #define ATA_LBA_LOW	ATA_SECT_NUM
@@ -100,6 +105,10 @@
 #define ATA_CMD_IDENT	0xEC	/* Identify Device		*/
 #define ATA_CMD_SETF	0xEF	/* Set Features			*/
 #define ATA_CMD_CHK_PWR	0xE5	/* Check Power Mode		*/
+
+#define ATA_CMD_READ_EXT 0x24	/* Read Sectors (with retries)	with 48bit addressing */
+#define ATA_CMD_WRITE_EXT	0x34	/* Write Sectores (with retries) with 48bit addressing */
+#define ATA_CMD_VRFY_EXT	0x42	/* Read Verify	(with retries)	with 48bit addressing */
 
 /*
  * ATAPI Commands
@@ -187,7 +196,7 @@ typedef struct hd_driveid {
 	unsigned short  major_rev_num;	/*  */
 	unsigned short  minor_rev_num;	/*  */
 	unsigned short  command_set_1;	/* bits 0:Smart 1:Security 2:Removable 3:PM */
-	unsigned short  command_set_2;	/* bits 14:Smart Enabled 13:0 zero */
+	unsigned short	command_set_2;	/* bits 14:Smart Enabled 13:0 zero 10:lba48 support*/
 	unsigned short  cfsse;		/* command set-feature supported extensions */
 	unsigned short  cfs_enable_1;	/* command set-feature enabled */
 	unsigned short  cfs_enable_2;	/* command set-feature enabled */
@@ -198,7 +207,10 @@ typedef struct hd_driveid {
 	unsigned short	CurAPMvalues;	/* current APM values */
 	unsigned short	word92;		/* reserved (word 92) */
 	unsigned short	hw_config;	/* hardware config */
-	unsigned short  words94_125[32];/* reserved words 94-125 */
+	unsigned short	words94_99[6];/* reserved words 94-99 */
+	/*unsigned long long  lba48_capacity; /--* 4 16bit values containing lba 48 total number of sectors */
+	unsigned short	lba48_capacity[4]; /* 4 16bit values containing lba 48 total number of sectors */
+	unsigned short	words104_125[22];/* reserved words 104-125 */
 	unsigned short	last_lun;	/* reserved (word 126) */
 	unsigned short	word127;	/* reserved (word 127) */
 	unsigned short	dlf;		/* device lock function

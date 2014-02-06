@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2000
+ * (C) Copyright 2000-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -19,6 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
  * MA 02111-1307 USA
+ *
+ ********************************************************************
+ * NOTE: This header file defines an interface to U-Boot. Including
+ * this (unmodified) header file in another file is considered normal
+ * use of U-Boot, and does *not* fall under the heading of "derived
+ * work".
+ ********************************************************************
  */
 
 #ifndef __IMAGE_H__
@@ -47,6 +54,7 @@
 #define IH_OS_U_BOOT		17	/* Firmware	*/
 #define IH_OS_RTEMS		18	/* RTEMS	*/
 #define IH_OS_ARTOS		19	/* ARTOS	*/
+#define IH_OS_UNITY		20	/* Unity OS	*/
 
 /*
  * CPU Architecture Codes (supported by Linux)
@@ -63,6 +71,10 @@
 #define IH_CPU_SH		9	/* SuperH	*/
 #define IH_CPU_SPARC		10	/* Sparc	*/
 #define IH_CPU_SPARC64		11	/* Sparc 64 Bit */
+#define IH_CPU_M68K		12	/* M68K		*/
+#define IH_CPU_NIOS		13	/* Nios-32	*/
+#define IH_CPU_MICROBLAZE	14	/* MicroBlaze   */
+#define IH_CPU_NIOS2		15	/* Nios-II	*/
 
 /*
  * Image Types
@@ -91,7 +103,7 @@
  *	byte order. This list is terminated by an "(uint32_t)0".
  *	Immediately after the terminating 0 follow the images, one by
  *	one, all aligned on "uint32_t" boundaries (size rounded up to
- *	a multiple of 4 bytes).
+ *	a multiple of 4 bytes - except for the last file).
  *
  * "Firmware Images" are binary images containing firmware (like
  *	U-Boot or FPGA images) which usually will be programmed to
@@ -100,7 +112,7 @@
  * "Script files" are command sequences that will be executed by
  *	U-Boot's command interpreter; this feature is especially
  *	useful when you configure U-Boot to use a real shell (hush)
- *	as command interpreter.
+ *	as command interpreter (=> Shell Scripts).
  */
 
 #define IH_TYPE_INVALID		0	/* Invalid Image		*/
@@ -110,6 +122,7 @@
 #define IH_TYPE_MULTI		4	/* Multi-File Image		*/
 #define IH_TYPE_FIRMWARE	5	/* Firmware Image		*/
 #define IH_TYPE_SCRIPT		6	/* Script file			*/
+#define IH_TYPE_FILESYSTEM	7	/* Filesystem Image (any type)	*/
 
 /*
  * Compression Types
@@ -120,11 +133,6 @@
 
 #define IH_MAGIC	0x27051956	/* Image Magic Number		*/
 #define IH_NMLEN		32	/* Image Name Length		*/
-
-#ifdef __CYGWIN__
-typedef unsigned long uint32_t;
-typedef unsigned char uint8_t;
-#endif /* __CYGWIN__ */
 
 /*
  * all data in network byte order (aka natural aka bigendian)

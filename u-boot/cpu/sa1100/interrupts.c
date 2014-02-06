@@ -31,8 +31,6 @@
 
 #include <asm/proc-armv/ptrace.h>
 
-extern void reset_cpu (ulong addr);
-
 #ifdef CONFIG_USE_IRQ
 /* enable IRQ/FIQ interrupts */
 void enable_interrupts (void)
@@ -73,7 +71,6 @@ int disable_interrupts (void)
 	return 0;
 }
 #endif
-
 
 
 void bad_mode (void)
@@ -209,13 +206,43 @@ ulong get_timer_masked (void)
 void udelay_masked (unsigned long usec)
 {
 	ulong tmo;
+	ulong endtime;
+	signed long diff;
 
-	tmo = usec / 1000;
-	tmo *= CFG_HZ;
-	tmo /= 1000;
+	if (usec >= 1000) {
+		tmo = usec / 1000;
+		tmo *= CFG_HZ;
+		tmo /= 1000;
+	} else {
+		tmo = usec * CFG_HZ;
+		tmo /= (1000*1000);
+	}
 
-	reset_timer_masked ();
+	endtime = get_timer_masked () + tmo;
 
-	while (tmo >= get_timer_masked ())
-		/*NOP*/;
+	do {
+		ulong now = get_timer_masked ();
+		diff = endtime - now;
+	} while (diff >= 0);
+}
+
+/*
+ * This function is derived from PowerPC code (read timebase as long long).
+ * On ARM it just returns the timer value.
+ */
+unsigned long long get_ticks(void)
+{
+	return get_timer(0);
+}
+
+/*
+ * This function is derived from PowerPC code (timebase clock frequency).
+ * On ARM it returns the number of timer ticks per second.
+ */
+ulong get_tbclk (void)
+{
+	ulong tbclk;
+
+	tbclk = CFG_HZ;
+	return tbclk;
 }

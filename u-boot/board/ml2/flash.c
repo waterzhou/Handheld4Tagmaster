@@ -72,7 +72,7 @@ ulong flash_init(void) {
 		if (i==0)
 			flashbase = CFG_FLASH_BASE;
 		else
-			panic("configured to many flash banks!\n");
+			panic("configured too many flash banks!\n");
 		for (j = 0; j < flash_info[i].sector_count; j++)
 				flash_info[i].start[j]=flashbase + j * SECT_SIZE;
 
@@ -216,7 +216,7 @@ int flash_erase (flash_info_t *info, int s_first, int s_last) {
 	return rc;
 }
 
-volatile static int write_word (flash_info_t *info, ulong dest, unsigned long long data) {
+static int write_word (flash_info_t *info, ulong dest, unsigned long long data) {
 
 	volatile unsigned long long *addr=(unsigned long long *)dest;
 	unsigned long long result;
@@ -298,4 +298,3 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt) {
 	return write_word(info, wp, data);
 
 }
-

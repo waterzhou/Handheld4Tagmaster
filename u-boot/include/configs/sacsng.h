@@ -35,9 +35,10 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-/* Enable debug prints */
 #undef DEBUG		      /* General debug */
 #undef DEBUG_BOOTP_EXT	      /* Debug received vendor fields */
+
+#undef CONFIG_LOGBUFFER       /* External logbuffer support */
 
 /*****************************************************************************
  *
@@ -172,6 +173,7 @@
 
 #ifdef	CONFIG_ETHER_ON_FCC
 #define CONFIG_ETHER_INDEX	2	/* which SCC/FCC channel for ethernet */
+#undef  CONFIG_ETHER_LOOPBACK_TEST      /* Ethernet external loopback test */
 #define CONFIG_MII			/* MII PHY management		*/
 #define CONFIG_BITBANGMII		/* bit-bang MII PHY management	*/
 /*
@@ -256,8 +258,8 @@
  */
 #define CONFIG_SOFT_SPI		/* Enable SPI driver */
 #define MAX_SPI_BYTES   4	/* Maximum number of bytes we can handle */
-#undef  DEBUG_SPI               /* Disable SPI debugging */  
- 
+#undef  DEBUG_SPI               /* Disable SPI debugging */
+
 /*
  * Software (bit-bang) SPI driver configuration
  */
@@ -273,9 +275,9 @@
 #undef  SPI_INIT			/* no port initialization needed */
 #define SPI_READ        ((immr->im_ioport.iop_pdatd & I2C_MISO) != 0)
 #define SPI_SDA(bit)    if(bit) immr->im_ioport.iop_pdatd |=  I2C_MOSI; \
-                        else    immr->im_ioport.iop_pdatd &= ~I2C_MOSI
+			else    immr->im_ioport.iop_pdatd &= ~I2C_MOSI
 #define SPI_SCL(bit)    if(bit) immr->im_ioport.iop_pdatd |=  I2C_SCLK; \
-                        else    immr->im_ioport.iop_pdatd &= ~I2C_SCLK
+			else    immr->im_ioport.iop_pdatd &= ~I2C_SCLK
 #define SPI_DELAY                       /* No delay is needed */
 #endif /* CONFIG_SOFT_SPI */
 
@@ -318,14 +320,16 @@
  * will be part of the default enviroment compiled into the boot image.
  */
 #define CONFIG_EXTRA_ENV_SETTINGS \
-"serverip=192.168.123.201\0" \
+"quiet=0\0" \
+"serverip=192.168.123.205\0" \
 "ipaddr=192.168.123.203\0" \
 "checkhostname=VR8500\0" \
 "reprog="\
+    "bootp; " \
     "tftpboot 0x140000 /bdi2000/u-boot.bin; " \
     "protect off 60000000 6003FFFF; " \
     "erase 60000000 6003FFFF; " \
-    "cp.b 140000 60000000 $(filesize); " \
+    "cp.b 140000 60000000 ${filesize}; " \
     "protect on 60000000 6003FFFF\0" \
 "copyenv="\
     "protect off 60040000 6004FFFF; " \
@@ -351,7 +355,7 @@
     "echo\\;" \
     "bootp\\;" \
     "setenv bootargs root=/dev/ram0 rw quiet " \
-    "ip=\\$(ipaddr):\\$(serverip):\\$(gatewayip):\\$(netmask):\\$(hostname)::off\\;" \
+    "ip=\\${ipaddr}:\\${serverip}:\\${gatewayip}:\\${netmask}:\\${hostname}::off\\;" \
     "run boot-hook\\;" \
     "bootm\0" \
 "root-on-initrd-debug="\
@@ -360,7 +364,7 @@
     "echo\\;" \
     "bootp\\;" \
     "setenv bootargs root=/dev/ram0 rw debug " \
-    "ip=\\$(ipaddr):\\$(serverip):\\$(gatewayip):\\$(netmask):\\$(hostname)::off\\;" \
+    "ip=\\${ipaddr}:\\${serverip}:\\${gatewayip}:\\${netmask}:\\${hostname}::off\\;" \
     "run debug-hook\\;" \
     "run boot-hook\\;" \
     "bootm\0" \
@@ -370,8 +374,8 @@
     "echo\\;" \
     "bootp\\;" \
     "setenv bootargs root=/dev/nfs rw quiet " \
-    "nfsroot=\\$(serverip):\\$(rootpath) " \
-    "ip=\\$(ipaddr):\\$(serverip):\\$(gatewayip):\\$(netmask):\\$(hostname)::off\\;" \
+    "nfsroot=\\${serverip}:\\${rootpath} " \
+    "ip=\\${ipaddr}:\\${serverip}:\\${gatewayip}:\\${netmask}:\\${hostname}::off\\;" \
     "run boot-hook\\;" \
     "bootm\0" \
 "root-on-nfs-debug="\
@@ -380,8 +384,8 @@
     "echo\\;" \
     "bootp\\;" \
     "setenv bootargs root=/dev/nfs rw debug " \
-    "nfsroot=\\$(serverip):\\$(rootpath) " \
-    "ip=\\$(ipaddr):\\$(serverip):\\$(gatewayip):\\$(netmask):\\$(hostname)::off\\;" \
+    "nfsroot=\\${serverip}:\\${rootpath} " \
+    "ip=\\${ipaddr}:\\${serverip}:\\${gatewayip}:\\${netmask}:\\${hostname}::off\\;" \
     "run debug-hook\\;" \
     "run boot-hook\\;" \
     "bootm\0" \
@@ -389,23 +393,23 @@
     "setenv checkhostname;" \
     "setenv ethaddr 00:09:70:00:00:01;" \
     "bootp;" \
-    "setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) debug " \
-    "ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+    "setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} debug " \
+    "ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
     "run debug-hook;" \
     "run boot-hook;" \
     "bootm\0" \
 "debug-hook="\
-    "echo ipaddr    $(ipaddr);" \
-    "echo serverip  $(serverip);" \
-    "echo gatewayip $(gatewayip);" \
-    "echo netmask   $(netmask);" \
-    "echo hostname  $(hostname)\0" \
+    "echo ipaddr    ${ipaddr};" \
+    "echo serverip  ${serverip};" \
+    "echo gatewayip ${gatewayip};" \
+    "echo netmask   ${netmask};" \
+    "echo hostname  ${hostname}\0" \
 "ana=run adc ; run dac\0" \
 "adc=run adc-12 ; run adc-34\0" \
 "adc-12=echo ### ADC-12 ; imd.b e 81 e\0" \
 "adc-34=echo ### ADC-34 ; imd.b f 81 e\0" \
 "dac=echo ### DAC ; imd.b 11 81 5\0" \
-"boot-hook=run ana\0"
+"boot-hook=echo\0"
 
 /* What should the console's baud rate be? */
 #define CONFIG_BAUDRATE		9600
@@ -439,42 +443,43 @@
 /* Define a command string that is automatically executed when no character
  * is read on the console interface withing "Boot Delay" after reset.
  */
-#define CONFIG_BOOT_ROOT_INITRD 0	/* Use ram disk for the root file system */
-#define CONFIG_BOOT_ROOT_NFS	1	/* Use a NFS mounted root file system */
+#undef	CONFIG_BOOT_ROOT_INITRD 	/* Use ram disk for the root file system */
+#define	CONFIG_BOOT_ROOT_NFS		/* Use a NFS mounted root file system */
 
-#if CONFIG_BOOT_ROOT_INITRD
+#ifdef CONFIG_BOOT_ROOT_INITRD
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
 	"setenv bootargs root=/dev/ram0 rw quiet " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"run boot-hook;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_INITRD */
 
-#if CONFIG_BOOT_ROOT_NFS
+#ifdef CONFIG_BOOT_ROOT_NFS
 #define CONFIG_BOOTCOMMAND \
 	"version;" \
 	"echo;" \
 	"bootp;" \
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) quiet " \
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;" \
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} quiet " \
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;" \
 	"run boot-hook;" \
 	"bootm"
 #endif /* CONFIG_BOOT_ROOT_NFS */
 
 #define CONFIG_BOOTP_RANDOM_DELAY       /* Randomize the BOOTP retry delay */
 
-#define CONFIG_BOOTP_RETRY_COUNT 0x40000000 /* # of timeouts before giving up */
-
 /* Add support for a few extra bootp options like:
  *	- File size
- *	- DNS
+ *	- DNS (up to 2 servers)
+ *      - Send hostname to DHCP server
  */
 #define CONFIG_BOOTP_MASK	(CONFIG_BOOTP_DEFAULT | \
 				 CONFIG_BOOTP_BOOTFILESIZE | \
-				 CONFIG_BOOTP_DNS)
+				 CONFIG_BOOTP_DNS | \
+				 CONFIG_BOOTP_DNS2 | \
+				 CONFIG_BOOTP_SEND_HOSTNAME)
 
 /* undef this to save memory */
 #define CFG_LONGHELP
@@ -492,6 +497,11 @@
  */
 #define CONFIG_TIMESTAMP
 
+/* If this variable is defined, an environment variable named "ver"
+ * is created by U-Boot showing the U-Boot version.
+ */
+#define CONFIG_VERSION_VARIABLE
+
 /* What U-Boot subsytems do you want enabled? */
 #ifdef CONFIG_ETHER_ON_FCC
 # define CONFIG_COMMANDS	(((CONFIG_CMD_DFL & ~(CFG_CMD_KGDB))) | \
@@ -503,6 +513,8 @@
 				CFG_CMD_SDRAM   | \
 				CFG_CMD_REGINFO | \
 				CFG_CMD_IMMAP	| \
+				CFG_CMD_IRQ	| \
+				CFG_CMD_PING	| \
 				CFG_CMD_MII	)
 #else
 # define CONFIG_COMMANDS	(((CONFIG_CMD_DFL & ~(CFG_CMD_KGDB))) | \
@@ -513,11 +525,15 @@
 				CFG_CMD_SPI	| \
 				CFG_CMD_SDRAM   | \
 				CFG_CMD_REGINFO | \
-				CFG_CMD_IMMAP	)
+				CFG_CMD_IMMAP	| \
+				CFG_CMD_IRQ	| \
+				CFG_CMD_PING	)
 #endif /* CONFIG_ETHER_ON_FCC */
 
 /* Where do the internal registers live? */
 #define CFG_IMMR		0xF0000000
+
+#undef	CONFIG_WATCHDOG			/* disable the watchdog */
 
 /*****************************************************************************
  *
@@ -528,13 +544,53 @@
 #define CONFIG_MPC8260		1	/* This is an MPC8260 CPU   */
 #define CONFIG_SBC8260		1	/* on an EST SBC8260 Board  */
 #define CONFIG_SACSng		1	/* munged for the SACSng */
+#define CONFIG_CPM2		1	/* Has a CPM2 */
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
 
+
 /*
  * Miscellaneous configurable options
  */
+#define CFG_BOOTM_HEADER_QUIET 1        /* Suppress the image header dump    */
+					/* in the bootm command.             */
+#define CFG_BOOTM_PROGESS_QUIET 1       /* Suppress the progress displays,   */
+					/* "## <message>" from the bootm cmd */
+#define CFG_BOOTP_CHECK_HOSTNAME 1      /* If checkhostname environment is   */
+					/* defined, then the hostname param  */
+					/* validated against checkhostname.  */
+#define CFG_BOOTP_RETRY_COUNT 0x40000000 /* # of timeouts before giving up   */
+#define CFG_BOOTP_SHORT_RANDOM_DELAY 1  /* Use a short random delay value    */
+					/* (limited to maximum of 1024 msec) */
+#define CFG_CHK_FOR_ABORT_AT_LEAST_ONCE 1
+					/* Check for abort key presses       */
+					/* at least once in dependent of the */
+					/* CONFIG_BOOTDELAY value.           */
+#define CFG_CONSOLE_INFO_QUIET 1        /* Don't print console @ startup     */
+#define CFG_FAULT_ECHO_LINK_DOWN 1      /* Echo the inverted Ethernet link   */
+					/* state to the fault LED.           */
+#define CFG_FAULT_MII_ADDR 0x02         /* MII addr of the PHY to check for  */
+					/* the Ethernet link state.          */
+#define CFG_STATUS_FLASH_UNTIL_TFTP_OK 1 /* Keeping the status LED flashing  */
+					/* until the TFTP is successful.     */
+#define CFG_STATUS_OFF_AFTER_NETBOOT 1  /* After a successful netboot,       */
+					/* turn off the STATUS LEDs.         */
+#define CFG_TFTP_BLINK_STATUS_ON_DATA_IN 1 /* Blink status LED based on      */
+					/* incoming data.                    */
+#define CFG_TFTP_BLOCKS_PER_HASH 100    /* For every XX blocks, output a '#' */
+					/* to signify that tftp is moving.   */
+#define CFG_TFTP_HASHES_PER_FLASH 200   /* For every '#' hashes,             */
+					/* flash the status LED.             */
+#define CFG_TFTP_HASHES_PER_LINE 65     /* Only output XX '#'s per line      */
+					/* during the tftp file transfer.    */
+#define CFG_TFTP_PROGESS_QUIET 1        /* Suppress the progress displays    */
+					/* '#'s from the tftp command.       */
+#define CFG_TFTP_STATUS_QUIET 1         /* Suppress the status displays      */
+					/* issued during the tftp command.   */
+#define CFG_TFTP_TIMEOUT_COUNT 5        /* How many timeouts TFTP will allow */
+					/* before it gives up.               */
+
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 #  define CFG_CBSIZE		1024	/* Console I/O Buffer Size	     */
 #else
@@ -734,12 +790,22 @@
  *-----------------------------------------------------------------------
  * Watchdog & Bus Monitor Timer max, 60x Bus Monitor enable
  */
+#if defined(CONFIG_WATCHDOG)
+#define CFG_SYPCR	(SYPCR_SWTC |\
+			 SYPCR_BMT  |\
+			 SYPCR_PBME |\
+			 SYPCR_LBME |\
+			 SYPCR_SWRI |\
+			 SYPCR_SWP  |\
+			 SYPCR_SWE)
+#else
 #define CFG_SYPCR	(SYPCR_SWTC |\
 			 SYPCR_BMT  |\
 			 SYPCR_PBME |\
 			 SYPCR_LBME |\
 			 SYPCR_SWRI |\
 			 SYPCR_SWP)
+#endif /* CONFIG_WATCHDOG */
 
 /*-----------------------------------------------------------------------
  * TMCNTSC - Time Counter Status and Control			 4-40

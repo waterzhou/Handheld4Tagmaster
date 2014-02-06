@@ -22,9 +22,8 @@
 #
 #
 
-SUBDIRS	:= jffs2 fdos fat
+SUBDIRS	:= jffs2 cramfs fdos fat reiserfs ext2
 
 .depend all:
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$dir $@ ; done
-

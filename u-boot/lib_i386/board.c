@@ -1,10 +1,10 @@
 /*
  * (C) Copyright 2002
  * Daniel Engström, Omicron Ceti AB, daniel@omicron.se
- * 
+ *
  * (C) Copyright 2002
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
- * 
+ *
  * (C) Copyright 2002
  * Sysgo Real-Time Solutions, GmbH <www.elinos.com>
  * Marius Groeger <mgroeger@sysgo.de>
@@ -34,23 +34,22 @@
 #include <devices.h>
 #include <version.h>
 #include <malloc.h>
-#include <syscall.h>
 #include <net.h>
 #include <ide.h>
 #include <asm/u-boot-i386.h>
 
-extern long _i386boot_start;	    
-extern long _i386boot_end;	    
+extern long _i386boot_start;
+extern long _i386boot_end;
 extern long _i386boot_romdata_start;
-extern long _i386boot_romdata_dest; 
-extern long _i386boot_romdata_size; 
-extern long _i386boot_bss_start;   
-extern long _i386boot_bss_size;    
+extern long _i386boot_romdata_dest;
+extern long _i386boot_romdata_size;
+extern long _i386boot_bss_start;
+extern long _i386boot_bss_size;
 
-extern long _i386boot_realmode;    
+extern long _i386boot_realmode;
 extern long _i386boot_realmode_size;
-extern long _i386boot_bios;         
-extern long _i386boot_bios_size;    
+extern long _i386boot_bios;
+extern long _i386boot_bios_size;
 
 /* The symbols defined by the linker script becomes pointers
  * which is somewhat inconveient ... */
@@ -82,15 +81,15 @@ static ulong mem_malloc_brk = 0;
 static int mem_malloc_init(void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
-        
+
 	/* start malloc area right after the stack */
-	mem_malloc_start = i386boot_bss_start + 
+	mem_malloc_start = i386boot_bss_start +
 		i386boot_bss_size + CFG_STACK_SIZE;
 	mem_malloc_start = (mem_malloc_start+3)&~3;
-	
+
 	/* Use all available RAM for malloc() */
 	mem_malloc_end = gd->ram_size;
-	
+
 	mem_malloc_brk = mem_malloc_start;
 
 	return 0;
@@ -129,16 +128,6 @@ char *strmhz (char *buf, long hz)
  * or dropped completely,
  * but let's get it working (again) first...
  */
-static void syscalls_init (void)
-{
-	syscall_tbl[SYSCALL_MALLOC] = (void *) malloc;
-	syscall_tbl[SYSCALL_FREE] = (void *) free;
-
-	syscall_tbl[SYSCALL_INSTALL_HDLR] = (void *) irq_install_handler;
-	syscall_tbl[SYSCALL_FREE_HDLR] = (void *) irq_free_handler;
-
-}
-
 static int init_baudrate (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
@@ -162,9 +151,9 @@ static int display_banner (void)
 		i386boot_start, i386boot_romdata_start-1,
 		i386boot_romdata_dest, i386boot_romdata_dest+i386boot_romdata_size-1,
 		i386boot_bss_start, i386boot_bss_start+i386boot_bss_size-1,
-		i386boot_bss_start+i386boot_bss_size, 
+		i386boot_bss_start+i386boot_bss_size,
 		i386boot_bss_start+i386boot_bss_size+CFG_STACK_SIZE-1);
-	
+
 
 	return (0);
 }
@@ -187,7 +176,7 @@ static int display_dram_config (void)
 		printf ("Bank #%d: %08lx ", i, gd->bd->bi_dram[i].start);
 		print_size (gd->bd->bi_dram[i].size, "\n");
 	}
-	
+
 	return (0);
 }
 
@@ -196,7 +185,6 @@ static void display_flash_config (ulong size)
 	puts ("Flash: ");
 	print_size (size, "\n");
 }
-
 
 
 /*
@@ -230,7 +218,7 @@ init_fnc_t *init_sequence[] = {
 	dram_init,		/* configure available RAM banks */
 	mem_malloc_init,        /* dependant on dram_init */
 	interrupt_init,		/* set up exceptions */
-	timer_init,	
+	timer_init,
 	serial_init,
 	env_init,		/* initialize environment */
 	init_baudrate,		/* initialze baudrate settings */
@@ -252,18 +240,20 @@ void start_i386boot (void)
 	static gd_t gd_data;
 	static bd_t bd_data;
 	init_fnc_t **init_fnc_ptr;
-	
+
 	show_boot_progress(0x21);
 
 	gd = global_data = &gd_data;
-	
+	/* compiler optimization barrier needed for GCC >= 3.4 */
+	__asm__ __volatile__("": : :"memory");
+
 	memset (gd, 0, sizeof (gd_t));
 	gd->bd = &bd_data;
 	memset (gd->bd, 0, sizeof (bd_t));
 	show_boot_progress(0x22);
 
 	gd->baudrate =  CONFIG_BAUDRATE;
-	
+
 	for (init_fnc_ptr = init_sequence, i=0; *init_fnc_ptr; ++init_fnc_ptr, i++) {
 		show_boot_progress(0xa130|i);
 
@@ -317,26 +307,14 @@ void start_i386boot (void)
 
 	devices_init ();
 
-	/* allocate syscalls table (console_init_r will fill it in */
-	syscall_tbl = (void **) malloc (NR_SYSCALLS * sizeof (void *));
-	memset(syscall_tbl, 0, NR_SYSCALLS * sizeof (void *));
-	
+	jumptable_init ();
+
 	/* Initialize the console (after the relocation and devices init) */
 	console_init_r();
-	syscalls_init();
 
 #ifdef CONFIG_MISC_INIT_R
 	/* miscellaneous platform dependent initialisations */
 	misc_init_r();
-#endif
-
-
-#if (CONFIG_COMMANDS & CFG_CMD_NET) && (0)
-	WATCHDOG_RESET();
-# ifdef DEBUG
-	puts ("Reset Ethernet PHY\n");
-# endif
-	reset_phy();
 #endif
 
 #if (CONFIG_COMMANDS & CFG_CMD_PCMCIA) && !(CONFIG_COMMANDS & CFG_CMD_IDE)
@@ -361,7 +339,7 @@ void start_i386boot (void)
 #ifdef CONFIG_SERIAL_SOFTWARE_FIFO
 	serial_buffered_init();
 #endif
-    
+
 #ifdef CONFIG_STATUS_LED
 	status_led_set (STATUS_LED_BOOT, STATUS_LED_BLINKING);
 #endif
@@ -400,10 +378,20 @@ void start_i386boot (void)
 	doc_init();
 #endif
 
-#if (CONFIG_COMMANDS & CFG_CMD_NET) && defined(CONFIG_NET_MULTI)
+#if (CONFIG_COMMANDS & CFG_CMD_NET)
+#if defined(CONFIG_NET_MULTI)
 	WATCHDOG_RESET();
 	puts("Net:   ");
+#endif
 	eth_initialize(gd->bd);
+#endif
+
+#if (CONFIG_COMMANDS & CFG_CMD_NET) && (0)
+	WATCHDOG_RESET();
+# ifdef DEBUG
+	puts ("Reset Ethernet PHY\n");
+# endif
+	reset_phy();
 #endif
 
 #ifdef CONFIG_LAST_STAGE_INIT
@@ -417,18 +405,13 @@ void start_i386boot (void)
 #endif
 
 
-
 #ifdef CONFIG_POST
 	post_run (NULL, POST_RAM | post_bootmode_get(0));
-	if (post_bootmode_get(0) & POST_POWERFAIL) {
-		post_bootmode_clear();
-		board_poweroff();
-	}
 #endif
-	
-	
+
+
 	show_boot_progress(0x29);
-	
+
 	/* main_loop() can return to retry autoboot, if so just run it again. */
 	for (;;) {
 		main_loop();
@@ -442,5 +425,3 @@ void hang (void)
 	puts ("### ERROR ### Please RESET the board ###\n");
 	for (;;);
 }
-
-

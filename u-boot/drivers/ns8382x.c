@@ -266,7 +266,7 @@ static int ns8382x_poll(struct eth_device *dev);
 static void ns8382x_disable(struct eth_device *dev);
 
 static struct pci_device_id supported[] = {
-	{PCI_VENDOR_ID_NS, PCI_DEVICE_ID_NS_8382x},
+	{PCI_VENDOR_ID_NS, PCI_DEVICE_ID_NS_83820},
 	{}
 };
 
@@ -321,7 +321,7 @@ ns8382x_initialize(bd_t * bis)
 		if ((devno = pci_find_devices(supported, idx++)) < 0)
 			break;
 
-		pci_read_config_dword(devno, PCI_BASE_ADDRESS_0, &iobase);
+		pci_read_config_dword(devno, PCI_BASE_ADDRESS_1, &iobase);
 		iobase &= ~0x3;	/* 1: unused and 0:I/O Space Indicator */
 
 #ifdef NS8382X_DEBUG
@@ -363,7 +363,7 @@ ns8382x_initialize(bd_t * bis)
 		/* get MAC address */
 		for (i = 0; i < 3; i++) {
 			u32 data;
-			char *mac = &dev->enetaddr[i * 2];
+			char *mac = (char *)&dev->enetaddr[i * 2];
 
 			OUTL(dev, i * 2, RxFilterAddr);
 			data = INL(dev, RxFilterData);
@@ -745,7 +745,7 @@ static int
 ns8382x_send(struct eth_device *dev, volatile void *packet, int length)
 {
 	u32 i, status = 0;
-	u32 tx_stat = 0;
+	vu_long tx_stat = 0;
 
 	/* Stop the transmitter */
 	OUTL(dev, TxOff, ChipCmd);
@@ -771,7 +771,7 @@ ns8382x_send(struct eth_device *dev, volatile void *packet, int length)
 	/* restart the transmitter */
 	OUTL(dev, TxOn, ChipCmd);
 
-	for (i = 0; ((vu_long)tx_stat = le32_to_cpu(txd.cmdsts)) & DescOwn; i++) {
+	for (i = 0; (tx_stat = le32_to_cpu(txd.cmdsts)) & DescOwn; i++) {
 		if (i >= TOUT_LOOP) {
 			printf ("%s: tx error buffer not ready: txd.cmdsts %#X\n",
 			     dev->name, tx_stat);

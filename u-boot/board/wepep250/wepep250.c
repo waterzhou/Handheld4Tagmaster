@@ -26,7 +26,7 @@
 int board_init( void ){
   DECLARE_GLOBAL_DATA_PTR;
 
-  gd->bd->bi_arch_number = 288;	
+  gd->bd->bi_arch_number = MACH_TYPE_WEP_EP250;
   gd->bd->bi_boot_params = 0xa0000000;
 /*
  * Setup GPIO stuff to get serial working
@@ -40,15 +40,6 @@ int board_init( void ){
 #endif
   PSSR    = 0x20;
 
-/*
- * Following code is just bug workaround, remove it if not neccessary
- */
-
-  /* cpu/xscale/cpu.c do not set armboot_real_end that is used for
-     malloc pool.*/
-  if( _armboot_real_end == 0xbadc0de ){
-    _armboot_real_end = _armboot_end;
-  }
   return 0;
 }
 
@@ -59,11 +50,11 @@ int dram_init( void ){
   gd->bd->bi_dram[0].start = WEP_SDRAM_1;
   gd->bd->bi_dram[0].size  = WEP_SDRAM_1_SIZE;
 #endif
-#if ( CONFIG_NR_DRAM_BANKS > 1 )  
+#if ( CONFIG_NR_DRAM_BANKS > 1 )
   gd->bd->bi_dram[1].start = WEP_SDRAM_2;
   gd->bd->bi_dram[1].size  = WEP_SDRAM_2_SIZE;
 #endif
-#if ( CONFIG_NR_DRAM_BANKS > 2 )  
+#if ( CONFIG_NR_DRAM_BANKS > 2 )
   gd->bd->bi_dram[2].start = WEP_SDRAM_3;
   gd->bd->bi_dram[2].size  = WEP_SDRAM_3_SIZE;
 #endif
@@ -71,7 +62,6 @@ int dram_init( void ){
   gd->bd->bi_dram[3].start = WEP_SDRAM_4;
   gd->bd->bi_dram[3].size  = WEP_SDRAM_4_SIZE;
 #endif
-	
+
   return 0;
 }
-

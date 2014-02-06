@@ -27,9 +27,12 @@
 #include <ppc4xx.h>
 #include <405gp_i2c.h>
 #include <command.h>
-#include <cmd_boot.h>
 
-/* ------------------------------------------------------------------------- */
+/*cmd_boot.c*/
+
+extern int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+extern void lxt971_no_sleep(void);
+
 
 #if 0
 #define FPGA_DEBUG
@@ -50,7 +53,7 @@ const unsigned char fpgadata[] = {
 #include "../common/fpga.c"
 
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -138,17 +141,28 @@ int board_pre_init (void)
 }
 
 
-/* ------------------------------------------------------------------------- */
+int misc_init_r (void)
+{
+	unsigned long cntrl0Reg;
+
+	/*
+	 * Setup UART1 handshaking: use CTS instead of DSR
+	 */
+	cntrl0Reg = mfdcr(cntrl0);
+	mtdcr(cntrl0, cntrl0Reg | 0x00001000);
+
+	return (0);
+}
+
 
 /*
  * Check Board Identity:
  */
-
 int checkboard (void)
 {
 	int index;
 	int len;
-	unsigned char str[64];
+	char str[64];
 	int i = getenv_r ("serial#", str, sizeof (str));
 
 	puts ("Board: ");
@@ -177,17 +191,20 @@ int checkboard (void)
 	*(volatile unsigned char *) FPGA_MODE_REG = 0xff;	/* reset high active */
 	*(volatile unsigned char *) FPGA_MODE_REG = 0x00;	/* low again */
 
+	/*
+	 * Disable sleep mode in LXT971
+	 */
+	lxt971_no_sleep();
+
 	return 0;
 }
 
-/* ------------------------------------------------------------------------- */
 
 long int initdram (int board_type)
 {
 	return (16 * 1024 * 1024);
 }
 
-/* ------------------------------------------------------------------------- */
 
 int testdram (void)
 {
@@ -196,5 +213,3 @@ int testdram (void)
 
 	return (0);
 }
-
-/* ------------------------------------------------------------------------- */

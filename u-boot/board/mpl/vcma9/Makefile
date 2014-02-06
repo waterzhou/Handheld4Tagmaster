@@ -28,10 +28,10 @@ LIB	= lib$(BOARD).a
 OBJS	:= vcma9.o flash.o cmd_vcma9.o
 OBJS	+= ../common/common_util.o ../common/memtst.o
 
-SOBJS	:= memsetup.o
+SOBJS	:= lowlevel_init.o
 
 $(LIB):	$(OBJS) $(SOBJS)
-	$(AR) crv $@ $^
+	$(AR) crv $@ $(OBJS) $(SOBJS)
 
 clean:
 	rm -f $(SOBJS) $(OBJS)

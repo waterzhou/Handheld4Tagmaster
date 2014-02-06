@@ -1,5 +1,5 @@
 #
-# (C) Copyright 2000, 2001
+# (C) Copyright 2000-2003
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
 #
 # See file CREDITS for list of people who contributed to this
@@ -29,6 +29,12 @@ ifeq ($(ARCH),mips)
 BINS   += inca-swap-bytes$(SFX)
 OBJS   += inca-swap-bytes.o
 endif
+
+# Don't build by default
+#ifeq ($(ARCH),ppc)
+#BINS   += mpc86x_clk$(SFX)
+#OBJS   += mpc86x_clk.o
+#endif
 
 LOGO_H	= $(TOPDIR)/include/bmp_logo.h
 
@@ -65,16 +71,11 @@ TOOLSUBDIRS =
 # -multiply_defined suppress option to turn off this error.
 #
 ifeq ($(HOSTOS)-$(HOSTARCH),darwin-ppc)
-TOOLSUBDIRS+= gdb
 HOST_CFLAGS = -traditional-cpp -Wall
 HOST_LDFLAGS =-multiply_defined suppress
 HOST_ENVIRO_CFLAGS = -traditional-cpp
 
 else
-#
-# The gdb tools won't build natively on NetBSD since bfd.h (and ansidecl.h)
-# are not installed -- just skip them, they are not really essential.
-#
 ifeq ($(HOSTOS)-$(HOSTARCH),netbsd-ppc)
 HOST_CFLAGS = -Wall -pedantic
 HOST_LDFLAGS =
@@ -84,7 +85,6 @@ HOST_ENVIRO_CFLAGS =
 # Everyone else
 #
 else
-#TOOLSUBDIRS+= gdb
 HOST_CFLAGS = -Wall -pedantic
 HOST_LDFLAGS =
 HOST_ENVIRO_CFLAGS =
@@ -100,7 +100,6 @@ else
 SFX =
 endif
 
-
 #
 # Include this after HOSTOS HOSTARCH check
 # so that we can act intelligently.
@@ -110,7 +109,7 @@ include $(TOPDIR)/config.mk
 #
 # Use native tools and options
 #
-CPPFLAGS   = -I../include -I.. -DTEXT_BASE=$(TEXT_BASE) -DUSE_HOSTCC
+CPPFLAGS   = -idirafter ../include -DTEXT_BASE=$(TEXT_BASE) -DUSE_HOSTCC
 CFLAGS     = $(HOST_CFLAGS) $(CPPFLAGS) -O
 AFLAGS	   = -D__ASSEMBLY__ $(CPPFLAGS)
 CC	   = $(HOSTCC)
@@ -130,6 +129,10 @@ mkimage$(SFX):	mkimage.o crc32.o
 		$(CC) $(CFLAGS) $(HOST_LDFLAGS) -o $@ $^
 		$(STRIP) $@
 
+ncb$(SFX):	ncb.o
+		$(CC) $(CFLAGS) $(HOST_LDFLAGS) -o $@ $^
+		$(STRIP) $@
+
 gen_eth_addr$(SFX):	gen_eth_addr.o
 		$(CC) $(CFLAGS) $(HOST_LDFLAGS) -o $@ $^
 		$(STRIP) $@
@@ -142,6 +145,10 @@ inca-swap-bytes$(SFX):	inca-swap-bytes.o
 		$(CC) $(CFLAGS) $(HOST_LDFLAGS) -o $@ $^
 		$(STRIP) $@
 
+mpc86x_clk$(SFX):	mpc86x_clk.o
+		$(CC) $(CFLAGS) $(HOST_LDFLAGS) -o $@ $^
+		$(STRIP) $@
+
 envcrc.o:	envcrc.c
 		$(CC) -g $(CFLAGS) -c $<
 
@@ -151,13 +158,22 @@ crc32.o:	crc32.c
 mkimage.o:	mkimage.c
 		$(CC) -g $(CFLAGS) -c $<
 
+ncb.o:		ncb.c
+		$(CC) -g $(CFLAGS) -c $<
+
 gen_eth_addr.o:	gen_eth_addr.c
 		$(CC) -g $(CFLAGS) -c $<
 
 inca-swap-bytes.o:	inca-swap-bytes.c
 		$(CC) -g $(CFLAGS) -c $<
 
+mpc86x_clk.o:	mpc86x_clk.c
+		$(CC) -g $(CFLAGS) -c $<
+
 subdirs:
+ifeq ($(TOOLSUBDIRS),)
+		@:
+else
 		@for dir in $(TOOLSUBDIRS) ; do \
 		    $(MAKE) \
 			HOSTOS=$(HOSTOS) \
@@ -166,13 +182,17 @@ subdirs:
 		   	HOST_LDFLAGS="$(HOST_LDFLAGS)" \
 			-C $$dir || exit 1 ; \
 		done
+endif
+
 environment.c:
+		@rm -f environment.c
 		ln -s ../common/environment.c environment.c
 
 environment.o: environment.c
 		$(CC) -g $(HOST_ENVIRO_CFLAGS) $(CPPFLAGS) -c $<
 
 crc32.c:
+		@rm -f crc32.c
 		ln -s ../lib_generic/crc32.c crc32.c
 
 $(LOGO_H):	bmp_logo $(LOGO_BMP)
@@ -186,4 +206,3 @@ $(LOGO_H):	bmp_logo $(LOGO_BMP)
 sinclude .depend
 
 #########################################################################
-

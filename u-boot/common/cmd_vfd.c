@@ -54,7 +54,7 @@ int do_vfd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return 1;
 	}
 
-	if (argv[1][0] == '#') {	/* select bitmap by number */
+	if (argv[1][0] == '/') {	/* select bitmap by number */
 		bitmap = simple_strtoul(argv[1]+1, NULL, 10);
 		return (trab_vfd(bitmap));
 	}
@@ -64,6 +64,15 @@ int do_vfd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	transfer_pic(3, (uchar *)bitmap, VFD_LOGO_HEIGHT, VFD_LOGO_WIDTH);
 	return 0;
 }
+
+U_BOOT_CMD(
+ 	vfd,	2,	0,	do_vfd,
+ 	"vfd     - load a bitmap to the VFDs on TRAB\n",
+ 	"/N\n"
+ 	"    - load bitmap N to the VFDs (N is _decimal_ !!!)\n"
+	"vfd ADDR\n"
+	"    - load bitmap at address ADDR\n"
+);
 #endif	/* CFG_CMD_VFD */
 
 #ifdef CONFIG_VFD
@@ -81,8 +90,6 @@ int trab_vfd (ulong bitmap)
 		}
 		break;
 	case VFD_REMOTE_LOGO_BMPNR:
-		transfer_pic(3, &vfd_remote_logo_bitmap[0],
-			VFD_LOGO_HEIGHT, VFD_LOGO_WIDTH);
 		if ((s = getenv ("bitmap1")) != NULL) {
 			addr = (uchar *)simple_strtoul (s, NULL, 16);
 		} else {

@@ -23,6 +23,10 @@
 
 #include <common.h>
 #include <mpc8xx.h>
+/* environment.h defines the various CFG_ENV_... values in terms
+ * of whichever ones are given in the configuration file.
+ */
+#include <environment.h>
 
 flash_info_t	flash_info[CFG_MAX_FLASH_BANKS]; /* info for FLASH chips	*/
 
@@ -104,6 +108,19 @@ unsigned long flash_init (void)
 		      &flash_info[0]);
 #endif
 
+#ifdef CFG_ENV_ADDR
+	flash_protect ( FLAG_PROTECT_SET,
+			CFG_ENV_ADDR,
+			CFG_ENV_ADDR + CFG_ENV_SIZE - 1, &flash_info[0]);
+#endif
+
+#ifdef CFG_ENV_ADDR_REDUND
+	flash_protect ( FLAG_PROTECT_SET,
+			CFG_ENV_ADDR_REDUND,
+			CFG_ENV_ADDR_REDUND + CFG_ENV_SIZE_REDUND - 1,
+			&flash_info[0]);
+#endif
+
 	return (size_b);
 }
 
@@ -154,6 +171,21 @@ static void flash_get_offsets (ulong base, flash_info_t *info)
 		for( i = 0; i < info->sector_count; i++ )
 			info->start[i] = base + (i * sect_size);
 	}
+	else if ((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_AMD
+		 && (info->flash_id & FLASH_TYPEMASK) == FLASH_AM800T) {
+
+		int sect_size;		/* number of bytes/sector */
+
+		sect_size = 0x00010000 * (sizeof(FPW)/2);
+
+		/* set up sector start address table (top boot sector type) */
+		for (i = 0; i < info->sector_count - 3; i++)
+			info->start[i] = base + (i * sect_size);
+		i = info->sector_count - 1;
+		info->start[i--] = base + (info->size - 0x00004000) * (sizeof(FPW)/2);
+		info->start[i--] = base + (info->size - 0x00006000) * (sizeof(FPW)/2);
+		info->start[i--] = base + (info->size - 0x00008000) * (sizeof(FPW)/2);
+	}
 }
 
 /*-----------------------------------------------------------------------
@@ -164,7 +196,7 @@ void flash_print_info (flash_info_t *info)
 	int i;
 	uchar *boottype;
 	uchar *bootletter;
-	uchar *fmt;
+	char *fmt;
 	uchar botbootletter[] = "B";
 	uchar topbootletter[] = "T";
 	uchar botboottype[] = "bottom boot sector";
@@ -196,35 +228,38 @@ void flash_print_info (flash_info_t *info)
 	}
 
 	switch (info->flash_id & FLASH_TYPEMASK) {
+	case FLASH_AM800T:
+		fmt = "29LV800B%s (8 Mbit, %s)\n";
+		break;
 	case FLASH_AM640U:
 		fmt = "29LV641D (64 Mbit, uniform sectors)\n";
 		break;
-        case FLASH_28F800C3B:
-        case FLASH_28F800C3T:
+	case FLASH_28F800C3B:
+	case FLASH_28F800C3T:
 		fmt = "28F800C3%s (8 Mbit, %s)\n";
 		break;
 	case FLASH_INTEL800B:
 	case FLASH_INTEL800T:
 		fmt = "28F800B3%s (8 Mbit, %s)\n";
 		break;
-        case FLASH_28F160C3B:
-        case FLASH_28F160C3T:
+	case FLASH_28F160C3B:
+	case FLASH_28F160C3T:
 		fmt = "28F160C3%s (16 Mbit, %s)\n";
 		break;
 	case FLASH_INTEL160B:
 	case FLASH_INTEL160T:
 		fmt = "28F160B3%s (16 Mbit, %s)\n";
 		break;
-        case FLASH_28F320C3B:
-        case FLASH_28F320C3T:
+	case FLASH_28F320C3B:
+	case FLASH_28F320C3T:
 		fmt = "28F320C3%s (32 Mbit, %s)\n";
 		break;
 	case FLASH_INTEL320B:
 	case FLASH_INTEL320T:
 		fmt = "28F320B3%s (32 Mbit, %s)\n";
 		break;
-        case FLASH_28F640C3B:
-        case FLASH_28F640C3T:
+	case FLASH_28F640C3B:
+	case FLASH_28F640C3T:
 		fmt = "28F640C3%s (64 Mbit, %s)\n";
 		break;
 	case FLASH_INTEL640B:
@@ -294,6 +329,12 @@ ulong flash_get_size (FPWV *addr, flash_info_t *info)
 
 	/* Check 16 bits or 32 bits of ID so work on 32 or 16 bit bus. */
 	if (info->flash_id != FLASH_UNKNOWN) switch (addr[1]) {
+
+	case (FPW)AMD_ID_LV800T:
+		info->flash_id += FLASH_AM800T;
+		info->sector_count = 19;
+		info->size = 0x00100000 * (sizeof(FPW)/2);
+		break;				/* => 1 or 2 MiB	*/
 
 	case (FPW)AMD_ID_LV640U:	/* 29LV640 and 29LV641 have same ID */
 		info->flash_id += FLASH_AM640U;
@@ -401,6 +442,7 @@ static void flash_sync_real_protect(flash_info_t *info)
 	break;
 
     case FLASH_AM640U:
+    case FLASH_AM800T:
     default:
 	/* no hardware protect that we support */
 	break;
@@ -438,6 +480,7 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 	case FLASH_28F320C3B:
 	case FLASH_28F640C3B:
 	case FLASH_AM640U:
+	case FLASH_AM800T:
 		break;
 	case FLASH_UNKNOWN:
 	default:
@@ -545,15 +588,15 @@ int write_buff (flash_info_t *info, uchar *src, ulong addr, ulong cnt)
 	 left > 0 && res == 0;
 	 addr += sizeof(data), left -= sizeof(data) - bytes) {
 
-        bytes = addr & (sizeof(data) - 1);
-        addr &= ~(sizeof(data) - 1);
+	bytes = addr & (sizeof(data) - 1);
+	addr &= ~(sizeof(data) - 1);
 
 	/* combine source and destination data so can program
 	 * an entire word of 16 or 32 bits
 	 */
-        for (i = 0; i < sizeof(data); i++) {
-            data <<= 8;
-            if (i < bytes || i - bytes >= left )
+	for (i = 0; i < sizeof(data); i++) {
+	    data <<= 8;
+	    if (i < bytes || i - bytes >= left )
 		data += *((uchar *)addr + i);
 	    else
 		data += *src++;
@@ -735,6 +778,7 @@ int flash_real_protect (flash_info_t * info, long sector, int prot)
 		break;
 
 	case FLASH_AM640U:
+	case FLASH_AM800T:
 	default:
 		/* no hardware protect that we support */
 		info->protect[sector] = prot;

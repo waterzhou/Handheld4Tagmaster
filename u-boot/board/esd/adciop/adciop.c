@@ -31,7 +31,7 @@
 /* ------------------------------------------------------------------------- */
 
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	/*
 	 * Set port pin in escc2 to keep living, and configure user led output
@@ -60,7 +60,7 @@ int board_pre_init (void)
 
 int checkboard (void)
 {
-	unsigned char str[64];
+	char str[64];
 	int i = getenv_r ("serial#", str, sizeof (str));
 
 	puts ("Board: ");

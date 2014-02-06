@@ -26,16 +26,22 @@
 #include <common.h>
 #include <watchdog.h>
 #include <command.h>
-#include <cmd_nvedit.h>
-#include <cmd_bootm.h>
-#include <malloc.h>
-#if defined(CONFIG_BOOT_RETRY_TIME) && defined(CONFIG_RESET_TO_RETRY)
-#include <cmd_boot.h>		/* for do_reset() prototype */
+#ifdef CONFIG_MODEM_SUPPORT
+#include <malloc.h>		/* for free() prototype */
 #endif
 
 #ifdef CFG_HUSH_PARSER
 #include <hush.h>
 #endif
+
+#include <post.h>
+
+#if defined(CONFIG_BOOT_RETRY_TIME) && defined(CONFIG_RESET_TO_RETRY)
+extern int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);		/* for do_reset() prototype */
+#endif
+
+extern int do_bootd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+
 
 #define MAX_DELAY_STOP_STR 32
 
@@ -98,6 +104,18 @@ static __inline__ int abortboot(int bootdelay)
 	u_int presskey_max = 0;
 	u_int i;
 
+#ifdef CONFIG_SILENT_CONSOLE
+	{
+		DECLARE_GLOBAL_DATA_PTR;
+
+		if (gd->flags & GD_FLG_SILENT) {
+			/* Restore serial console */
+			console_assign (stdout, "serial");
+			console_assign (stderr, "serial");
+		}
+	}
+#endif
+
 #  ifdef CONFIG_AUTOBOOT_PROMPT
 	printf (CONFIG_AUTOBOOT_PROMPT, bootdelay);
 #  endif
@@ -143,7 +161,7 @@ static __inline__ int abortboot(int bootdelay)
 			if (delaykey[i].len > 0 &&
 			    presskey_len >= delaykey[i].len &&
 			    memcmp (presskey + presskey_len - delaykey[i].len,
-		        	    delaykey[i].str,
+				    delaykey[i].str,
 				    delaykey[i].len) == 0) {
 #  if DEBUG_BOOTKEYS
 				printf("got %skey\n",
@@ -173,8 +191,23 @@ static __inline__ int abortboot(int bootdelay)
 	}
 #  if DEBUG_BOOTKEYS
 	if (!abort)
-		printf("key timeout\n");
+		puts ("key timeout\n");
 #  endif
+
+#ifdef CONFIG_SILENT_CONSOLE
+	{
+		DECLARE_GLOBAL_DATA_PTR;
+
+		if (abort) {
+			/* permanently enable normal console output */
+			gd->flags &= ~(GD_FLG_SILENT);
+		} else if (gd->flags & GD_FLG_SILENT) {
+			/* Restore silent console */
+			console_assign (stdout, "nulldev");
+			console_assign (stderr, "nulldev");
+		}
+	}
+#endif
 
 	return abort;
 }
@@ -189,6 +222,18 @@ static __inline__ int abortboot(int bootdelay)
 {
 	int abort = 0;
 
+#ifdef CONFIG_SILENT_CONSOLE
+	{
+		DECLARE_GLOBAL_DATA_PTR;
+
+		if (gd->flags & GD_FLG_SILENT) {
+			/* Restore serial console */
+			console_assign (stdout, "serial");
+			console_assign (stderr, "serial");
+		}
+	}
+#endif
+
 #ifdef CONFIG_MENUPROMPT
 	printf(CONFIG_MENUPROMPT, bootdelay);
 #else
@@ -196,20 +241,20 @@ static __inline__ int abortboot(int bootdelay)
 #endif
 
 #if defined CONFIG_ZERO_BOOTDELAY_CHECK
-        /*
-         * Check if key already pressed
-         * Don't check if bootdelay < 0
-         */
+	/*
+	 * Check if key already pressed
+	 * Don't check if bootdelay < 0
+	 */
 	if (bootdelay >= 0) {
 		if (tstc()) {	/* we got a key press	*/
 			(void) getc();  /* consume input	*/
-			printf ("\b\b\b 0\n");
-			return 1; 	/* don't auto boot	*/
+			puts ("\b\b\b 0");
+			abort = 1; 	/* don't auto boot	*/
 		}
-        }
+	}
 #endif
 
-	while (bootdelay > 0) {
+	while ((bootdelay > 0) && (!abort)) {
 		int i;
 
 		--bootdelay;
@@ -232,6 +277,21 @@ static __inline__ int abortboot(int bootdelay)
 	}
 
 	putc ('\n');
+
+#ifdef CONFIG_SILENT_CONSOLE
+	{
+		DECLARE_GLOBAL_DATA_PTR;
+
+		if (abort) {
+			/* permanently enable normal console output */
+			gd->flags &= ~(GD_FLG_SILENT);
+		} else if (gd->flags & GD_FLG_SILENT) {
+			/* Restore silent console */
+			console_assign (stdout, "nulldev");
+			console_assign (stderr, "nulldev");
+		}
+	}
+#endif
 
 	return abort;
 }
@@ -256,6 +316,12 @@ void main_loop (void)
 #ifdef CONFIG_PREBOOT
 	char *p;
 #endif
+#ifdef CONFIG_BOOTCOUNT_LIMIT
+	unsigned long bootcount = 0;
+	unsigned long bootlimit = 0;
+	char *bcs;
+	char bcs_set[16];
+#endif /* CONFIG_BOOTCOUNT_LIMIT */
 
 #if defined(CONFIG_VFD) && defined(VFD_TEST_LOGO)
 	ulong bmp = 0;		/* default bitmap */
@@ -268,10 +334,20 @@ void main_loop (void)
 	trab_vfd (bmp);
 #endif	/* CONFIG_VFD && VFD_TEST_LOGO */
 
+#ifdef CONFIG_BOOTCOUNT_LIMIT
+	bootcount = bootcount_load();
+	bootcount++;
+	bootcount_store (bootcount);
+	sprintf (bcs_set, "%lu", bootcount);
+	setenv ("bootcount", bcs_set);
+	bcs = getenv ("bootlimit");
+	bootlimit = bcs ? simple_strtoul (bcs, NULL, 10) : 0;
+#endif /* CONFIG_BOOTCOUNT_LIMIT */
+
 #ifdef CONFIG_MODEM_SUPPORT
 	debug ("DEBUG: main_loop:   do_mdm_init=%d\n", do_mdm_init);
 	if (do_mdm_init) {
-		uchar *str = strdup(getenv("mdm_cmd"));
+		char *str = strdup(getenv("mdm_cmd"));
 		setenv ("preboot", str);  /* set or delete definition */
 		if (str != NULL)
 			free (str);
@@ -282,15 +358,17 @@ void main_loop (void)
 #ifdef CONFIG_VERSION_VARIABLE
 	{
 		extern char version_string[];
-		char *str = getenv("ver");
 
-		if (!str)
-			setenv ("ver", version_string);  /* set version variable */
+		setenv ("ver", version_string);  /* set version variable */
 	}
 #endif /* CONFIG_VERSION_VARIABLE */
 
 #ifdef CFG_HUSH_PARSER
 	u_boot_hush_start ();
+#endif
+
+#ifdef CONFIG_AUTO_COMPLETE
+	install_auto_complete();
 #endif
 
 #ifdef CONFIG_PREBOOT
@@ -315,13 +393,22 @@ void main_loop (void)
 #if defined(CONFIG_BOOTDELAY) && (CONFIG_BOOTDELAY >= 0)
 	s = getenv ("bootdelay");
 	bootdelay = s ? (int)simple_strtol(s, NULL, 10) : CONFIG_BOOTDELAY;
+
 	debug ("### main_loop entered: bootdelay=%d\n\n", bootdelay);
 
 # ifdef CONFIG_BOOT_RETRY_TIME
 	init_cmd_timeout ();
 # endif	/* CONFIG_BOOT_RETRY_TIME */
 
-	s = getenv ("bootcmd");
+#ifdef CONFIG_BOOTCOUNT_LIMIT
+	if (bootlimit && (bootcount > bootlimit)) {
+		printf ("Warning: Bootlimit (%u) exceeded. Using altbootcmd.\n",
+		        (unsigned)bootlimit);
+		s = getenv ("altbootcmd");
+	}
+	else
+#endif /* CONFIG_BOOTCOUNT_LIMIT */
+		s = getenv ("bootcmd");
 
 	debug ("### main_loop: bootcmd=\"%s\"\n", s ? s : "<UNDEFINED>");
 
@@ -347,7 +434,7 @@ void main_loop (void)
 	    s = getenv("menucmd");
 	    if (s) {
 # ifndef CFG_HUSH_PARSER
-		run_command (s, bd, 0);
+		run_command (s, 0);
 # else
 		parse_string_outer(s, FLAG_PARSE_SEMICOLON |
 				    FLAG_EXIT_FROM_LOOP);
@@ -392,7 +479,7 @@ void main_loop (void)
 		else if (len == -2) {
 			/* -2 means timed out, retry autoboot
 			 */
-			printf("\nTimed out waiting for command\n");
+			puts ("\nTimed out waiting for command\n");
 # ifdef CONFIG_RESET_TO_RETRY
 			/* Reinit board to run initialization code again */
 			do_reset (NULL, 0, 0, NULL);
@@ -403,7 +490,7 @@ void main_loop (void)
 #endif
 
 		if (len == -1)
-			printf ("<INTERRUPT>\n");
+			puts ("<INTERRUPT>\n");
 		else
 			rc = run_command (lastcommand, flag);
 
@@ -424,7 +511,7 @@ void init_cmd_timeout(void)
 	char *s = getenv ("bootretry");
 
 	if (s != NULL)
-		retry_time = (int)simple_strtoul(s, NULL, 10);
+		retry_time = (int)simple_strtol(s, NULL, 10);
 	else
 		retry_time =  CONFIG_BOOT_RETRY_TIME;
 
@@ -493,6 +580,9 @@ int readline (const char *const prompt)
 			puts ("\r\n");
 			return (p - console_buffer);
 
+		case '\0':				/* nul			*/
+			continue;
+
 		case 0x03:				/* ^C - break		*/
 			console_buffer[0] = '\0';	/* discard input */
 			return (-1);
@@ -524,6 +614,14 @@ int readline (const char *const prompt)
 			 */
 			if (n < CFG_CBSIZE-2) {
 				if (c == '\t') {	/* expand TABs		*/
+#ifdef CONFIG_AUTO_COMPLETE
+					/* if auto completion triggered just continue */
+					*p = '\0';
+					if (cmd_auto_complete(prompt, console_buffer, &n, &col)) {
+						p = console_buffer + n;	/* reset */
+						continue;
+					}
+#endif
 					puts (tab_seq+(col&07));
 					col += 8 - (col&07);
 				} else {
@@ -630,9 +728,9 @@ static void process_macros (const char *input, char *output)
 	int inputcnt  = strlen (input);
 	int outputcnt = CFG_CBSIZE;
 	int state = 0;	/* 0 = waiting for '$'	*/
-			/* 1 = waiting for '('	*/
-			/* 2 = waiting for ')'	*/
-	                /* 3 = waiting for '''  */
+			/* 1 = waiting for '(' or '{' */
+			/* 2 = waiting for ')' or '}' */
+			/* 3 = waiting for '''  */
 #ifdef DEBUG_PARSER
 	char *output_start = output;
 
@@ -651,7 +749,7 @@ static void process_macros (const char *input, char *output)
 		if (inputcnt-- == 0)
 			break;
 		prev = c;
-	    	c = *input++;
+		c = *input++;
 	    }
 	    }
 
@@ -669,7 +767,7 @@ static void process_macros (const char *input, char *output)
 		}
 		break;
 	    case 1:			/* Waiting for (	*/
-		if (c == '(') {
+		if (c == '(' || c == '{') {
 			state++;
 			varname_start = input;
 		} else {
@@ -684,7 +782,7 @@ static void process_macros (const char *input, char *output)
 		}
 		break;
 	    case 2:			/* Waiting for )	*/
-		if (c == ')') {
+		if (c == ')' || c == '}') {
 			int i;
 			char envname[CFG_CBSIZE], *envval;
 			int envcnt = input-varname_start-1; /* Varname # of chars */
@@ -844,7 +942,7 @@ int run_command (const char *cmd, int flag)
 			printf ("[%s]\n", finaltoken);
 #endif
 			if (flag & CMD_FLAG_BOOTD) {
-				printf ("'bootd' recursion detected\n");
+				puts ("'bootd' recursion detected\n");
 				rc = -1;
 				continue;
 			}

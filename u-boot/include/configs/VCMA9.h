@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2002
+ * (C) Copyright 2002, 2003
  * Sysgo Real-Time Solutions, GmbH <www.elinos.com>
  * Marius Groeger <mgroeger@sysgo.de>
  * Gary Jennejohn <gj@denx.de>
@@ -30,18 +30,13 @@
 #define __CONFIG_H
 
 /*
- * If we are developing, we might want to start armboot from ram
- * so we MUST NOT initialize critical regs like mem-timing ...
- */
-#define CONFIG_INIT_CRITICAL		/* undef for developing */
-
-/*
  * High Level Configuration Options
  * (easy to change)
  */
 #define CONFIG_ARM920T		1	/* This is an ARM920T Core	*/
 #define	CONFIG_S3C2410		1	/* in a SAMSUNG S3C2410 SoC     */
 #define CONFIG_VCMA9		1	/* on a MPL VCMA9 Board  */
+#define LITTLEENDIAN		1	/* used by usb_ohci.c		*/
 
 /* input clock of PLL */
 #define CONFIG_SYS_CLK_FREQ	12000000/* VCMA9 has 12MHz input clock	*/
@@ -63,10 +58,13 @@
 			/*CFG_CMD_NAND	 |*/ \
 			CFG_CMD_EEPROM	 | \
 			CFG_CMD_I2C	 | \
-			/*CFG_CMD_USB	 |*/ \
+			CFG_CMD_USB	 | \
 			CFG_CMD_REGINFO  | \
+			CFG_CMD_FAT	 | \
 			CFG_CMD_DATE	 | \
 			CFG_CMD_ELF	 | \
+			CFG_CMD_DHCP	 | \
+			CFG_CMD_PING	 | \
 			CFG_CMD_BSP)
 
 /* this must be included after the definiton of CONFIG_COMMANDS */
@@ -96,10 +94,11 @@
 /*
  * Size of malloc() pool
  */
-#define CONFIG_MALLOC_SIZE	(CFG_ENV_SIZE + 128*1024)
+/*#define CONFIG_MALLOC_SIZE	(CFG_ENV_SIZE + 128*1024)*/
+#define CFG_GBL_DATA_SIZE	128		/* size in bytes reserved for initial data */
 
 #define CFG_MONITOR_LEN		(256 * 1024)
-#define CFG_MALLOC_LEN		(128 * 1024)
+#define CFG_MALLOC_LEN		(1024 * 1024)	/* BUNZIP2 needs a lot of RAM */
 
 /*
  * Hardware drivers
@@ -118,14 +117,13 @@
 /************************************************************
  * USB support
  ************************************************************/
-#if 0
-#define CONFIG_USB_OHCI
-#define CONFIG_USB_KEYBOARD
-#define CONFIG_USB_STORAGE
+#define CONFIG_USB_OHCI		1
+#define CONFIG_USB_KEYBOARD	1
+#define CONFIG_USB_STORAGE	1
+#define CONFIG_DOS_PARTITION	1
 
 /* Enable needed helper functions */
 #define CFG_DEVICE_DEREGISTER		/* needs device_deregister */
-#endif
 
 /************************************************************
  * RTC
@@ -138,7 +136,11 @@
 
 #define CONFIG_BAUDRATE		9600
 
-#define CONFIG_BOOTDELAY	3
+#define CONFIG_BOOTDELAY	5
+/* autoboot (do NOT change this set environment variable "bootdelay" to -1 instead) */
+/* #define CONFIG_BOOT_RETRY_TIME	-10	/XXX* feature is available but not enabled */
+#define CONFIG_ZERO_BOOTDELAY_CHECK  	/* check console even if bootdelay = 0 */
+
 #define CONFIG_NETMASK          255.255.255.0
 #define CONFIG_IPADDR		10.0.0.110
 #define CONFIG_SERVERIP		10.0.0.1
@@ -160,9 +162,10 @@
 #define CFG_BARGSIZE		CFG_CBSIZE	/* Boot Argument Buffer Size	*/
 
 #define CFG_MEMTEST_START	0x30000000	/* memtest works on	*/
-#define CFG_MEMTEST_END		0x33F80000	/* 63.5 MB in DRAM	*/
+#define CFG_MEMTEST_END		0x30F80000	/* 15.5 MB in DRAM	*/
+
 #define CFG_ALT_MEMTEST
-#define	CFG_LOAD_ADDR		0x33000000	/* default load address	*/
+#define	CFG_LOAD_ADDR		0x30800000	/* default load address	*/
 
 
 #undef  CFG_CLKS_IN_HZ		/* everything, incl board info, in Hz */
@@ -173,6 +176,9 @@
 
 /* valid baudrates */
 #define CFG_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
+
+/* support BZIP2 compression */
+#define CONFIG_BZIP2		1
 
 /************************************************************
  * Ident
@@ -197,8 +203,6 @@
  */
 #define CONFIG_NR_DRAM_BANKS	1	   /* we have 1 bank of DRAM */
 #define PHYS_SDRAM_1		0x30000000 /* SDRAM Bank #1 */
-#define PHYS_SDRAM_1_SIZE	0x04000000 /* 64 MB */
-
 #define PHYS_FLASH_1		0x00000000 /* Flash Bank #1 */
 
 #define CFG_FLASH_BASE		PHYS_FLASH_1

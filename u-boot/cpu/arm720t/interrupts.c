@@ -17,7 +17,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -28,16 +28,30 @@
 
 #include <common.h>
 #include <clps7111.h>
-
 #include <asm/proc-armv/ptrace.h>
+#include <asm/hardware.h>
 
-extern void reset_cpu(ulong addr);
-
+#ifndef CONFIG_NETARM
 /* we always count down the max. */
 #define TIMER_LOAD_VAL 0xffff
-
 /* macro to read the 16 bit timer */
 #define READ_TIMER (IO_TC1D & 0xffff)
+#else
+#define IRQEN	(*(volatile unsigned int *)(NETARM_GEN_MODULE_BASE + NETARM_GEN_INTR_ENABLE))
+#define TM2CTRL (*(volatile unsigned int *)(NETARM_GEN_MODULE_BASE + NETARM_GEN_TIMER2_CONTROL))
+#define TM2STAT (*(volatile unsigned int *)(NETARM_GEN_MODULE_BASE + NETARM_GEN_TIMER2_STATUS))
+#define TIMER_LOAD_VAL NETARM_GEN_TSTAT_CTC_MASK
+#define READ_TIMER (TM2STAT & NETARM_GEN_TSTAT_CTC_MASK)
+#endif
+
+#ifdef CONFIG_S3C4510B
+/* require interrupts for the S3C4510B */
+# ifndef CONFIG_USE_IRQ
+#  error CONFIG_USE_IRQ _must_ be defined when using CONFIG_S3C4510B
+# else
+static struct _irq_handler IRQ_HANDLER[N_IRQS];
+# endif
+#endif	/* CONFIG_S3C4510B */
 
 #ifdef CONFIG_USE_IRQ
 /* enable IRQ/FIQ interrupts */
@@ -68,7 +82,7 @@ int disable_interrupts (void)
 			     : "memory");
 	return (old & 0x80) == 0;
 }
-#else
+#else /* CONFIG_USE_IRQ */
 void enable_interrupts (void)
 {
 	return;
@@ -78,8 +92,6 @@ int disable_interrupts (void)
 	return 0;
 }
 #endif
-
-
 
 void bad_mode (void)
 {
@@ -91,7 +103,7 @@ void show_regs (struct pt_regs *regs)
 {
 	unsigned long flags;
 	const char *processor_modes[] =
-			{ "USER_26", "FIQ_26", "IRQ_26", "SVC_26", "UK4_26", "UK5_26",
+		{ "USER_26", "FIQ_26", "IRQ_26", "SVC_26", "UK4_26", "UK5_26",
 "UK6_26", "UK7_26",
 		"UK8_26", "UK9_26", "UK10_26", "UK11_26", "UK12_26", "UK13_26",
 				"UK14_26", "UK15_26",
@@ -103,15 +115,15 @@ void show_regs (struct pt_regs *regs)
 
 	flags = condition_codes (regs);
 
-	printf ("pc : [<%08lx>]    lr : [<%08lx>]\n"
-			"sp : %08lx  ip : %08lx  fp : %08lx\n",
+	printf ("pc : [<%08lx>]	   lr : [<%08lx>]\n"
+			"sp : %08lx  ip : %08lx	 fp : %08lx\n",
 			instruction_pointer (regs),
 			regs->ARM_lr, regs->ARM_sp, regs->ARM_ip, regs->ARM_fp);
-	printf ("r10: %08lx  r9 : %08lx  r8 : %08lx\n",
+	printf ("r10: %08lx  r9 : %08lx	 r8 : %08lx\n",
 			regs->ARM_r10, regs->ARM_r9, regs->ARM_r8);
-	printf ("r7 : %08lx  r6 : %08lx  r5 : %08lx  r4 : %08lx\n",
+	printf ("r7 : %08lx  r6 : %08lx	 r5 : %08lx  r4 : %08lx\n",
 			regs->ARM_r7, regs->ARM_r6, regs->ARM_r5, regs->ARM_r4);
-	printf ("r3 : %08lx  r2 : %08lx  r1 : %08lx  r0 : %08lx\n",
+	printf ("r3 : %08lx  r2 : %08lx	 r1 : %08lx  r0 : %08lx\n",
 			regs->ARM_r3, regs->ARM_r2, regs->ARM_r1, regs->ARM_r0);
 	printf ("Flags: %c%c%c%c",
 			flags & CC_N_BIT ? 'N' : 'n',
@@ -168,16 +180,66 @@ void do_fiq (struct pt_regs *pt_regs)
 
 void do_irq (struct pt_regs *pt_regs)
 {
+#if defined(CONFIG_IMPA7) || defined(CONFIG_EP7312) || defined(CONFIG_NETARM) || defined(CONFIG_ARMADILLO)
 	printf ("interrupt request\n");
 	show_regs (pt_regs);
 	bad_mode ();
+#elif defined(CONFIG_S3C4510B)
+	unsigned int pending;
+
+	while ( (pending = GET_REG( REG_INTOFFSET)) != 0x54) {  /* sentinal value for no pending interrutps */
+		IRQ_HANDLER[pending>>2].m_func( IRQ_HANDLER[pending>>2].m_data);
+
+		/* clear pending interrupt */
+		PUT_REG( REG_INTPEND, (1<<(pending>>2)));
+	}
+#elif defined(CONFIG_INTEGRATOR) && defined(CONFIG_ARCH_INTEGRATOR)
+	/* No do_irq() for IntegratorAP/CM720T as yet */
+#else
+#error do_irq() not defined for this CPU type
+#endif
 }
+
+
+#ifdef CONFIG_S3C4510B
+static void default_isr( void *data) {
+	printf ("default_isr():  called for IRQ %d\n", (int)data);
+}
+
+static void timer_isr( void *data) {
+	unsigned int *pTime = (unsigned int *)data;
+
+	(*pTime)++;
+	if ( !(*pTime % (CFG_HZ/4))) {
+		/* toggle LED 0 */
+		PUT_REG( REG_IOPDATA, GET_REG(REG_IOPDATA) ^ 0x1);
+	}
+
+}
+#endif
+
+#if defined(CONFIG_INTEGRATOR) && defined(CONFIG_ARCH_INTEGRATOR)
+	/* Use IntegratorAP routines in board/integratorap.c */
+#else
 
 static ulong timestamp;
 static ulong lastdec;
 
 int interrupt_init (void)
 {
+
+#if defined(CONFIG_NETARM)
+	/* disable all interrupts */
+	IRQEN = 0;
+
+	/* operate timer 2 in non-prescale mode */
+	TM2CTRL = ( NETARM_GEN_TIMER_SET_HZ(CFG_HZ) |
+		    NETARM_GEN_TCTL_ENABLE |
+		    NETARM_GEN_TCTL_INIT_COUNT(TIMER_LOAD_VAL));
+
+	/* set timer 2 counter */
+	lastdec = TIMER_LOAD_VAL;
+#elif defined(CONFIG_IMPA7) || defined(CONFIG_EP7312) || defined(CONFIG_ARMADILLO)
 	/* disable all interrupts */
 	IO_INTMR1 = 0;
 
@@ -189,14 +251,65 @@ int interrupt_init (void)
 
 	/* set timer 1 counter */
 	lastdec = IO_TC1D = TIMER_LOAD_VAL;
+#elif defined(CONFIG_S3C4510B)
+	int i;
+
+	/* install default interrupt handlers */
+	for ( i = 0; i < N_IRQS; i++) {
+		IRQ_HANDLER[i].m_data = (void *)i;
+		IRQ_HANDLER[i].m_func = default_isr;
+	}
+
+	/* configure interrupts for IRQ mode */
+	PUT_REG( REG_INTMODE, 0x0);
+	/* clear any pending interrupts */
+	PUT_REG( REG_INTPEND, 0x1FFFFF);
+
+	lastdec = 0;
+
+	/* install interrupt handler for timer */
+	IRQ_HANDLER[INT_TIMER0].m_data = (void *)&timestamp;
+	IRQ_HANDLER[INT_TIMER0].m_func = timer_isr;
+
+	/* configure free running timer 0 */
+	PUT_REG( REG_TMOD, 0x0);
+	/* Stop timer 0 */
+	CLR_REG( REG_TMOD, TM0_RUN);
+
+	/* Configure for interval mode */
+	CLR_REG( REG_TMOD, TM1_TOGGLE);
+
+	/*
+	 * Load Timer data register with count down value.
+	 * count_down_val = CFG_SYS_CLK_FREQ/CFG_HZ
+	 */
+	PUT_REG( REG_TDATA0, (CFG_SYS_CLK_FREQ / CFG_HZ));
+
+	/*
+	 * Enable global interrupt
+	 * Enable timer0 interrupt
+	 */
+	CLR_REG( REG_INTMASK, ((1<<INT_GLOBAL) | (1<<INT_TIMER0)));
+
+	/* Start timer */
+	SET_REG( REG_TMOD, TM0_RUN);
+
+#else
+#error No interrupt_init() defined for this CPU type
+#endif
 	timestamp = 0;
 
 	return (0);
 }
 
+#endif /* ! IntegratorAP */
+
 /*
  * timer without interrupts
  */
+
+
+#if defined(CONFIG_IMPA7) || defined(CONFIG_EP7312) || defined(CONFIG_NETARM) || defined(CONFIG_ARMADILLO)
 
 void reset_timer (void)
 {
@@ -253,13 +366,48 @@ ulong get_timer_masked (void)
 void udelay_masked (unsigned long usec)
 {
 	ulong tmo;
+	ulong endtime;
+	signed long diff;
 
-	tmo = usec / 1000;
-	tmo *= CFG_HZ;
-	tmo /= 1000;
+	if (usec >= 1000) {
+		tmo = usec / 1000;
+		tmo *= CFG_HZ;
+		tmo /= 1000;
+	} else {
+		tmo = usec * CFG_HZ;
+		tmo /= (1000*1000);
+	}
 
-	reset_timer_masked ();
+	endtime = get_timer_masked () + tmo;
 
-	while (get_timer_masked () < tmo)
-		/*NOP*/;
+	do {
+		ulong now = get_timer_masked ();
+		diff = endtime - now;
+	} while (diff >= 0);
 }
+
+#elif defined(CONFIG_S3C4510B)
+
+ulong get_timer (ulong base)
+{
+	return timestamp - base;
+}
+
+void udelay (unsigned long usec)
+{
+	u32 ticks;
+
+	ticks = (usec * CFG_HZ) / 1000000;
+
+	ticks += get_timer (0);
+
+	while (get_timer (0) < ticks)
+		/*NOP*/;
+
+}
+
+#elif defined(CONFIG_INTEGRATOR) && defined(CONFIG_ARCH_INTEGRATOR)
+	/* No timer routines for IntegratorAP/CM720T as yet */
+#else
+#error Timer routines not defined for this CPU type
+#endif

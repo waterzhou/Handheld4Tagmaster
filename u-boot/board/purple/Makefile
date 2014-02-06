@@ -1,3 +1,4 @@
+
 #
 # (C) Copyright 2003
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
@@ -26,10 +27,10 @@ include $(TOPDIR)/config.mk
 LIB	= lib$(BOARD).a
 
 OBJS	= $(BOARD).o flash.o sconsole.o
-SOBJS	= memsetup.o
+SOBJS	= lowlevel_init.o
 
 $(LIB):	.depend $(OBJS) $(SOBJS)
-	$(AR) crv $@ $^
+	$(AR) crv $@ $(OBJS)
 
 #########################################################################
 

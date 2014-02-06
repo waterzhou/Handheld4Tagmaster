@@ -39,7 +39,7 @@
 typedef struct {
 	int	flags;			/* Device flags: input/output/system	*/
 	int	ext;			/* Supported extensions			*/
-	char	name[8];		/* Device name				*/
+	char	name[16];		/* Device name				*/
 
 /* GENERAL functions */
 
@@ -104,6 +104,12 @@ int	drv_video_init (void);
 #endif
 #ifdef CONFIG_KEYBOARD
 int	drv_keyboard_init (void);
+#endif
+#ifdef CONFIG_USB_TTY
+int	drv_usbtty_init (void);
+#endif
+#ifdef CONFIG_NETCONSOLE
+int	drv_nc_init (void);
 #endif
 
 #endif	/* _DEVICES_H_ */

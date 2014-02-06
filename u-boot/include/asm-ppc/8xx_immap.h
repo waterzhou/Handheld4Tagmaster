@@ -435,7 +435,19 @@ typedef struct comm_proc {
 	u_char	res13[2];
 	ushort	cp_pbodr;
 	uint	cp_pbdat;
-	u_char	res14[0x18];
+
+	/* Port E - MPC87x/88x only.
+	 */
+	uint	cp_pedir;
+	uint	cp_pepar;
+	uint	cp_peso;
+	uint	cp_peodr;
+	uint	cp_pedat;
+
+	/* Communications Processor Timing Register -
+	   Contains RMII Timing for the FECs on MPC87x/88x only.
+	*/
+	uint	cp_cptr;
 
 	/* Serial Interface and Time Slot Assignment.
 	*/
@@ -461,7 +473,11 @@ typedef struct comm_proc {
 	union	fec_lcd	fl_un;
 #define cp_fec		fl_un.fl_un_fec
 #define lcd_cmap	fl_un.fl_un_cmap
-	char	res18[0x1000];
+	char	res18[0xE00];
+
+	/* The MPC885 family has a second FEC here */
+	fec_t	cp_fec2;
+#define cp_fec1	cp_fec	/* consistency macro */
 
 	/* Dual Ported RAM follows.
 	 * There are many different formats for this memory area

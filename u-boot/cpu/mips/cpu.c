@@ -24,12 +24,13 @@
 #include <common.h>
 #include <command.h>
 #include <asm/inca-ip.h>
+#include <asm/mipsregs.h>
 
 int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 #if defined(CONFIG_INCA_IP)
 	*INCA_IP_WDT_RST_REQ = 0x3f;
-#elif defined(CONFIG_PURPLE)
+#elif defined(CONFIG_PURPLE) || defined(CONFIG_TB0229)
 	void (*f)(void) = (void *) 0xbfc00000;
 
 	f();
@@ -43,3 +44,11 @@ void flush_cache (ulong start_addr, ulong size)
 
 }
 
+void write_one_tlb( int index, u32 pagemask, u32 hi, u32 low0, u32 low1 ){
+	write_32bit_cp0_register(CP0_ENTRYLO0, low0);
+	write_32bit_cp0_register(CP0_PAGEMASK, pagemask);
+	write_32bit_cp0_register(CP0_ENTRYLO1, low1);
+	write_32bit_cp0_register(CP0_ENTRYHI, hi);
+	write_32bit_cp0_register(CP0_INDEX, index);
+	tlb_write_indexed();
+}

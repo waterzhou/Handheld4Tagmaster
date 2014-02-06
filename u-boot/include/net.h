@@ -21,7 +21,15 @@
 # endif
 #endif	/* CONFIG_8xx */
 
-#if !defined(CONFIG_NET_MULTI) && defined(CONFIG_8260)
+#if defined(CONFIG_MPC5xxx)
+# if !defined(CONFIG_NET_MULTI)
+#  if defined(CONFIG_MPC5xxx_FEC)
+#   define CONFIG_NET_MULTI
+#  endif
+# endif
+#endif	/* CONFIG_MPC5xxx */
+
+#if !defined(CONFIG_NET_MULTI) && defined(CONFIG_CPM2)
 #include <config.h>
 #if defined(CONFIG_ETHER_ON_FCC)
 #if defined(CONFIG_ETHER_ON_SCC)
@@ -64,7 +72,6 @@
 typedef ulong		IPaddr_t;
 
 
-
 /*
  * The current receive packet handler.  Called with a pointer to the
  * application packet, and a protocol type (PORT_BOOTPC or PORT_TFTP).
@@ -103,13 +110,19 @@ struct eth_device {
 extern int eth_initialize(bd_t *bis);		/* Initialize network subsystem */
 extern int eth_register(struct eth_device* dev);/* Register network device	*/
 extern void eth_try_another(int first_restart);	/* Change the device		*/
+#ifdef CONFIG_NET_MULTI
+extern void eth_set_current(void);		/* set nterface to ethcur var.  */
+#endif
 extern struct eth_device *eth_get_dev(void);	/* get the current device MAC	*/
+extern struct eth_device *eth_get_dev_by_name(char *devname); /* get device	*/
+extern int eth_get_dev_index (void);		/* get the device index         */
 extern void eth_set_enetaddr(int num, char* a);	/* Set new MAC address		*/
 
 extern int eth_init(bd_t *bis);			/* Initialize the device	*/
 extern int eth_send(volatile void *packet, int length);	   /* Send a packet	*/
 extern int eth_rx(void);			/* Check for received packets	*/
 extern void eth_halt(void);			/* stop SCC			*/
+extern char *eth_get_name(void);		/* get name of current device	*/
 
 
 /**********************************************************************/
@@ -135,9 +148,24 @@ typedef struct {
 
 #define ETHER_HDR_SIZE	14		/* Ethernet header size		*/
 #define E802_HDR_SIZE	22		/* 802 ethernet header size	*/
+
+/*
+ *	Ethernet header
+ */
+typedef struct {
+	uchar		vet_dest[6];	/* Destination node		*/
+	uchar		vet_src[6];	/* Source node			*/
+	ushort		vet_vlan_type;	/* PROT_VLAN			*/
+	ushort		vet_tag;	/* TAG of VLAN			*/
+	ushort		vet_type;	/* protocol type		*/
+} VLAN_Ethernet_t;
+
+#define VLAN_ETHER_HDR_SIZE	18	/* VLAN Ethernet header size	*/
+
 #define PROT_IP		0x0800		/* IP protocol			*/
 #define PROT_ARP	0x0806		/* IP ARP protocol		*/
 #define PROT_RARP	0x8035		/* IP ARP protocol		*/
+#define PROT_VLAN	0x8100		/* IEEE 802.1q protocol		*/
 
 #define IPPROTO_ICMP	 1	/* Internet Control Message Protocol	*/
 #define IPPROTO_UDP	17	/* User Datagram Protocol		*/
@@ -184,9 +212,9 @@ typedef struct
 #   define RARPOP_REPLY	    4		/* Response to previous request */
 
 	/*
-         * The remaining fields are variable in size, according to
-         * the sizes above, and are defined as appropriate for
-         * specific hardware/protocol combinations.
+	 * The remaining fields are variable in size, according to
+	 * the sizes above, and are defined as appropriate for
+	 * specific hardware/protocol combinations.
 	 */
 	uchar		ar_data[0];
 #if 0
@@ -226,7 +254,6 @@ typedef struct icmphdr {
 		} frag;
 	} un;
 } ICMP_t;
-
 
 
 /*
@@ -269,6 +296,9 @@ typedef struct icmphdr {
 extern IPaddr_t		NetOurGatewayIP;	/* Our gateway IP addresse	*/
 extern IPaddr_t		NetOurSubnetMask;	/* Our subnet mask (0 = unknown)*/
 extern IPaddr_t		NetOurDNSIP;	 /* Our Domain Name Server (0 = unknown)*/
+#if (CONFIG_BOOTP_MASK & CONFIG_BOOTP_DNS2)
+extern IPaddr_t		NetOurDNS2IP;	 /* Our 2nd Domain Name Server (0 = unknown)*/
+#endif
 extern char		NetOurNISDomain[32];	/* Our NIS domain		*/
 extern char		NetOurHostName[32];	/* Our hostname			*/
 extern char		NetOurRootPath[64];	/* Our root path		*/
@@ -285,6 +315,16 @@ extern volatile uchar * NetRxPkt;		/* Current receive packet	*/
 extern int		NetRxPktLen;		/* Current rx packet length	*/
 extern unsigned		NetIPID;		/* IP ID (counting)		*/
 extern uchar		NetBcastAddr[6];	/* Ethernet boardcast address	*/
+extern uchar		NetEtherNullAddr[6];
+
+#define VLAN_NONE	4095			/* untagged 			*/
+#define VLAN_IDMASK	0x0fff			/* mask of valid vlan id 	*/
+extern ushort		NetOurVLAN;		/* Our VLAN 			*/
+extern ushort		NetOurNativeVLAN;	/* Our Native VLAN 		*/
+
+extern uchar		NetCDPAddr[6]; 		/* Ethernet CDP address		*/
+extern ushort		CDPNativeVLAN;		/* CDP returned native VLAN	*/
+extern ushort		CDPApplianceVLAN;	/* CDP returned appliance VLAN	*/
 
 extern int		NetState;		/* Network loop state		*/
 #define NETLOOP_CONTINUE	1
@@ -296,13 +336,24 @@ extern int		NetState;		/* Network loop state		*/
 extern int		NetRestartWrap;		/* Tried all network devices	*/
 #endif
 
-typedef enum { BOOTP, RARP, ARP, TFTP, DHCP, PING, DNS } proto_t;
+typedef enum { BOOTP, RARP, ARP, TFTP, DHCP, PING, DNS, NFS, CDP, NETCONS, SNTP } proto_t;
 
 /* from net/net.c */
 extern char	BootFile[128];			/* Boot File name		*/
 
 #if (CONFIG_COMMANDS & CFG_CMD_PING)
 extern IPaddr_t	NetPingIP;			/* the ip address to ping 		*/
+#endif
+
+#if (CONFIG_COMMANDS & CFG_CMD_CDP)
+/* when CDP completes these hold the return values */
+extern ushort CDPNativeVLAN;
+extern ushort CDPApplianceVLAN;
+#endif
+
+#if (CONFIG_COMMANDS & CFG_CMD_SNTP)
+extern IPaddr_t	NetNtpServerIP;			/* the ip address to NTP 	*/
+extern int NetTimeOffset;			/* offset time from UTC		*/
 #endif
 
 /* Initialize the network adapter */
@@ -314,8 +365,11 @@ extern void	NetStop(void);
 /* Load failed.	 Start again. */
 extern void	NetStartAgain(void);
 
-/* Set ethernet header */
-extern void	NetSetEther(volatile uchar *, uchar *, uint);
+/* Get size of the ethernet header when we send */
+extern int 	NetEthHdrSize(void);
+
+/* Set ethernet header; returns the size of the header */
+extern int	NetSetEther(volatile uchar *, uchar *, uint);
 
 /* Set IP header */
 extern void	NetSetIP(volatile uchar *, IPaddr_t, int, int, int);
@@ -326,7 +380,7 @@ extern uint	NetCksum(uchar *, int);		/* Calculate the checksum	*/
 
 /* Set callbacks */
 extern void	NetSetHandler(rxhand_f *);	/* Set RX packet handler	*/
-extern void	NetSetTimeout(int, thand_f *);	/* Set timeout handler		*/
+extern void	NetSetTimeout(ulong, thand_f *);/* Set timeout handler		*/
 
 /* Transmit "NetTxPacket" */
 extern void	NetSendPacket(volatile uchar *, int);
@@ -387,11 +441,20 @@ extern void	ip_to_string (IPaddr_t x, char *s);
 /* Convert a string to ip address */
 extern IPaddr_t string_to_ip(char *s);
 
+/* Convert a VLAN id to a string */
+extern void	VLAN_to_string (ushort x, char *s);
+
+/* Convert a string to a vlan id */
+extern ushort string_to_VLAN(char *s);
+
 /* read an IP address from a environment variable */
 extern IPaddr_t getenv_IPaddr (char *);
 
+/* read a VLAN id from an environment variable */
+extern ushort getenv_VLAN(char *);
+
 /* copy a filename (allow for "..." notation, limit length) */
-extern void	copy_filename (uchar *dst, uchar *src, int size);
+extern void	copy_filename (char *dst, char *src, int size);
 
 /**********************************************************************/
 

@@ -85,7 +85,7 @@ const uint sdram_table[] = {
 
 
 /* ------------------------------------------------------------------------- */
-int board_pre_init(void)
+int board_early_init_f(void)
 {
     volatile immap_t     *immap  = (immap_t *)CFG_IMMR;
     volatile memctl8xx_t *memctl = &immap->im_memctl;
@@ -114,10 +114,10 @@ int checkboard (void)
 
 	puts ("Board: ");
 
-	i = getenv_r ("serial#", buf, sizeof (buf));
+	i = getenv_r ("serial#", (char *)buf, sizeof (buf));
 	s = (i > 0) ? buf : NULL;
 
-	if (!s || strncmp (s, "IP860", 5)) {
+	if (!s || strncmp ((char *)s, "IP860", 5)) {
 		puts ("### No HW ID - assuming IP860");
 	} else {
 		for (e = s; *e; ++e) {
@@ -190,9 +190,9 @@ long int initdram (int board_type)
 	 * Check SDRAM Memory Size
 	 */
 	if (ip860_get_dram_size() == 16)
-		size = dram_size (refresh_val | 0x00804114, (ulong *)SDRAM_BASE, SDRAM_MAX_SIZE);
+		size = dram_size (refresh_val | 0x00804114, SDRAM_BASE, SDRAM_MAX_SIZE);
 	else
-		size = dram_size (refresh_val | 0x00906114, (ulong *)SDRAM_BASE, SDRAM_MAX_SIZE);
+		size = dram_size (refresh_val | 0x00906114, SDRAM_BASE, SDRAM_MAX_SIZE);
 
 	udelay (1000);
 
@@ -253,42 +253,10 @@ static long int dram_size (long int mamr_value, long int *base,
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	volatile long int *addr;
-	ulong cnt, val;
-	ulong save[32];				/* to make test non-destructive */
-	unsigned char i = 0;
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	save[i] = *addr;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		val = *addr;
-		*addr = save[--i];
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (get_ram_size(base, maxsize));
 }
 
 /* ------------------------------------------------------------------------- */

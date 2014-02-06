@@ -35,50 +35,24 @@ int checkboard (void)
 long int initdram (int board_type)
 {
 #ifndef CFG_RAMBOOT
-	int		 i, cnt;
-	volatile uchar * base= CFG_SDRAM_BASE;
-	volatile ulong * addr;
-	ulong		 save[32];
-	ulong		 val, ret  = 0;
+	long size;
+	long new_bank0_end;
+	long mear1;
+	long emear1;
 
-	for (i=0, cnt=(CFG_MAX_RAM_SIZE / sizeof(long)) >> 1; cnt > 0; cnt >>= 1) {
-		addr = (volatile ulong *)base + cnt;
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
+	size = get_ram_size(CFG_SDRAM_BASE, CFG_MAX_RAM_SIZE);
 
-	addr = (volatile ulong *)base;
-	save[i] = *addr;
-	*addr = 0;
+	new_bank0_end = size - 1;
+	mear1 = mpc824x_mpc107_getreg(MEAR1);
+	emear1 = mpc824x_mpc107_getreg(EMEAR1);
+	mear1 = (mear1  & 0xFFFFFF00) |
+		((new_bank0_end & MICR_ADDR_MASK) >> MICR_ADDR_SHIFT);
+	emear1 = (emear1 & 0xFFFFFF00) |
+		((new_bank0_end & MICR_ADDR_MASK) >> MICR_EADDR_SHIFT);
+	mpc824x_mpc107_setreg(MEAR1, mear1);
+	mpc824x_mpc107_setreg(EMEAR1, emear1);
 
-	if (*addr != 0) {
-		*addr = save[i];
-		goto Done;
-	}
-
-	for (cnt = 1; cnt <= CFG_MAX_RAM_SIZE / sizeof(long); cnt <<= 1) {
-		addr = (volatile ulong *)base + cnt;
-		val = *addr;
-		*addr = save[--i];
-		if (val != ~cnt) {
-			ulong new_bank0_end = cnt * sizeof(long) - 1;
-			ulong mear1  = mpc824x_mpc107_getreg(MEAR1);
-			ulong emear1 = mpc824x_mpc107_getreg(EMEAR1);
-			mear1 =  (mear1  & 0xFFFFFF00) |
-			((new_bank0_end & MICR_ADDR_MASK) >> MICR_ADDR_SHIFT);
-			emear1 = (emear1 & 0xFFFFFF00) |
-			((new_bank0_end & MICR_ADDR_MASK) >> MICR_EADDR_SHIFT);
-			mpc824x_mpc107_setreg(MEAR1,  mear1);
-			mpc824x_mpc107_setreg(EMEAR1, emear1);
-
-			ret = cnt * sizeof(long);
-			goto Done;
-		}
-	}
-
-	ret = CFG_MAX_RAM_SIZE;
-Done:
-	return ret;
+	return (size);
 #else
 	/* if U-Boot starts from RAM, then suppose we have 16Mb of RAM */
 	return (16 << 20);
@@ -113,7 +87,7 @@ void pci_init_board (void)
 	pci_mpc824x_init(&hose);
 }
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	*(volatile unsigned char *)(CFG_CPLD_RESET) = 0x89;
 	return 0;
@@ -154,6 +128,12 @@ static int ledstatus = 1;
 void oxc_toggle_activeled(void)
 {
 	ledtoggle++;
+}
+
+void board_show_activity (ulong timestamp)
+{
+	if ((timestamp % (CFG_HZ / 10)) == 0)
+		oxc_toggle_activeled ();
 }
 
 void show_activity(int arg)

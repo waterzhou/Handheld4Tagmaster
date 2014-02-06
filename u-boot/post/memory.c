@@ -146,7 +146,7 @@
  * regions of RAM around each 1Mb boundary. For example, for 64Mb
  * RAM the following areas are verified: 0x00000000-0x00000800,
  * 0x000ff800-0x00100800, 0x001ff800-0x00200800, ..., 0x03fff800-
- * 0x04000000. If the test is run in power-fail mode, it verifies
+ * 0x04000000. If the test is run in slow-test mode, it verifies
  * the whole RAM.
  */
 
@@ -206,24 +206,25 @@ static void move64(unsigned long long *src, unsigned long long *dest)
  *
  */
 const static unsigned long long pattern[] = {
-    0xaaaaaaaaaaaaaaaa,
-    0xcccccccccccccccc,
-    0xf0f0f0f0f0f0f0f0,
-    0xff00ff00ff00ff00,
-    0xffff0000ffff0000,
-    0xffffffff00000000,
-    0x00000000ffffffff,
-    0x0000ffff0000ffff,
-    0x00ff00ff00ff00ff,
-    0x0f0f0f0f0f0f0f0f,
-    0x3333333333333333,
-    0x5555555555555555};
-const unsigned long long otherpattern = 0x0123456789abcdef;
+	0xaaaaaaaaaaaaaaaaULL,
+	0xccccccccccccccccULL,
+	0xf0f0f0f0f0f0f0f0ULL,
+	0xff00ff00ff00ff00ULL,
+	0xffff0000ffff0000ULL,
+	0xffffffff00000000ULL,
+	0x00000000ffffffffULL,
+	0x0000ffff0000ffffULL,
+	0x00ff00ff00ff00ffULL,
+	0x0f0f0f0f0f0f0f0fULL,
+	0x3333333333333333ULL,
+	0x5555555555555555ULL
+};
+const unsigned long long otherpattern = 0x0123456789abcdefULL;
 
 
 static int memory_post_dataline(unsigned long long * pmem)
 {
-	unsigned long long temp64;
+	unsigned long long temp64 = 0;
 	int num_patterns = sizeof(pattern)/ sizeof(pattern[0]);
 	int i;
 	unsigned int hi, lo, pathi, patlo;
@@ -417,14 +418,14 @@ static int memory_post_tests (unsigned long start, unsigned long size)
 	int ret = 0;
 
 	if (ret == 0)
-		ret = memory_post_dataline ((long long *)start);
+		ret = memory_post_dataline ((unsigned long long *)start);
 	WATCHDOG_RESET ();
 	if (ret == 0)
-		ret = memory_post_addrline ((long *)start, (long *)start, size);
+		ret = memory_post_addrline ((ulong *)start, (ulong *)start, size);
 	WATCHDOG_RESET ();
 	if (ret == 0)
-		ret = memory_post_addrline ((long *)(start + size - 8),
-					    (long *)start, size);
+		ret = memory_post_addrline ((ulong *)(start + size - 8),
+					    (ulong *)start, size);
 	WATCHDOG_RESET ();
 	if (ret == 0)
 		ret = memory_post_test1 (start, size, 0x00000000);
@@ -460,9 +461,9 @@ int memory_post_test (int flags)
 				 256 << 20 : bd->bi_memsize) - (1 << 20);
 
 
-	if (flags & POST_POWERFAIL) {
+	if (flags & POST_SLOWTEST) {
 		ret = memory_post_tests (CFG_SDRAM_BASE, memsize);
-	} else {			/* POST_POWERNORMAL */
+	} else {			/* POST_NORMAL */
 
 		unsigned long i;
 

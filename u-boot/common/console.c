@@ -25,9 +25,7 @@
 #include <stdarg.h>
 #include <malloc.h>
 #include <console.h>
-#include <syscall.h>
-
-void **syscall_tbl;
+#include <exports.h>
 
 #ifdef CONFIG_AMIGAONEG3SE
 int console_changed = 0;
@@ -41,17 +39,16 @@ int console_changed = 0;
  */
 #ifdef CFG_CONSOLE_OVERWRITE_ROUTINE
 extern int overwrite_console (void);
+#define OVERWRITE_CONSOLE overwrite_console ()
 #else
-int overwrite_console (void)
-{
-	return (0);
-}
+#define OVERWRITE_CONSOLE 0
 #endif /* CFG_CONSOLE_OVERWRITE_ROUTINE */
 
 #endif /* CFG_CONSOLE_IS_IN_ENV */
 
 static int console_setfile (int file, device_t * dev)
 {
+	DECLARE_GLOBAL_DATA_PTR;
 	int error = 0;
 
 	if (dev == NULL)
@@ -78,13 +75,13 @@ static int console_setfile (int file, device_t * dev)
 		 */
 		switch (file) {
 		case stdin:
-			syscall_tbl[SYSCALL_GETC] = dev->getc;
-			syscall_tbl[SYSCALL_TSTC] = dev->tstc;
+			gd->jt[XF_getc] = dev->getc;
+			gd->jt[XF_tstc] = dev->tstc;
 			break;
 		case stdout:
-			syscall_tbl[SYSCALL_PUTC] = dev->putc;
-			syscall_tbl[SYSCALL_PUTS] = dev->puts;
-			syscall_tbl[SYSCALL_PRINTF] = printf;
+			gd->jt[XF_putc] = dev->putc;
+			gd->jt[XF_puts] = dev->puts;
+			gd->jt[XF_printf] = printf;
 			break;
 		}
 		break;
@@ -192,6 +189,11 @@ void putc (const char c)
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
+#ifdef CONFIG_SILENT_CONSOLE
+	if (gd->flags & GD_FLG_SILENT)
+		return;
+#endif
+
 	if (gd->flags & GD_FLG_DEVINIT) {
 		/* Send to the standard output */
 		fputc (stdout, c);
@@ -204,6 +206,11 @@ void putc (const char c)
 void puts (const char *s)
 {
 	DECLARE_GLOBAL_DATA_PTR;
+
+#ifdef CONFIG_SILENT_CONSOLE
+	if (gd->flags & GD_FLG_SILENT)
+		return;
+#endif
 
 	if (gd->flags & GD_FLG_DEVINIT) {
 		/* Send to the standard output */
@@ -366,10 +373,16 @@ int console_init_f (void)
 	DECLARE_GLOBAL_DATA_PTR;
 
 	gd->have_console = 1;
+
+#ifdef CONFIG_SILENT_CONSOLE
+	if (getenv("silent") != NULL)
+		gd->flags |= GD_FLG_SILENT;
+#endif
+
 	return (0);
 }
 
-#if defined(CFG_CONSOLE_IS_IN_ENV) || defined(CONFIG_SPLASH_SCREEN)
+#if defined(CFG_CONSOLE_IS_IN_ENV) || defined(CONFIG_SPLASH_SCREEN) || defined(CONFIG_SILENT_CONSOLE)
 /* search a device */
 device_t *search_device (int flags, char *name)
 {
@@ -394,15 +407,19 @@ device_t *search_device (int flags, char *name)
 /* Called after the relocation - use desired console functions */
 int console_init_r (void)
 {
+	DECLARE_GLOBAL_DATA_PTR;
 	char *stdinname, *stdoutname, *stderrname;
 	device_t *inputdev = NULL, *outputdev = NULL, *errdev = NULL;
+#ifdef CFG_CONSOLE_ENV_OVERWRITE
+	int i;
+#endif /* CFG_CONSOLE_ENV_OVERWRITE */
 
 	/* set default handlers at first */
-	syscall_tbl[SYSCALL_GETC] = serial_getc;
-	syscall_tbl[SYSCALL_TSTC] = serial_tstc;
-	syscall_tbl[SYSCALL_PUTC] = serial_putc;
-	syscall_tbl[SYSCALL_PUTS] = serial_puts;
-	syscall_tbl[SYSCALL_PRINTF] = serial_printf;
+	gd->jt[XF_getc] = serial_getc;
+	gd->jt[XF_tstc] = serial_tstc;
+	gd->jt[XF_putc] = serial_putc;
+	gd->jt[XF_puts] = serial_puts;
+	gd->jt[XF_printf] = serial_printf;
 
 	/* stdin stdout and stderr are in environment */
 	/* scan for it */
@@ -410,7 +427,7 @@ int console_init_r (void)
 	stdoutname = getenv ("stdout");
 	stderrname = getenv ("stderr");
 
-	if (overwrite_console () == 0) { /* if not overwritten by config switch */
+	if (OVERWRITE_CONSOLE == 0) { 	/* if not overwritten by config switch */
 		inputdev  = search_device (DEV_FLAGS_INPUT,  stdinname);
 		outputdev = search_device (DEV_FLAGS_OUTPUT, stdoutname);
 		errdev    = search_device (DEV_FLAGS_OUTPUT, stderrname);
@@ -436,25 +453,27 @@ int console_init_r (void)
 		console_setfile (stdin, inputdev);
 	}
 
+	gd->flags |= GD_FLG_DEVINIT;	/* device initialization completed */
+
 #ifndef CFG_CONSOLE_INFO_QUIET
 	/* Print information */
-	printf ("In:    ");
+	puts ("In:    ");
 	if (stdio_devices[stdin] == NULL) {
-		printf ("No input devices available!\n");
+		puts ("No input devices available!\n");
 	} else {
 		printf ("%s\n", stdio_devices[stdin]->name);
 	}
 
-	printf ("Out:   ");
+	puts ("Out:   ");
 	if (stdio_devices[stdout] == NULL) {
-		printf ("No output devices available!\n");
+		puts ("No output devices available!\n");
 	} else {
 		printf ("%s\n", stdio_devices[stdout]->name);
 	}
 
-	printf ("Err:   ");
+	puts ("Err:   ");
 	if (stdio_devices[stderr] == NULL) {
-		printf ("No error devices available!\n");
+		puts ("No error devices available!\n");
 	} else {
 		printf ("%s\n", stdio_devices[stderr]->name);
 	}
@@ -465,7 +484,7 @@ int console_init_r (void)
 	for (i = 0; i < 3; i++) {
 		setenv (stdio_names[i], stdio_devices[i]->name);
 	}
-#endif /*  CFG_CONSOLE_ENV_OVERWRITE */
+#endif /* CFG_CONSOLE_ENV_OVERWRITE */
 
 #if 0
 	/* If nothing usable installed, use only the initial console */
@@ -480,12 +499,22 @@ int console_init_r (void)
 /* Called after the relocation - use desired console functions */
 int console_init_r (void)
 {
+	DECLARE_GLOBAL_DATA_PTR;
+
 	device_t *inputdev = NULL, *outputdev = NULL;
 	int i, items = ListNumItems (devlist);
 
 #ifdef CONFIG_SPLASH_SCREEN
-	/* suppress all output if splash screen is enabled */
-	outputdev = search_device (DEV_FLAGS_OUTPUT, "nulldev");
+	/* suppress all output if splash screen is enabled and we have
+	   a bmp to display                                            */
+	if (getenv("splashimage") != NULL)
+		outputdev = search_device (DEV_FLAGS_OUTPUT, "nulldev");
+#endif
+
+#ifdef CONFIG_SILENT_CONSOLE
+	/* Suppress all output if "silent" mode requested		*/
+	if (gd->flags & GD_FLG_SILENT)
+		outputdev = search_device (DEV_FLAGS_OUTPUT, "nulldev");
 #endif
 
 	/* Scan devices looking for input and output devices */
@@ -514,25 +543,27 @@ int console_init_r (void)
 		console_setfile (stdin, inputdev);
 	}
 
+	gd->flags |= GD_FLG_DEVINIT;	/* device initialization completed */
+
 #ifndef CFG_CONSOLE_INFO_QUIET
 	/* Print information */
-	printf ("In:    ");
+	puts ("In:    ");
 	if (stdio_devices[stdin] == NULL) {
-		printf ("No input devices available!\n");
+		puts ("No input devices available!\n");
 	} else {
 		printf ("%s\n", stdio_devices[stdin]->name);
 	}
 
-	printf ("Out:   ");
+	puts ("Out:   ");
 	if (stdio_devices[stdout] == NULL) {
-		printf ("No output devices available!\n");
+		puts ("No output devices available!\n");
 	} else {
 		printf ("%s\n", stdio_devices[stdout]->name);
 	}
 
-	printf ("Err:   ");
+	puts ("Err:   ");
 	if (stdio_devices[stderr] == NULL) {
-		printf ("No error devices available!\n");
+		puts ("No error devices available!\n");
 	} else {
 		printf ("%s\n", stdio_devices[stderr]->name);
 	}

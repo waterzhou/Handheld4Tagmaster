@@ -114,8 +114,8 @@ void board_get_enetaddr (uchar * enet)
 	i2c_init (CFG_I2C_SPEED, CFG_I2C_SLAVE);
 
 	/* Read 256 bytes in EEPROM				*/
-	i2c_read (0x54, 0, 1, buff, 128);
-	i2c_read (0x54, 128, 1, buff + 128, 128);
+	i2c_read (0x54, 0, 1, (uchar *)buff, 128);
+	i2c_read (0x54, 128, 1, (uchar *)buff + 128, 128);
 
 	/* Retrieve MAC address in buffer (key EA)		*/
 	for (cp = buff;;) {
@@ -123,7 +123,7 @@ void board_get_enetaddr (uchar * enet)
 			cp += 3;
 			/* Read MAC address			*/
 			for (i = 0; i < 6; i++, cp += 2) {
-				enet[i] = aschex_to_byte (cp);
+				enet[i] = aschex_to_byte ((unsigned char *)cp);
 			}
 		}
 		/* Scan to the end of the record		*/
@@ -200,7 +200,7 @@ long int initdram (int board_type)
 	 * try 10 column mode
 	 */
 
-	size10 = dram_size (CFG_MAMR_10COL, (ulong *) SDRAM_BASE_PRELIM,
+	size10 = dram_size (CFG_MAMR_10COL, SDRAM_BASE_PRELIM,
 						SDRAM_MAX_SIZE);
 
 	return (size10);
@@ -220,45 +220,13 @@ static long int dram_size (long int mamr_value, long int *base, long int maxsize
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	volatile long int *addr;
-	ulong cnt, val;
-	ulong save[32];			/* to make test non-destructive */
-	unsigned char i = 0;
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;	/* pointer arith! */
-
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	save[i] = *addr;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		val = *addr;
-		*addr = save[--i];
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (get_ram_size(base, maxsize));
 }
 /*-----------------------------------------------------------------------------
- * aschex_to_byte -- 
+ * aschex_to_byte --
  *-----------------------------------------------------------------------------
  */
 static unsigned char aschex_to_byte (unsigned char *cp)

@@ -38,7 +38,6 @@
 
 struct cmd_tbl_s {
 	char		*name;		/* Command Name			*/
-	int		lmin;		/* minimum abbreviated length	*/
 	int		maxargs;	/* maximum number of arguments	*/
 	int		repeatable;	/* autorepeat allowed?		*/
 					/* Implementation function	*/
@@ -47,22 +46,25 @@ struct cmd_tbl_s {
 #ifdef	CFG_LONGHELP
 	char		*help;		/* Help  message	(long)	*/
 #endif
+#ifdef CONFIG_AUTO_COMPLETE
+	/* do auto completion on the arguments */
+	int		(*complete)(int argc, char *argv[], char last_char, int maxv, char *cmdv[]);
+#endif
 };
 
 typedef struct cmd_tbl_s	cmd_tbl_t;
 
-extern	cmd_tbl_t cmd_tbl[];
+extern cmd_tbl_t  __u_boot_cmd_start;
+extern cmd_tbl_t  __u_boot_cmd_end;
 
-#ifdef	CFG_LONGHELP
-#define	MK_CMD_TBL_ENTRY(name,lmin,maxargs,rep,cmd,usage,help)	\
-				{ name, lmin, maxargs, rep, cmd, usage, help }
-#else	/* no help info */
-#define	MK_CMD_TBL_ENTRY(name,lmin,maxargs,rep,cmd,usage,help)	\
-				{ name, lmin, maxargs, rep, cmd, usage }
-#endif
 
 /* common/command.c */
 cmd_tbl_t *find_cmd(const char *cmd);
+
+#ifdef CONFIG_AUTO_COMPLETE
+extern void install_auto_complete(void);
+extern int cmd_auto_complete(const char *const prompt, char *buf, int *np, int *colp);
+#endif
 
 /*
  * Monitor Command
@@ -86,5 +88,20 @@ typedef	void 	command_t (cmd_tbl_t *, int, int, char *[]);
  * Configurable monitor commands definitions have been moved
  * to include/cmd_confdefs.h
  */
+
+
+#define Struct_Section  __attribute__ ((unused,section (".u_boot_cmd")))
+
+#ifdef  CFG_LONGHELP
+
+#define U_BOOT_CMD(name,maxargs,rep,cmd,usage,help) \
+cmd_tbl_t __u_boot_cmd_##name Struct_Section = {#name, maxargs, rep, cmd, usage, help}
+
+#else	/* no long help info */
+
+#define U_BOOT_CMD(name,maxargs,rep,cmd,usage,help) \
+cmd_tbl_t __u_boot_cmd_##name Struct_Section = {#name, maxargs, rep, cmd, usage}
+
+#endif	/* CFG_LONGHELP */
 
 #endif	/* __COMMAND_H */

@@ -50,17 +50,20 @@
 			CFG_CMD_PCI	| \
 			CFG_CMD_CACHE	| \
 			CFG_CMD_IRQ	| \
+			CFG_CMD_ECHO	| \
 			CFG_CMD_EEPROM	| \
 			CFG_CMD_I2C	| \
 			CFG_CMD_REGINFO | \
 			CFG_CMD_FDC	| \
 			CFG_CMD_SCSI	| \
+			CFG_CMD_FAT 	| \
 			CFG_CMD_DATE	| \
 			CFG_CMD_ELF	| \
 			CFG_CMD_USB	| \
 			CFG_CMD_MII	| \
 			CFG_CMD_SDRAM	| \
 			CFG_CMD_DOC	| \
+			CFG_CMD_PING	| \
 			CFG_CMD_SAVES   | \
 			CFG_CMD_BSP	)
 /* this must be included AFTER the definition of CONFIG_COMMANDS  (if any) */
@@ -100,7 +103,7 @@
  ***************************************************************/
 #define SPD_EEPROM_ADDRESS      0x50
 
-#define CONFIG_BOARD_PRE_INIT
+#define CONFIG_BOARD_EARLY_INIT_F
 /**************************************************************
  * Environment definitions
  **************************************************************/
@@ -109,7 +112,7 @@
 
 #define CONFIG_BOOTDELAY	5
 /* autoboot (do NOT change this set environment variable "bootdelay" to -1 instead) */
-#define CONFIG_BOOT_RETRY_TIME	-10	/* feature is avaiable but not enabled */
+/* #define CONFIG_BOOT_RETRY_TIME	-10	/XXX* feature is available but not enabled */
 #define CONFIG_ZERO_BOOTDELAY_CHECK  	/* check console even if bootdelay = 0 */
 
 
@@ -140,7 +143,7 @@
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
 #define CFG_LOADS_BAUD_CHANGE	1	/* allow baudrate change	*/
 
-
+#define CONFIG_MISC_INIT_R
 /***********************************************************
  * Miscellaneous configurable options
  **********************************************************/
@@ -201,7 +204,7 @@
 #define CFG_FLASH_BASE		0xFFF80000
 #define CFG_MONITOR_BASE	CFG_FLASH_BASE
 #define CFG_MONITOR_LEN		(512 * 1024)	/* Reserve 512 kB for Monitor	*/
-#define CFG_MALLOC_LEN		(128 * 1024)	/* Reserve 128 kB for malloc()	*/
+#define CFG_MALLOC_LEN		(1024 * 1024)	/* Reserve 1024 kB for malloc()	*/
 
 /*
  * For booting Linux, the board info and command line data
@@ -221,7 +224,7 @@
 /*-----------------------------------------------------------------------
  * Cache Configuration
  */
-#define CFG_DCACHE_SIZE		8192	/* For IBM 405 CPUs			*/
+#define CFG_DCACHE_SIZE		8192	/* For AMCC 405 CPUs			*/
 #define CFG_CACHELINE_SIZE	32	/* ...			*/
 #if (CONFIG_COMMANDS & CFG_CMD_KGDB)
 #define CFG_CACHELINE_SHIFT	5	/* log base 2 of the above value	*/
@@ -230,14 +233,16 @@
 /*
  * Init Memory Controller:
  */
+#define FLASH_MAX_SIZE		0x00800000		/* 8MByte max */
+#define FLASH_BASE_PRELIM	0xFF800000  /* open the flash CS */
+/* Size: 0=1MB, 1=2MB, 2=4MB, 3=8MB, 4=16MB, 5=32MB, 6=64MB, 7=128MB */
+#define FLASH_SIZE_PRELIM	 3  /* maximal flash FLASH size bank #0	*/
 
-#define FLASH_BASE0_PRELIM	0xFFC00000	/* FLASH bank #0	*/
-#define FLASH_BASE1_PRELIM	0		/* FLASH bank #1	*/
+#define CONFIG_BOARD_EARLY_INIT_F
 
 /* Configuration Port location */
 #define CONFIG_PORT_ADDR	0xF4000000
 #define MULTI_PURPOSE_SOCKET_ADDR 0xF8000000
-
 
 
 /*-----------------------------------------------------------------------
@@ -299,6 +304,7 @@
 #undef	CONFIG_IDE_LED			/* no led for ide supported	*/
 #define CONFIG_IDE_RESET		/* reset for ide supported...	*/
 #define CONFIG_IDE_RESET_ROUTINE	/* with a special reset function */
+#define CONFIG_SUPPORT_VFAT
 
 /************************************************************
  * ATAPI support (experimental)
@@ -363,6 +369,11 @@
 #define CONFIG_KGDB_BAUDRATE	230400	/* speed to run kgdb serial port */
 #define CONFIG_KGDB_SER_INDEX	2	/* which serial port to use */
 #endif
+
+/************************************************************
+ * support BZIP2 compression
+ ************************************************************/
+#define CONFIG_BZIP2		1
 
 /************************************************************
  * Ident

@@ -22,28 +22,33 @@
  */
 
 #include <common.h>
-#include <syscall.h>
+#include <exports.h>
 
 int hello_world (int argc, char *argv[])
 {
 	int i;
 
-	mon_printf ("Hello World\n");
+	/* Print the ABI version */
+	app_startup(argv);
+	printf ("Example expects ABI version %d\n", XF_VERSION);
+	printf ("Actual U-Boot ABI version %d\n", (int)get_version());
 
-	mon_printf ("argc = %d\n", argc);
+	printf ("Hello World\n");
+
+	printf ("argc = %d\n", argc);
 
 	for (i=0; i<=argc; ++i) {
-		mon_printf ("argv[%d] = \"%s\"\n",
+		printf ("argv[%d] = \"%s\"\n",
 			i,
 			argv[i] ? argv[i] : "<NULL>");
 	}
 
-	mon_printf ("Hit any key to exit ... ");
-	while (!mon_tstc())
+	printf ("Hit any key to exit ... ");
+	while (!tstc())
 		;
 	/* consume input */
-	(void) mon_getc();
+	(void) getc();
 
-	mon_printf ("\n\n");
+	printf ("\n\n");
 	return (0);
 }

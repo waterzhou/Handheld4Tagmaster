@@ -99,7 +99,6 @@ int checkboard (void)
 }
 
 
-
 #ifdef DO_RAM_TEST
 /* ------------------------------------------------------------------------- */
 
@@ -198,14 +197,14 @@ long int initdram (int board_type)
 	 *
 	 * try 8 column mode
 	 */
-	size8 = dram_size (CFG_MAMR_8COL, (ulong *) SDRAM_BASE2_PRELIM,
+	size8 = dram_size (CFG_MAMR_8COL, SDRAM_BASE2_PRELIM,
 					   SDRAM_MAX_SIZE);
 
 	udelay (1000);
 	/*
 	 * try 9 column mode
 	 */
-	size9 = dram_size (CFG_MAMR_9COL, (ulong *) SDRAM_BASE2_PRELIM,
+	size9 = dram_size (CFG_MAMR_9COL, SDRAM_BASE2_PRELIM,
 					   SDRAM_MAX_SIZE);
 
 	if (size8 < size9) {		/* leave configuration at 9 columns */
@@ -338,37 +337,10 @@ static long int dram_size (long int mamr_value, long int *base,
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	volatile long int *addr;
-	long int cnt, val;
-
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		return (0);
-	}
-
-	for (cnt = 1;; cnt <<= 1) {
-		addr = base + cnt;		/* pointer arith! */
-
-		val = *addr;
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	/* NOTREACHED */
+	return (get_ram_size(base, maxsize));
 }
 
 

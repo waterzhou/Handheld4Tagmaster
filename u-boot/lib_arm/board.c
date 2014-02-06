@@ -29,9 +29,19 @@
 #include <command.h>
 #include <malloc.h>
 #include <devices.h>
-#include <syscall.h>
 #include <version.h>
 #include <net.h>
+
+#ifdef CONFIG_DRIVER_SMC91111
+#include "../drivers/smc91111.h"
+#endif
+#ifdef CONFIG_DRIVER_LAN91C96
+#include "../drivers/lan91c96.h"
+#endif
+
+#ifdef CONFIG_AT91RM9200
+#include <at91rm9200.h>
+#endif
 
 #if (CONFIG_COMMANDS & CFG_CMD_NAND)
 void nand_init (void);
@@ -55,9 +65,10 @@ const char version_string[] =
 extern void cs8900_get_enetaddr (uchar * addr);
 #endif
 
-#ifdef CONFIG_DRIVER_LAN91C96
-#include "../drivers/lan91c96.h"
+#ifdef CONFIG_DRIVER_RTL8019
+extern void rtl8019_get_enetaddr (uchar * addr);
 #endif
+
 /*
  * Begin and End of memory area for malloc(), and current "brk"
  */
@@ -112,10 +123,9 @@ static int init_baudrate (void)
 
 static int display_banner (void)
 {
-
 	printf ("\n\n%s\n\n", version_string);
 	printf ("U-Boot code: %08lX -> %08lX  BSS: -> %08lX\n",
-		_armboot_start, _armboot_end_data, _armboot_end);
+		_armboot_start, _bss_start, _bss_end);
 #ifdef CONFIG_MODEM_SUPPORT
 	puts ("Modem Support enabled\n");
 #endif
@@ -123,6 +133,7 @@ static int display_banner (void)
 	printf ("IRQ Stack: %08lx\n", IRQ_STACK_START);
 	printf ("FIQ Stack: %08lx\n", FIQ_STACK_START);
 #endif
+
 	return (0);
 }
 
@@ -138,7 +149,7 @@ static int display_dram_config (void)
 	DECLARE_GLOBAL_DATA_PTR;
 	int i;
 
-	puts ("DRAM Configuration:\n");
+	puts ("RAM Configuration:\n");
 
 	for(i=0; i<CONFIG_NR_DRAM_BANKS; i++) {
 		printf ("Bank #%d: %08lx ", i, gd->bd->bi_dram[i].start);
@@ -152,13 +163,15 @@ static void display_flash_config (ulong size)
 {
 	puts ("Flash: ");
 	print_size (size, "\n");
+
+        printf("OSR: %08x, USR: %08x\n", *AT91C_PIOC_OSR, *AT91C_PIOC_PPUSR);
 }
 
 
 /*
- * Breath some life into the board...
+ * Breathe some life into the board...
  *
- * Initialize an SMC for serial comms, and carry out some hardware
+ * Initialize a serial port as console, and carry out some hardware
  * tests.
  *
  * The first part of initialization is running from Flash memory;
@@ -170,7 +183,7 @@ static void display_flash_config (ulong size)
  * All attempts to come up with a "common" initialization sequence
  * that works for all boards and architectures failed: some of the
  * requirements are just _too_ different. To get rid of the resulting
- * mess of board dependend #ifdef'ed code we now make the whole
+ * mess of board dependent #ifdef'ed code we now make the whole
  * initialization sequence configurable to the user.
  *
  * The requirements for any new initalization function is simple: it
@@ -191,7 +204,7 @@ init_fnc_t *init_sequence[] = {
 	display_banner,		/* say that we are here */
 	dram_init,		/* configure available RAM banks */
 	display_dram_config,
-#if defined(CONFIG_VCMA9)
+#if defined(CONFIG_VCMA9) || defined (CONFIG_CMC_PU2)
 	checkboard,
 #endif
 	NULL,
@@ -202,21 +215,22 @@ void start_armboot (void)
 	DECLARE_GLOBAL_DATA_PTR;
 
 	ulong size;
-	gd_t gd_data;
-	bd_t bd_data;
 	init_fnc_t **init_fnc_ptr;
 	char *s;
-#if defined(CONFIG_VFD)
+#if defined(CONFIG_VFD) || defined(CONFIG_LCD)
 	unsigned long addr;
 #endif
 
 	/* Pointer is writable since we allocated a register for it */
-	gd = &gd_data;
-	memset (gd, 0, sizeof (gd_t));
-	gd->bd = &bd_data;
+	gd = (gd_t*)(_armboot_start - CFG_MALLOC_LEN - sizeof(gd_t));
+	/* compiler optimization barrier needed for GCC >= 3.4 */
+	__asm__ __volatile__("": : :"memory");
+
+	memset ((void*)gd, 0, sizeof (gd_t));
+	gd->bd = (bd_t*)((char*)gd - sizeof(bd_t));
 	memset (gd->bd, 0, sizeof (bd_t));
 
-	monitor_flash_len = _armboot_end_data - _armboot_start;
+	monitor_flash_len = _bss_start - _armboot_start;
 
 	for (init_fnc_ptr = init_sequence; *init_fnc_ptr; ++init_fnc_ptr) {
 		if ((*init_fnc_ptr)() != 0) {
@@ -227,48 +241,57 @@ void start_armboot (void)
 	/* configure available FLASH banks */
 	size = flash_init ();
 	display_flash_config (size);
-    printf("after flash display\n");
+
 #ifdef CONFIG_VFD
-#  ifndef PAGE_SIZE
-#   define PAGE_SIZE 4096
-#  endif
+#	ifndef PAGE_SIZE
+#	  define PAGE_SIZE 4096
+#	endif
 	/*
 	 * reserve memory for VFD display (always full pages)
 	 */
-	/* armboot_real_end is defined in the board-specific linker script */
-	addr = (_armboot_real_end + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
+	/* bss_end is defined in the board-specific linker script */
+	addr = (_bss_end + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
 	size = vfd_setmem (addr);
 	gd->fb_base = addr;
-	/* round to the next page boundary */
-	addr += size;
-	addr = (addr + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
-	mem_malloc_init (addr);
-#else
-	/* armboot_real_end is defined in the board-specific linker script */
-	mem_malloc_init (_armboot_real_end);
 #endif /* CONFIG_VFD */
 
+#ifdef CONFIG_LCD
+#	ifndef PAGE_SIZE
+#	  define PAGE_SIZE 4096
+#	endif
+	/*
+	 * reserve memory for LCD display (always full pages)
+	 */
+	/* bss_end is defined in the board-specific linker script */
+	addr = (_bss_end + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
+	size = lcd_setmem (addr);
+	gd->fb_base = addr;
+#endif /* CONFIG_LCD */
+
+	/* armboot_start is defined in the board-specific linker script */
+	mem_malloc_init (_armboot_start - CFG_MALLOC_LEN);
+
 #if (CONFIG_COMMANDS & CFG_CMD_NAND)
+	puts ("NAND:");
 	nand_init();		/* go init the NAND */
 #endif
 
 #ifdef CONFIG_HAS_DATAFLASH
-    printf("will init data flash\n");
 	AT91F_DataflashInit();
 	dataflash_print_info();
 #endif
-    printf("will env_relocate\n");
+
 	/* initialize environment */
 	env_relocate ();
 
 #ifdef CONFIG_VFD
 	/* must do this after the framebuffer is allocated */
 	drv_vfd_init();
-#endif
-	/* IP Address */
-	bd_data.bi_ip_addr = getenv_IPaddr ("ipaddr");
+#endif /* CONFIG_VFD */
 
-    printf("will get ipaddr\n");
+	/* IP Address */
+	gd->bd->bi_ip_addr = getenv_IPaddr ("ipaddr");
+
 	/* MAC Address */
 	{
 		int i;
@@ -280,19 +303,20 @@ void start_armboot (void)
 		s = (i > 0) ? tmp : NULL;
 
 		for (reg = 0; reg < 6; ++reg) {
-			bd_data.bi_enetaddr[reg] = s ? simple_strtoul (s, &e, 16) : 0;
+			gd->bd->bi_enetaddr[reg] = s ? simple_strtoul (s, &e, 16) : 0;
 			if (s)
 				s = (*e) ? e + 1 : e;
 		}
 	}
-    printf("will do device init\n");
-	devices_init ();      /* get the devices list going. */
-    printf("after deice init\n");
-	/* Syscalls are not implemented for ARM. But allocating
-	 * this allows the console_init routines to work without #ifdefs
-	 */
-	syscall_tbl = (void **) malloc (NR_SYSCALLS * sizeof (void *));
-    printf("will do console init\n");
+
+	devices_init ();	/* get the devices list going. */
+
+#ifdef CONFIG_CMC_PU2
+	load_sernum_ethaddr ();
+#endif /* CONFIG_CMC_PU2 */
+
+	jumptable_init ();
+
 	console_init_r ();	/* fully init console as a device */
 
 #if defined(CONFIG_MISC_INIT_R)
@@ -303,16 +327,21 @@ void start_armboot (void)
 	/* enable exceptions */
 	enable_interrupts ();
 
+	/* Perform network card initialisation if necessary */
 #ifdef CONFIG_DRIVER_CS8900
 	cs8900_get_enetaddr (gd->bd->bi_enetaddr);
 #endif
 
-#ifdef CONFIG_DRIVER_LAN91C96
+#if defined(CONFIG_DRIVER_SMC91111) || defined (CONFIG_DRIVER_LAN91C96)
 	if (getenv ("ethaddr")) {
 		smc_set_mac_addr(gd->bd->bi_enetaddr);
 	}
-	/* eth_hw_init(); */
-#endif /* CONFIG_DRIVER_LAN91C96 */
+#endif /* CONFIG_DRIVER_SMC91111 || CONFIG_DRIVER_LAN91C96 */
+
+        eth_init(gd->bd) ;  /* quick and dirty patch to set MAC address added
+                               by dast 2006-06-15. This way is frowned upon by
+                               the u-boot team since we init the device even
+                               though we may not use it... */
 
 	/* Initialize from environment */
 	if ((s = getenv ("loadaddr")) != NULL) {
@@ -324,10 +353,15 @@ void start_armboot (void)
 	}
 #endif	/* CFG_CMD_NET */
 
-#ifdef BOARD_POST_INIT
-	board_post_init ();
+#ifdef BOARD_LATE_INIT
+	board_late_init ();
 #endif
-    printf("will go main loop\n");
+#if (CONFIG_COMMANDS & CFG_CMD_NET)
+#if defined(CONFIG_NET_MULTI)
+	puts ("Net:   ");
+#endif
+	eth_initialize(gd->bd);
+#endif
 	/* main_loop() can return to retry autoboot, if so just run it again. */
 	for (;;) {
 		main_loop ();

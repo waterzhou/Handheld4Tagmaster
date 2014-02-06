@@ -28,8 +28,6 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-#include <asm/processor.h>
-
 #define CFG_GT_6426x        GT_64260 /* with a 64260 system controller */
 #define CONFIG_ETHER_PORT_MII	/* use two MII ports */
 #define CONFIG_INTEL_LXT97X	/* Intel LXT97X phy */
@@ -53,7 +51,7 @@
 
 /* which initialization functions to call for this board */
 #define CONFIG_MISC_INIT_R
-#define CONFIG_BOARD_PRE_INIT
+#define CONFIG_BOARD_EARLY_INIT_F
 #define CFG_BOARD_ASM_INIT
 
 #define CFG_BOARD_NAME		"Zuma APv2"
@@ -115,9 +113,23 @@
 				 CFG_CMD_MII	| \
 				 CFG_CMD_DATE)
 
-/* Flash banks JFFS2 should use */
-#define CFG_JFFS2_FIRST_BANK	1
-#define CFG_JFFS2_NUM_BANKS	2
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition, whole device */
+#undef CONFIG_JFFS2_CMDLINE
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0xFFFFFFFF
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support */
+/* Note: fake mtd_id used, no linux mtd map file */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor1=zuma-1,nor2=zuma-2"
+#define MTDPARTS_DEFAULT	"mtdparts=zuma-1:-(jffs2),zuma-2:-(user)"
+*/
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
@@ -205,7 +217,6 @@
 	/* 10 98|7654|32 10|987 6|54 32|1 098|7 654|3 210 */
 	/* 11|00|0000|00 01|101|1 01|10 1|010 1|100 0|101 */
 	/*  3| 0|.... ..| 1| 5 |  5 |  5 |   5 |   8 | 5  */
-
 
 
 #define CFG_8BIT_BOOT_PAR	0xc00b5e7c

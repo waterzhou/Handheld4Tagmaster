@@ -42,7 +42,7 @@ const iop_conf_t iop_conf_tab[4][32] = {
 
     /* Port A configuration */
     {	/*	      conf ppar psor pdir podr pdat */
-        /* PA31 */ {   0,   0,   0,   0,   0,   0   }, /* FCC1 *ATMTXEN */
+	/* PA31 */ {   0,   0,   0,   0,   0,   0   }, /* FCC1 *ATMTXEN */
 	/* PA30 */ {   0,   0,   0,   0,   0,   0   }, /* FCC1 ATMTCA   */
 	/* PA29 */ {   0,   0,   0,   0,   0,   0   }, /* FCC1 ATMTSOC  */
 	/* PA28 */ {   0,   0,   0,   0,   0,   0   }, /* FCC1 *ATMRXEN */
@@ -285,7 +285,7 @@ int misc_init_r (void)
 	int res;
 
 	if ((ds != 0) && (ds != 0xff)) {
-		res = getenv_r ("ethaddr", tmp, sizeof (tmp));
+		res = getenv_r ("ethaddr", (char *)tmp, sizeof (tmp));
 		if (res > 0) {
 			ss = ((ds >> 4) & 0x0f);
 			ss += ss < 0x0a ? '0' : ('a' - 10);
@@ -296,7 +296,7 @@ int misc_init_r (void)
 			tmp[16] = ss;
 
 			tmp[17] = '\0';
-			setenv ("ethaddr", tmp);
+			setenv ("ethaddr", (char *)tmp);
 			/* set the led to show the address */
 			*((unsigned char *) (CFG_LED_BASE + 1)) = ds;
 		}

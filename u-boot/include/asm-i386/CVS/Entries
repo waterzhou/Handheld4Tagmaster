@@ -1,0 +1,18 @@
+/bitops.h/1.3/Fri Jun 27 21:32:42 2003/-ko/
+/byteorder.h/1.2/Sat May 31 18:35:28 2003/-ko/
+/global_data.h/1.3/Fri Oct 10 10:05:43 2003/-ko/
+/i8254.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+/i8259.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+/ibmpc.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+/io.h/1.3/Fri Jun 27 21:32:43 2003/-ko/
+/pci.h/1.3/Fri Jun 27 21:32:43 2003/-ko/
+/posix_types.h/1.1/Mon Nov 18 00:14:46 2002/-ko/
+/processor.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+/ptrace.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+/realmode.h/1.3/Fri Jun 27 21:32:43 2003/-ko/
+/string.h/1.2/Tue Nov 19 23:01:50 2002/-ko/
+/types.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+/u-boot-i386.h/1.2/Sat May 31 18:35:29 2003/-ko/
+/zimage.h/1.2/Fri Jun 27 21:32:43 2003/-ko/
+D/ic////
+/u-boot.h/1.4/Mon Nov 28 08:25:43 2005/-ko/

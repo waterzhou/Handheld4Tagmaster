@@ -34,12 +34,6 @@
 #define DEBUG 1
 
 /*
- * If we are developing, we might want to start U-Boot from ram
- * so we MUST NOT initialize critical regs like mem-timing ...
- */
-#define CONFIG_INIT_CRITICAL		/* undef for developing */
-
-/*
  * High Level Configuration Options
  * (easy to change)
  */
@@ -94,6 +88,7 @@
  *
  */
 #define CFG_MALLOC_LEN		(128*1024)
+#define CFG_GBL_DATA_SIZE	128		/* size in bytes reserved for initial data */
 
 #define CFG_LONGHELP				/* undef to save memory         */
 #define CFG_PROMPT		"uboot> "	/* Monitor Command Prompt       */
@@ -122,7 +117,7 @@
 
 #define CFG_MONITOR_LEN		0x20000		/* 128 KiB */
 
-                                                /* valid baudrates */
+						/* valid baudrates */
 #define CFG_BAUDRATE_TABLE      { 9600, 19200, 38400, 57600, 115200 }
 
 /*

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2001
+ * (C) Copyright 2001-2005
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -56,8 +56,8 @@
 #undef	CONFIG_BOOTARGS
 #define CONFIG_BOOTCOMMAND							\
 	"bootp;"								\
-	"setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) "	\
-	"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off;"	\
+	"setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} "	\
+	"ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off;"	\
 	"bootm"
 
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
@@ -90,9 +90,12 @@
 #define CFG_SPI_INIT_OFFSET		0xB00
 
 #define CONFIG_COMMANDS		(	CONFIG_CMD_DFL	| \
+					CFG_CMD_BSP	| \
 					CFG_CMD_DATE	| \
+					CFG_CMD_DHCP	| \
 					CFG_CMD_EEPROM	| \
-					CFG_CMD_BSP	)
+					CFG_CMD_NFS	| \
+					CFG_CMD_SNTP	)
 
 #define CONFIG_BOOTP_MASK \
     ((CONFIG_BOOTP_DEFAULT | CONFIG_BOOTP_BOOTFILESIZE) & ~CONFIG_BOOTP_GATEWAY)
@@ -222,6 +225,7 @@
 #define CFG_ENV_SIZE		0x2000	/* Total Size of Environment 		*/
 #define CFG_ENV_ADDR	    0xFFFFE000	/* Address    of Environment Sector	*/
 #define CFG_ENV_SECT_SIZE	0x2000	/* use the top-most 8k boot sector	*/
+#define	CFG_ENV_IS_EMBEDDED	1	/* short-cut compile-time test		*/
 #else
 /* Final version: environment in EEPROM */
 #define CFG_ENV_IS_IN_EEPROM	1
@@ -518,11 +522,11 @@
 #define CFG_MAMR_PTA	0x30	/* = 48 */
 
 #define CFG_MAMR	( (CFG_MAMR_PTA << MAMR_PTA_SHIFT) | \
-			  MAMR_AMB_TYPE_1	| \
-			  MAMR_G0CLB_A10	| \
-			  MAMR_RLFB_1X		| \
-			  MAMR_WLFB_1X		| \
-			  MAMR_TLFB_8X		)
+			  MAMR_AMA_TYPE_1	| \
+			  MAMR_G0CLA_A10	| \
+			  MAMR_RLFA_1X		| \
+			  MAMR_WLFA_1X		| \
+			  MAMR_TLFA_8X		)
 
 /*
  * Internal Definitions

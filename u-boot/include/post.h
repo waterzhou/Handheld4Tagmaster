@@ -30,9 +30,11 @@
 #ifdef CONFIG_POST
 
 #define POST_POWERON		0x01	/* test runs on power-on booting */
-#define POST_POWERNORMAL	0x02	/* test runs on normal booting */
-#define POST_POWERFAIL		0x04	/* test runs on power-fail booting */
+#define POST_NORMAL		0x02	/* test runs on normal booting */
+#define POST_SLOWTEST		0x04	/* test is slow, enabled by key press */
 #define POST_POWERTEST		0x08	/* test runs after watchdog reset */
+
+#define POST_COLDBOOT		0x80	/* first boot after power-on */
 
 #define POST_ROM		0x0100	/* test runs in ROM */
 #define POST_RAM		0x0200	/* test runs in RAM */
@@ -41,9 +43,9 @@
 #define POST_PREREL             0x1000  /* test runs before relocation */
 
 #define POST_MEM		(POST_RAM | POST_ROM)
-#define POST_ALWAYS		(POST_POWERNORMAL | \
-				 POST_POWERFAIL	  | \
-				 POST_MANUAL	  | \
+#define POST_ALWAYS		(POST_NORMAL	| \
+				 POST_SLOWTEST	| \
+				 POST_MANUAL	| \
 				 POST_POWERON	)
 
 #ifndef	__ASSEMBLY__
@@ -71,6 +73,7 @@ unsigned long post_time_ms (unsigned long base);
 
 extern struct post_test post_list[];
 extern unsigned int post_list_size;
+extern int post_hotkeys_pressed(void);
 
 #endif /* __ASSEMBLY__ */
 
@@ -86,6 +89,8 @@ extern unsigned int post_list_size;
 #define CFG_POST_USB		0x00000200
 #define CFG_POST_SPR		0x00000400
 #define CFG_POST_SYSMON		0x00000800
+#define CFG_POST_DSP		0x00001000
+#define CFG_POST_CODEC		0x00002000
 
 #endif /* CONFIG_POST */
 

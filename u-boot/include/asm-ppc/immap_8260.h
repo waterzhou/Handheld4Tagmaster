@@ -1,18 +1,17 @@
-
 /*
  * MPC8260 Internal Memory Map
  * Copyright (c) 1999 Dan Malek (dmalek@jlc.net)
  *
- * The Internal Memory Map of the 8260.  I don't know how generic
+ * The Internal Memory Map of the 8260.	 I don't know how generic
  * this will be, as I don't have any knowledge of the subsequent
- * parts at this time.  I copied this from the 8xx_immap.h.
+ * parts at this time.	I copied this from the 8xx_immap.h.
  */
 #ifndef __IMMAP_82XX__
 #define __IMMAP_82XX__
 
 /* System configuration registers.
 */
-typedef	struct sys_conf {
+typedef struct sys_conf {
 	uint	sc_siumcr;
 	uint	sc_sypcr;
 	char	res1[6];
@@ -89,7 +88,12 @@ typedef struct	mem_ctlr {
 	u_char	memc_lsrt;
 	char	res9[3];
 	uint	memc_immr;
-	char	res10[84];
+	uint	memc_pcibr0;
+	uint	memc_pcibr1;
+	char	res10[16];
+	uint	memc_pcimsk0;
+	uint	memc_pcimsk1;
+	char	res11[52];
 } memctl8260_t;
 
 /* System Integration Timers.
@@ -107,9 +111,140 @@ typedef struct	sys_int_timers {
 	uint	sit_pitc;
 	uint	sit_pitr;
 	char	res6[94];
-	char	res7[2390];
+	char	res7[390];
 } sit8260_t;
 
+/* PCI
+ */
+typedef struct pci_config {
+	uint	pci_omisr;
+	uint	pci_ominr;
+	char	res1[8];
+	uint	pci_ifqpr;
+	uint	pci_ofqpr;
+	char	res2[8];
+	uint	pci_imr0;
+	uint	pci_imr1;
+	uint	pci_omr0;
+	uint	pci_omr1;
+	uint	pci_odr;
+	char	res3[4];
+	uint	pci_idr;
+	char	res4[20];
+	uint	pci_imisr;
+	uint	pci_imimr;
+	char	res5[24];
+	uint	pci_ifhpr;
+	char	res5_2[4];
+	uint	pci_iftpr;
+	char	res6[4];
+	uint	pci_iphpr;
+	char	res6_2[4];
+	uint	pci_iptpr;
+	char	res7[4];
+	uint	pci_ofhpr;
+	char	res7_2[4];
+	uint	pci_oftpr;
+	char	res8[4];
+	uint	pci_ophpr;
+	char	res8_2[4];
+	uint	pci_optpr;
+	char	res9[8];
+	uint	pci_mucr;
+	char	res10[8];
+	uint	pci_qbar;
+	char	res11[12];
+	uint	pci_dmamr0;
+	uint	pci_dmasr0;
+	uint	pci_dmacdar0;
+	char	res12[4];
+	uint	pci_dmasar0;
+	char	res13[4];
+	uint	pci_dmadar0;
+	char	res14[4];
+	uint	pci_dmabcr0;
+	uint	pci_dmandar0;
+	char	res15[88];
+	uint	pci_dmamr1;
+	uint	pci_dmasr1;
+	uint	pci_dmacdar1;
+	char	res16[4];
+	uint	pci_dmasar1;
+	char	res17[4];
+	uint	pci_dmadar1;
+	char	res18[4];
+	uint	pci_dmabcr1;
+	uint	pci_dmandar1;
+	char	res19[88];
+	uint	pci_dmamr2;
+	uint	pci_dmasr2;
+	uint	pci_dmacdar2;
+	char	res20[4];
+	uint	pci_dmasar2;
+	char	res21[4];
+	uint	pci_dmadar2;
+	char	res22[4];
+	uint	pci_dmabcr2;
+	uint	pci_dmandar2;
+	char	res23[88];
+	uint	pci_dmamr3;
+	uint	pci_dmasr3;
+	uint	pci_dmacdar3;
+	char	res24[4];
+	uint	pci_dmasar3;
+	char	res25[4];
+	uint	pci_dmadar3;
+	char	res26[4];
+	uint	pci_dmabcr3;
+	uint	pci_dmandar3;
+	char	res27[344];
+	uint	pci_potar0;
+	char	res28[4];
+	uint	pci_pobar0;
+	char	res29[4];
+	uint	pci_pocmr0;
+	char	res30[4];
+	uint	pci_potar1;
+	char	res31[4];
+	uint	pci_pobar1;
+	char	res32[4];
+	uint	pci_pocmr1;
+	char	res33[4];
+	uint	pci_potar2;
+	char	res34[4];
+	uint	pci_pobar2;
+	char	res35[4];
+	uint	pci_pocmr2;
+	char	res36[52];
+	uint	pci_ptcr;
+	uint	pci_gpcr;
+	uint	pci_gcr;
+	uint	pci_esr;
+	uint	pci_emr;
+	uint	pci_ecr;
+	uint	pci_eacr;
+	char	res37[4];
+	uint	pci_edcr;
+	char	res38[4];
+	uint	pci_eccr;
+	char	res39[44];
+	uint	pci_pitar1;
+	char	res40[4];
+	uint	pci_pibar1;
+	char	res41[4];
+	uint	pci_picmr1;
+	char	res42[4];
+	uint	pci_pitar0;
+	char	res43[4];
+	uint	pci_pibar0;
+	char	res44[4];
+	uint	pci_picmr0;
+	char	res45[4];
+	uint	pci_cfg_addr;
+	uint	pci_cfg_data;
+	uint	pci_int_ack;
+	char	res46[756];
+}pci8260_t;
 #define PISCR_PIRQ_MASK		((ushort)0xff00)
 #define PISCR_PS		((ushort)0x0080)
 #define PISCR_PIE		((ushort)0x0004)
@@ -250,6 +385,33 @@ typedef struct fcc {
 	u_char	fcc_ftirr_phy[4];
 } fcc_t;
 
+/* Fast controllers continued
+ */
+typedef struct fcc_c {
+	uint	fcc_firper;
+	uint	fcc_firer;
+	uint	fcc_firsr_hi;
+	uint	fcc_firsr_lo;
+	u_char	fcc_gfemr;
+	char	res1[15];
+} fcc_c_t;
+
+/* TC Layer
+ */
+typedef struct tclayer {
+	ushort	tc_tcmode;
+	ushort	tc_cdsmr;
+	ushort	tc_tcer;
+	ushort	tc_rcc;
+	ushort	tc_tcmr;
+	ushort	tc_fcc;
+	ushort	tc_ccc;
+	ushort	tc_icc;
+	ushort	tc_tcc;
+	ushort	tc_ecc;
+	char	res1[12];
+} tclayer_t;
+
 /* I2C
 */
 typedef struct i2c {
@@ -375,6 +537,7 @@ typedef struct immap {
 	sysconf8260_t	im_siu_conf;	/* SIU Configuration */
 	memctl8260_t	im_memctl;	/* Memory Controller */
 	sit8260_t	im_sit;		/* System Integration Timers */
+	pci8260_t	im_pci;		/* PCI Configuration */
 	intctl8260_t	im_intctl;	/* Interrupt Controller */
 	car8260_t	im_clkrst;	/* Clocks and reset */
 	iop8260_t	im_ioport;	/* IO Port control/status */
@@ -383,11 +546,17 @@ typedef struct immap {
 
 	fcc_t		im_fcc[3];	/* Three FCCs */
 
-	char		res4[159];
+	char		res4[32];
+	fcc_c_t		im_fcc_c[3];	/* Continued FCCs */
+	char		res4a[32];
+
+	tclayer_t	im_tclayer[8];	/* Eight TCLayers */
+	ushort		tc_tcgsr;
+	ushort		tc_tcger;
 
 	/* First set of baud rate generators.
 	*/
-	char		res4a[496];
+	char		res4b[236];
 	uint		im_brgc5;
 	uint		im_brgc6;
 	uint		im_brgc7;

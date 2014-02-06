@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2001
+ * (C) Copyright 2001-2003
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -28,7 +28,6 @@
 
 #include <commproc.h>
 #include <command.h>
-#include <cmd_bsp.h>
 #include <malloc.h>
 
 #include <linux/types.h>
@@ -38,9 +37,9 @@
 /*
  *  Memory Controller Using
  *
- *  CS0 - Flash memory            (0x40000000)
- *  CS1 - SDRAM                   (0x00000000}
- *  CS2 -
+ *  CS0 - Flash memory		(0x40000000)
+ *  CS1 - FLASH memory		(0x????????)
+ *  CS2 - SDRAM			(0x00000000)
  *  CS3 -
  *  CS4 -
  *  CS5 -
@@ -54,37 +53,37 @@
 
 const uint sdram_table[]=
 {
-        /* single read. (offset 0 in upm RAM) */
-        0x1f07fc04, 0xeeaefc04, 0x11adfc04, 0xefbbbc00,
-        0x1ff77c47,
+	/* single read. (offset 0 in upm RAM) */
+	0x1f07fc04, 0xeeaefc04, 0x11adfc04, 0xefbbbc00,
+	0x1ff77c47,
 
-        /* MRS initialization (offset 5) */
+	/* MRS initialization (offset 5) */
 
-        0x1ff77c34, 0xefeabc34, 0x1fb57c35,
+	0x1ff77c34, 0xefeabc34, 0x1fb57c35,
 
-        /* burst read. (offset 8 in upm RAM) */
-        0x1f07fc04, 0xeeaefc04, 0x10adfc04, 0xf0affc00,
-        0xf0affc00, 0xf1affc00, 0xefbbbc00, 0x1ff77c47,
-        _not_used_, _not_used_, _not_used_, _not_used_,
-        _not_used_, _not_used_, _not_used_, _not_used_,
+	/* burst read. (offset 8 in upm RAM) */
+	0x1f07fc04, 0xeeaefc04, 0x10adfc04, 0xf0affc00,
+	0xf0affc00, 0xf1affc00, 0xefbbbc00, 0x1ff77c47,
+	_not_used_, _not_used_, _not_used_, _not_used_,
+	_not_used_, _not_used_, _not_used_, _not_used_,
 
-        /* single write. (offset 18 in upm RAM) */
-        0x1f27fc04, 0xeeaebc00, 0x01b93c04, 0x1ff77c47,
-        _not_used_, _not_used_, _not_used_, _not_used_,
+	/* single write. (offset 18 in upm RAM) */
+	0x1f27fc04, 0xeeaebc00, 0x01b93c04, 0x1ff77c47,
+	_not_used_, _not_used_, _not_used_, _not_used_,
 
-        /* burst write. (offset 20 in upm RAM) */
-        0x1f07fc04, 0xeeaebc00, 0x10ad7c00, 0xf0affc00,
-        0xf0affc00, 0xe1bbbc04, 0x1ff77c47, _not_used_,
-        _not_used_, _not_used_, _not_used_, _not_used_,
-        _not_used_, _not_used_, _not_used_, _not_used_,
+	/* burst write. (offset 20 in upm RAM) */
+	0x1f07fc04, 0xeeaebc00, 0x10ad7c00, 0xf0affc00,
+	0xf0affc00, 0xe1bbbc04, 0x1ff77c47, _not_used_,
+	_not_used_, _not_used_, _not_used_, _not_used_,
+	_not_used_, _not_used_, _not_used_, _not_used_,
 
-        /* refresh. (offset 30 in upm RAM) */
-        0x1ff5fc84, 0xfffffc04, 0xfffffc04, 0xfffffc04,
-        0xfffffc84, 0xfffffc07, _not_used_, _not_used_,
-        _not_used_, _not_used_, _not_used_, _not_used_,
+	/* refresh. (offset 30 in upm RAM) */
+	0x1ff5fc84, 0xfffffc04, 0xfffffc04, 0xfffffc04,
+	0xfffffc84, 0xfffffc07, _not_used_, _not_used_,
+	_not_used_, _not_used_, _not_used_, _not_used_,
 
-        /* exception. (offset 3c in upm RAM) */
-        0x7ffffc07, _not_used_, _not_used_, _not_used_ };
+	/* exception. (offset 3c in upm RAM) */
+	0x7ffffc07, _not_used_, _not_used_, _not_used_ };
 
 /* ------------------------------------------------------------------------- */
 
@@ -149,11 +148,11 @@ long int initdram (int board_type)
 	udelay (1000);
 
 	/*
-	 * Check Bank 0 Memory Size for re-configuration
+	 * Check Bank 2 Memory Size for re-configuration
 	 *
 	 * try 8 column mode
 	 */
-	size8 = dram_size (CFG_MAMR_8COL, (ulong *) SDRAM_BASE2_PRELIM,
+	size8 = dram_size (CFG_MAMR_8COL, (long *) SDRAM_BASE2_PRELIM,
 					   SDRAM_MAX_SIZE);
 
 	udelay (1000);
@@ -161,7 +160,7 @@ long int initdram (int board_type)
 	/*
 	 * try 9 column mode
 	 */
-	size9 = dram_size (CFG_MAMR_9COL, (ulong *) SDRAM_BASE2_PRELIM,
+	size9 = dram_size (CFG_MAMR_9COL, (long *) SDRAM_BASE2_PRELIM,
 					   SDRAM_MAX_SIZE);
 
 	if (size8 < size9) {		/* leave configuration at 9 columns */
@@ -206,7 +205,7 @@ long int initdram (int board_type)
 	memctl->memc_br3 = CFG_BR3_CAN;
 
 	/* Initialize MBMR */
-	memctl->memc_mbmr = MAMR_GPL_B4DIS;	/* GPL_B4 works as UPWAITB */
+	memctl->memc_mbmr = MBMR_GPL_B4DIS;	/* GPL_B4 works as UPWAITB */
 
 	/* Initialize UPMB for CAN: single read */
 	memctl->memc_mdr = 0xFFFFC004;
@@ -259,41 +258,10 @@ static long int dram_size (long int mamr_value,
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8xx_t *memctl = &immap->im_memctl;
-	volatile long int *addr;
-	ulong cnt, val;
-	ulong save[32];			/* to make test non-destructive */
-	unsigned char i = 0;
 
 	memctl->memc_mamr = mamr_value;
 
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = base + cnt;	/* pointer arith! */
-
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
-
-	/* write 0 to base address */
-	addr = base;
-	save[i] = *addr;
-	*addr = 0;
-
-	/* check at base address */
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = base + cnt;	/* pointer arith! */
-		val = *addr;
-		*addr = save[--i];
-
-		if (val != (~cnt)) {
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (get_ram_size(base, maxsize));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -319,21 +287,21 @@ static uchar *key_match (uchar *);
 
 int misc_init_r (void)
 {
-	uchar kbd_data[KEYBD_DATALEN];
-	uchar keybd_env[2 * KEYBD_DATALEN + 1];
-	uchar *str;
+	char kbd_data[KEYBD_DATALEN];
+	char keybd_env[2 * KEYBD_DATALEN + 1];
+	char *str;
 	int i;
 
 	i2c_init (CFG_I2C_SPEED, CFG_I2C_SLAVE);
 
-	i2c_read (CFG_I2C_KEY_ADDR, 0, 0, kbd_data, KEYBD_DATALEN);
+	i2c_read (CFG_I2C_KEY_ADDR, 0, 0, (uchar *)kbd_data, KEYBD_DATALEN);
 
 	for (i = 0; i < KEYBD_DATALEN; ++i) {
 		sprintf (keybd_env + i + i, "%02X", kbd_data[i]);
 	}
 	setenv ("keybd", keybd_env);
 
-	str = strdup (key_match (keybd_env));	/* decode keys */
+	str = strdup ((char *)key_match ((uchar *)keybd_env));	/* decode keys */
 
 #ifdef CONFIG_PREBOOT	/* automatically configure "preboot" command on key match */
 	setenv ("preboot", str);	/* set or delete definition */
@@ -379,36 +347,36 @@ static uchar *key_match (uchar * kbd_str)
 	 * "key_magic" is checked (old behaviour); the string "125" causes
 	 * checks for "key_magic1", "key_magic2" and "key_magic5", etc.
 	 */
-	if ((kbd_magic_keys = getenv ("magic_keys")) != NULL) {
+	if ((kbd_magic_keys = (uchar *)getenv ("magic_keys")) != NULL) {
 		/* loop over all magic keys;
 		 * use '\0' suffix in case of empty string
 		 */
 		for (suffix = kbd_magic_keys;
 		     *suffix || suffix == kbd_magic_keys;
 		     ++suffix) {
-			sprintf (magic, "%s%c", kbd_magic_prefix, *suffix);
+			sprintf ((char *)magic, "%s%c", kbd_magic_prefix, *suffix);
 
 #if 0
 			printf ("### Check magic \"%s\"\n", magic);
 #endif
 
-			if ((str = getenv (magic)) != 0) {
+			if ((str = (uchar *)getenv ((char *)magic)) != 0) {
 
 #if 0
 				printf ("### Compare \"%s\" \"%s\"\n",
 					kbd_str, str);
 #endif
-				if (strcmp (kbd_str, str) == 0) {
-					sprintf (cmd_name, "%s%c",
+				if (strcmp ((char *)kbd_str, (char *)str) == 0) {
+					sprintf ((char *)cmd_name, "%s%c",
 						 kbd_command_prefix,
 						 *suffix);
 
-					if ((cmd = getenv (cmd_name)) != 0) {
+					if ((cmd = getenv ((char *)cmd_name)) != 0) {
 #if 0
 						printf ("### Set PREBOOT to $(%s): \"%s\"\n",
 							cmd_name, cmd);
 #endif
-						return (cmd);
+						return ((uchar *)cmd);
 					}
 				}
 			}
@@ -436,10 +404,16 @@ int do_kbd (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 
 	puts ("Keys:");
 	for (i = 0; i < KEYBD_DATALEN; ++i) {
-		sprintf (keybd_env + i + i, "%02X", kbd_data[i]);
+		sprintf ((char *)(keybd_env + i + i), "%02X", kbd_data[i]);
 		printf (" %02x", kbd_data[i]);
 	}
 	putc ('\n');
-	setenv ("keybd", keybd_env);
+	setenv ("keybd", (char *)keybd_env);
 	return 0;
 }
+
+U_BOOT_CMD(
+	kbd,	1,	1,	do_kbd,
+	"kbd     - read keyboard status\n",
+	NULL
+);

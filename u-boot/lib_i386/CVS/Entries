@@ -1,0 +1,15 @@
+/Makefile/1.3/Fri Jun 27 21:32:47 2003/-ko/
+/bios.S/1.3/Fri Jun 27 21:32:47 2003/-ko/
+/bios.h/1.2/Fri Jun 27 21:32:47 2003/-ko/
+/bios_pci.S/1.2/Fri Jun 27 21:32:47 2003/-ko/
+/bios_setup.c/1.3/Fri Jun 27 21:32:47 2003/-ko/
+/board.c/1.10/Sat Oct 29 21:58:48 2005/-ko/
+/i386_linux.c/1.3/Fri Jun 27 21:32:47 2003/-ko/
+/pci.c/1.2/Fri Jun 27 21:32:47 2003/-ko/
+/pci_type1.c/1.3/Thu Nov 21 23:11:52 2002/-ko/
+/realmode.c/1.4/Fri Jun 27 21:32:47 2003/-ko/
+/realmode_switch.S/1.3/Fri Jun 27 21:32:47 2003/-ko/
+/video.c/1.2/Fri Jun 27 21:32:47 2003/-ko/
+/video_bios.c/1.2/Fri Jun 27 21:32:47 2003/-ko/
+/zimage.c/1.3/Fri Jun 27 21:32:47 2003/-ko/
+D

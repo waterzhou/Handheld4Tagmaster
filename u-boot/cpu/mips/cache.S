@@ -150,7 +150,7 @@ mips_cache_reset:
 	sw	zero, 28(a0)
 	addu	a0, 32
 	bltu	a0, a1, 2b
-   
+
 	/* Set invalid tag.
 	 */
 
@@ -250,10 +250,10 @@ dcache_disable:
 * RETURNS: N/A
 *
 */
-#if defined(CONFIG_INCA_IP)
-# define	CACHE_LOCK_SIZE	(CFG_DCACHE_SIZE)
-#elif defined(CONFIG_PURPLE)
+#if defined(CONFIG_PURPLE)
 # define	CACHE_LOCK_SIZE	(CFG_DCACHE_SIZE/2)
+#else
+# define	CACHE_LOCK_SIZE	(CFG_DCACHE_SIZE)
 #endif
 	.globl	mips_cache_lock
 	.ent	mips_cache_lock
@@ -267,4 +267,3 @@ mips_cache_lock:
 
 	j	ra
 	.end	mips_cache_lock
-

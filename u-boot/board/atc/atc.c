@@ -92,20 +92,20 @@ const iop_conf_t iop_conf_tab[4][32] = {
 	/* PB20 */ {   1,   1,   0,   0,   0,   0   }, /* FCC2 MII RxD[1] */
 	/* PB19 */ {   1,   1,   0,   0,   0,   0   }, /* FCC2 MII RxD[2] */
 	/* PB18 */ {   1,   1,   0,   0,   0,   0   }, /* FCC2 MII RxD[3] */
-	/* PB17 */ {   0,   0,   0,   0,   0,   0   }, /* PB17 */
-	/* PB16 */ {   0,   0,   0,   0,   0,   0   }, /* PB16 */
-	/* PB15 */ {   0,   0,   0,   0,   0,   0   }, /* PB15 */
-	/* PB14 */ {   0,   0,   0,   0,   0,   0   }, /* PB14 */
-	/* PB13 */ {   0,   0,   0,   0,   0,   0   }, /* PB13 */
-	/* PB12 */ {   0,   0,   0,   0,   0,   0   }, /* PB12 */
-	/* PB11 */ {   0,   0,   0,   0,   0,   0   }, /* PB11 */
-	/* PB10 */ {   0,   0,   0,   0,   0,   0   }, /* PB10 */
-	/* PB9  */ {   0,   0,   0,   0,   0,   0   }, /* PB9 */
-	/* PB8  */ {   0,   0,   0,   0,   0,   0   }, /* PB8 */
-	/* PB7  */ {   0,   0,   0,   0,   0,   0   }, /* PB7 */
-	/* PB6  */ {   0,   0,   0,   0,   0,   0   }, /* PB6 */
-	/* PB5  */ {   0,   0,   0,   0,   0,   0   }, /* PB5 */
-	/* PB4  */ {   0,   0,   0,   0,   0,   0   }, /* PB4 */
+	/* PB17 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RX_DV */
+	/* PB16 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RX_ER */
+	/* PB15 */ {   1,   1,   0,   1,   0,   0   }, /* FCC3 MII TX_ER */
+	/* PB14 */ {   1,   1,   0,   1,   0,   0   }, /* FCC3 MII TX_EN */
+	/* PB13 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII COL */
+	/* PB12 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII CRS */
+	/* PB11 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RxD */
+	/* PB10 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RxD */
+	/* PB9  */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RxD */
+	/* PB8  */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RxD */
+	/* PB7  */ {   1,   1,   0,   1,   0,   0   }, /* FCC3 MII TxD */
+	/* PB6  */ {   1,   1,   0,   1,   0,   0   }, /* FCC3 MII TxD */
+	/* PB5  */ {   1,   1,   0,   1,   0,   0   }, /* FCC3 MII TxD */
+	/* PB4  */ {   1,   1,   0,   1,   0,   0   }, /* FCC3 MII TxD */
 	/* PB3  */ {   0,   0,   0,   0,   0,   0   }, /* PB3 */
 	/* PB2  */ {   0,   0,   0,   0,   0,   0   }, /* PB2 */
 	/* PB1  */ {   0,   0,   0,   0,   0,   0   }, /* PB1 */
@@ -128,8 +128,8 @@ const iop_conf_t iop_conf_tab[4][32] = {
 	/* PC20 */ {   1,   1,   0,   0,   0,   0   }, /* FCC1 MII TX_CLK */
 	/* PC19 */ {   1,   1,   0,   0,   0,   0   }, /* FCC2 MII RX_CLK */
 	/* PC18 */ {   1,   1,   0,   0,   0,   0   }, /* FCC2 MII TX_CLK */
-	/* PC17 */ {   0,   0,   0,   0,   0,   0   }, /* PC17 */
-	/* PC16 */ {   0,   0,   0,   0,   0,   0   }, /* PC16 */
+	/* PC17 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII RX_CLK */
+	/* PC16 */ {   1,   1,   0,   0,   0,   0   }, /* FCC3 MII TX_CLK */
 #if 0
 	/* PC15 */ {   0,   0,   0,   0,   0,   0   }, /* PC15 */
 #else
@@ -207,14 +207,14 @@ const iop_conf_t iop_conf_tab[4][32] = {
  * UPMB initialization table
  */
 #define	_NOT_USED_	0xFFFFFFFF
-  
+
 static const uint rtc_table[] =
 {
 	/*
 	 * Single Read. (Offset 0 in UPMA RAM)
 	 */
-	0xfffec00, 0xfffac00, 0xfff2d00, 0xfef2800, 
-	0xfaf2080, 0xfaf2080, 0xfff2400, 0x1fff6c05, /* last */	    
+	0xfffec00, 0xfffac00, 0xfff2d00, 0xfef2800,
+	0xfaf2080, 0xfaf2080, 0xfff2400, 0x1fff6c05, /* last */
 	/*
 	 * Burst Read. (Offset 8 in UPMA RAM)
 	 */
@@ -225,7 +225,7 @@ static const uint rtc_table[] =
 	/*
 	 * Single Write. (Offset 18 in UPMA RAM)
 	 */
-	0xfffec00, 0xfffac00, 0xfff2d00, 0xfef2800, 
+	0xfffec00, 0xfffac00, 0xfff2d00, 0xfef2800,
 	0xfaf2080, 0xfaf2080, 0xfaf2400, 0x1fbf6c05, /* last */
 	/*
 	 * Burst Write. (Offset 20 in UPMA RAM)
@@ -244,8 +244,8 @@ static const uint rtc_table[] =
 	 * Exception. (Offset 3c in UPMA RAM)
 	 */
 	_NOT_USED_, _NOT_USED_, _NOT_USED_, _NOT_USED_,
-};												
-																	
+};
+
 /* ------------------------------------------------------------------------- */
 
 /* Check Board Identity:
@@ -269,13 +269,10 @@ static long int try_init (volatile memctl8260_t * memctl, ulong sdmr,
 			  ulong orx, volatile uchar * base)
 {
 	volatile uchar c = 0xff;
-	ulong cnt, val;
-	volatile ulong *addr;
 	volatile uint *sdmr_ptr;
 	volatile uint *orx_ptr;
+	ulong maxsize, size;
 	int i;
-	ulong save[32];		/* to make test non-destructive */
-	ulong maxsize;
 
 	/* We must be able to test a location outsize the maximum legal size
 	 * to find out THAT we are outside; but this address still has to be
@@ -325,54 +322,24 @@ static long int try_init (volatile memctl8260_t * memctl, ulong sdmr,
 	*sdmr_ptr = sdmr | PSDMR_OP_NORM | PSDMR_RFEN;
 	*base = c;
 
-	/*
-	 * Check memory range for valid RAM. A simple memory test determines
-	 * the actually available RAM size between addresses `base' and
-	 * `base + maxsize'. Some (not all) hardware errors are detected:
-	 * - short between address lines
-	 * - short between data lines
-	 */
-	i = 0;
-	for (cnt = maxsize / sizeof (long); cnt > 0; cnt >>= 1) {
-		addr = (volatile ulong *) base + cnt;	/* pointer arith! */
-		save[i++] = *addr;
-		*addr = ~cnt;
-	}
+	size = get_ram_size((long *)base, maxsize);
 
-	addr = (volatile ulong *) base;
-	save[i] = *addr;
-	*addr = 0;
+	*orx_ptr = orx | ~(size - 1);
 
-	if ((val = *addr) != 0) {
-		*addr = save[i];
-		return (0);
-	}
-
-	for (cnt = 1; cnt <= maxsize / sizeof (long); cnt <<= 1) {
-		addr = (volatile ulong *) base + cnt;	/* pointer arith! */
-		val = *addr;
-		*addr = save[--i];
-		if (val != ~cnt) {
-			/* Write the actual size to ORx
-			 */
-			*orx_ptr = orx | ~(cnt * sizeof (long) - 1);
-			return (cnt * sizeof (long));
-		}
-	}
-	return (maxsize);
+	return (size);
 }
 
 int misc_init_r(void)
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;
 	volatile memctl8260_t *memctl = &immap->im_memctl;
-	
+
 	upmconfig(UPMA, (uint *)rtc_table, sizeof(rtc_table) / sizeof(uint));
-	memctl->memc_mamr = MxMR_RLFx_6X | MxMR_WLFx_6X | MxMR_OP_NORM;	
+	memctl->memc_mamr = MxMR_RLFx_6X | MxMR_WLFx_6X | MxMR_OP_NORM;
 
 	return (0);
 }
-			
+
 long int initdram (int board_type)
 {
 	volatile immap_t *immap = (immap_t *) CFG_IMMR;

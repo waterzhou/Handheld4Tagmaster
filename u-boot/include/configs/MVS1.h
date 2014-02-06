@@ -50,8 +50,8 @@
 #define	CONFIG_BOOTARGS		"root=/dev/mtdblock2 rw"
 #define CONFIG_BOOTCOMMAND						\
     "bootp; "                               				\
-    "setenv bootargs root=/dev/nfs rw nfsroot=$(serverip):$(rootpath) " \
-    "ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask):$(hostname)::off; "   \
+    "setenv bootargs root=/dev/nfs rw nfsroot=${serverip}:${rootpath} " \
+    "ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}::off; "   \
     "bootm"
 
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
@@ -184,7 +184,7 @@
  */
 #if defined(CONFIG_WATCHDOG)
 #define CFG_SYPCR   (SYPCR_SWTC | SYPCR_BMT | SYPCR_BME | SYPCR_SWF | \
-             SYPCR_SWE  | SYPCR_SWRI| SYPCR_SWP)
+	     SYPCR_SWE  | SYPCR_SWRI| SYPCR_SWP)
 #else
 #define CFG_SYPCR   (SYPCR_SWTC | SYPCR_BMT | SYPCR_BME | SYPCR_SWF | SYPCR_SWP)
 #endif

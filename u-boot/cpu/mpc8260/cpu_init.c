@@ -70,13 +70,13 @@ static void config_8260_ioports (volatile immap_t * immr)
 			uint tpmsk = ~pmsk;
 
 			/*
-                         * the (somewhat confused) paragraph at the
-                         * bottom of page 35-5 warns that there might
-                         * be "unknown behaviour" when programming
-                         * PSORx and PDIRx, if PPARx = 1, so I
-                         * decided this meant I had to disable the
-                         * dedicated function first, and enable it
-                         * last.
+			 * the (somewhat confused) paragraph at the
+			 * bottom of page 35-5 warns that there might
+			 * be "unknown behaviour" when programming
+			 * PSORx and PDIRx, if PPARx = 1, so I
+			 * decided this meant I had to disable the
+			 * dedicated function first, and enable it
+			 * last.
 			 */
 			iop->ppar &= tpmsk;
 			iop->psor = (iop->psor & tpmsk) | psor;
@@ -98,7 +98,9 @@ static void config_8260_ioports (volatile immap_t * immr)
 void cpu_init_f (volatile immap_t * immr)
 {
 	DECLARE_GLOBAL_DATA_PTR;
-
+#if !defined(CONFIG_COGENT)		/* done in start.S for the cogent */
+	uint sccr;
+#endif
 	volatile memctl8260_t *memctl = &immr->im_memctl;
 	extern void m8260_cpm_reset (void);
 
@@ -131,7 +133,10 @@ void cpu_init_f (volatile immap_t * immr)
 
 #if !defined(CONFIG_COGENT)		/* done in start.S for the cogent */
 	/* System clock control register (9-8) */
-	immr->im_clkrst.car_sccr = CFG_SCCR;
+	sccr = immr->im_clkrst.car_sccr &
+		(SCCR_PCI_MODE | SCCR_PCI_MODCK | SCCR_PCIDF_MSK);
+	immr->im_clkrst.car_sccr = sccr |
+		(CFG_SCCR & ~(SCCR_PCI_MODE | SCCR_PCI_MODCK | SCCR_PCIDF_MSK) );
 #endif /* !CONFIG_COGENT */
 
 	/*

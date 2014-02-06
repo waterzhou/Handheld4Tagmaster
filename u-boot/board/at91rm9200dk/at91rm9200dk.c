@@ -24,6 +24,8 @@
 
 #include <common.h>
 #include <asm/arch/AT91RM9200.h>
+#include <at91rm9200_net.h>
+#include <dm9161.h>
 
 /* ------------------------------------------------------------------------- */
 /*
@@ -41,18 +43,11 @@ int board_init (void)
 	/* Set PA23_TXD in Output */
 	(AT91PS_PIO) AT91C_BASE_PIOA->PIO_OER = AT91C_PA23_TXD2;
 
-	/* Init flash2 using CS7 */
-	(AT91PS_PIO) AT91C_BASE_PIOC->PIO_ASR = AT91C_PC13_NCS7;
-	(AT91PS_PIO) AT91C_BASE_PIOC->PIO_BSR = 0;
-	(AT91PS_PIO) AT91C_BASE_PIOC->PIO_PDR = AT91C_PC13_NCS7;
-
-	 AT91C_BASE_SMC2->SMC2_CSR[7] = (AT91C_SMC2_NWS & 0x4) | AT91C_SMC2_WSEN | (AT91C_SMC2_TDF & 0x10) | AT91C_SMC2_DBW | AT91C_SMC2_BAT;
-
 	/* memory and cpu-speed are setup before relocation */
 	/* so we do _nothing_ here */
 
 	/* arch number of AT91RM9200DK-Board */
-	gd->bd->bi_arch_number = 251;
+	gd->bd->bi_arch_number = MACH_TYPE_AT91RM9200;
 	/* adress of boot parameters */
 	gd->bd->bi_boot_params = PHYS_SDRAM + 0x100;
 
@@ -68,12 +63,36 @@ int dram_init (void)
 	return 0;
 }
 
+#ifdef CONFIG_DRIVER_ETHER
+#if (CONFIG_COMMANDS & CFG_CMD_NET)
+
+/*
+ * Name:
+ *	at91rm9200_GetPhyInterface
+ * Description:
+ *	Initialise the interface functions to the PHY
+ * Arguments:
+ *	None
+ * Return value:
+ *	None
+ */
+void at91rm9200_GetPhyInterface(AT91PS_PhyOps p_phyops)
+{
+	p_phyops->Init = dm9161_InitPhy;
+	p_phyops->IsPhyConnected = dm9161_IsPhyConnected;
+	p_phyops->GetLinkSpeed = dm9161_GetLinkSpeed;
+	p_phyops->AutoNegotiate = dm9161_AutoNegotiate;
+}
+
+#endif	/* CONFIG_COMMANDS & CFG_CMD_NET */
+#endif	/* CONFIG_DRIVER_ETHER */
+
 /*
  * Disk On Chip (NAND) Millenium initialization.
  * The NAND lives in the CS2* space
  */
 #if (CONFIG_COMMANDS & CFG_CMD_NAND)
-extern void nand_probe (ulong physadr);
+extern ulong nand_probe (ulong physadr);
 
 #define AT91_SMARTMEDIA_BASE 0x40000000	/* physical address to access memory on NCS3 */
 void nand_init (void)
@@ -109,11 +128,17 @@ void nand_init (void)
 	*AT91C_PIOB_PER = AT91C_PIO_PB1;	/* enable direct output enable */
 	*AT91C_PIOB_ODR = AT91C_PIO_PB1;	/* disable output */
 
+	/* PIOB and PIOC clock enabling */
+	*AT91C_PMC_PCER = 1 << AT91C_ID_PIOB;
+	*AT91C_PMC_PCER = 1 << AT91C_ID_PIOC;
+
 	if (*AT91C_PIOB_PDSR & AT91C_PIO_PB1)
-		printf ("No ");
-	printf ("SmartMedia card inserted\n");
+		printf ("  No SmartMedia card inserted\n");
+#ifdef DEBUG
+	printf ("  SmartMedia card inserted\n");
 
 	printf ("Probing at 0x%.8x\n", AT91_SMARTMEDIA_BASE);
-	nand_probe (AT91_SMARTMEDIA_BASE);
+#endif
+	printf ("%4lu MB\n", nand_probe(AT91_SMARTMEDIA_BASE) >> 20);
 }
 #endif

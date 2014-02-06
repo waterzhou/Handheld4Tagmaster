@@ -69,6 +69,11 @@ ulong flash_get_size (volatile unsigned long *baseaddr,
 		info->sector_count = 39;
 		info->size = 0x00800000;	/* 4 * 2 MB = 8 MB      */
 		break;
+	case INTEL_ID_28F640C3B:
+		info->flash_id = FLASH_28F640C3B;
+		info->sector_count = 135;
+		info->size = 0x02000000;	/* 16 * 2 MB = 32 MB	*/
+		break;
 	default:
 		return (0);			/* no or unknown flash	*/
 	}
@@ -79,10 +84,11 @@ ulong flash_get_size (volatile unsigned long *baseaddr,
 		volatile unsigned long *tmp = baseaddr;
 
 		/* set up sector start adress table (bottom sector type)
-		 * AND unlock the sectors (if our chip is 160C3)
+		 * AND unlock the sectors (if our chip is 160C3 or 640C3)
 		 */
 		for (i = 0; i < info->sector_count; i++) {
-			if ((info->flash_id & FLASH_TYPEMASK) == FLASH_28F160C3B) {
+			if (((info->flash_id & FLASH_TYPEMASK) == FLASH_28F160C3B) ||
+			    ((info->flash_id & FLASH_TYPEMASK) == FLASH_28F640C3B)) {
 				tmp[0] = 0x00600060;
 				tmp[1] = 0x00600060;
 				tmp[0] = 0x00D000D0;
@@ -176,6 +182,9 @@ void flash_print_info (flash_info_t * info)
 		break;
 	case FLASH_28F160F3B:
 		printf ("28F160F3B (16 M, bottom sector)\n");
+		break;
+	case FLASH_28F640C3B:
+		printf ("28F640C3B (64 M, bottom sector)\n");
 		break;
 	default:
 		printf ("Unknown Chip Type\n");

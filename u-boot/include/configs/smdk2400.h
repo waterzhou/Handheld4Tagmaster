@@ -1,4 +1,6 @@
 /*
+ * (C) Copyright 2002-2005
+ * Wolfgang Denk, DENX Software Engineering, <wd@denx.de>
  * (C) Copyright 2002
  * Sysgo Real-Time Solutions, GmbH <www.elinos.com>
  * Marius Groeger <mgroeger@sysgo.de>
@@ -29,12 +31,6 @@
 #define __CONFIG_H
 
 /*
- * If we are developing, we might want to start armboot from ram
- * so we MUST NOT initialize critical regs like mem-timing ...
- */
-#define CONFIG_INIT_CRITICAL		/* undef for developing */
-
-/*
  * High Level Configuration Options
  * (easy to change)
  */
@@ -55,6 +51,7 @@
  * Size of malloc() pool
  */
 #define CFG_MALLOC_LEN		(CFG_ENV_SIZE + 128*1024)
+#define CFG_GBL_DATA_SIZE	128	/* size in bytes reserved for initial data */
 
 /*
  * Hardware drivers
@@ -90,10 +87,13 @@
 #define CONFIG_RTC_S3C24X0	1
 
 #ifndef USE_920T_MMU
-#define CONFIG_COMMANDS_tmp	((CONFIG_CMD_DFL & ~CFG_CMD_CACHE) | \
-				 CFG_CMD_DATE)
+#define CONFIG_COMMANDS_tmp    ((CONFIG_CMD_DFL & ~CFG_CMD_CACHE) | \
+				CFG_CMD_DATE	| \
+				CFG_CMD_SNTP	)
 #else
-#define CONFIG_COMMANDS_tmp	(CONFIG_CMD_DFL | CFG_CMD_DATE)
+#define CONFIG_COMMANDS_tmp    (CONFIG_CMD_DFL	| \
+				CFG_CMD_DATE	| \
+				CFG_CMD_SNTP	)
 #endif
 
 #ifdef CONFIG_HWFLOW

@@ -45,6 +45,7 @@ typedef	struct	global_data {
 	unsigned long	reloc_off;	/* Relocation Offset */
 	unsigned long	env_addr;	/* Address  of Environment struct */
 	unsigned long	env_valid;	/* Checksum of Environment valid? */
+	void		**jt;		/* jump table */
 } gd_t;
 
 /*
@@ -52,7 +53,8 @@ typedef	struct	global_data {
  */
 #define	GD_FLG_RELOC	0x00001		/* Code was relocated to RAM     */
 #define	GD_FLG_DEVINIT	0x00002		/* Devices have been initialized */
+#define	GD_FLG_SILENT	0x00004		/* Silent mode			 */
 
-#define DECLARE_GLOBAL_DATA_PTR     register gd_t *gd asm ("k0")
+#define DECLARE_GLOBAL_DATA_PTR     register volatile gd_t *gd asm ("k0")
 
 #endif /* __ASM_GBL_DATA_H */

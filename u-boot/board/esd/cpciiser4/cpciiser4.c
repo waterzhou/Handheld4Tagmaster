@@ -25,7 +25,12 @@
 #include "cpciiser4.h"
 #include <asm/processor.h>
 #include <command.h>
-#include <cmd_boot.h>
+
+/*cmd_boot.c*/
+
+extern int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
+extern void lxt971_no_sleep(void);
+
 
 /* ------------------------------------------------------------------------- */
 
@@ -48,7 +53,7 @@ const unsigned char fpgadata[] = {
 #include "../common/fpga.c"
 
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	DECLARE_GLOBAL_DATA_PTR;
 
@@ -148,17 +153,16 @@ int checkboard (void)
 {
 	int index;
 	int len;
-	unsigned char str[64];
+	char str[64];
 	int i = getenv_r ("serial#", str, sizeof (str));
 
 	puts ("Board: ");
 
-	if (!i || strncmp (str, "CPCIISER4", 9)) {
-		puts ("### No HW ID - assuming CPCIISER4\n");
-		return (0);
+	if (i == -1) {
+		puts ("### No HW ID - assuming AR405");
+	} else {
+		puts(str);
 	}
-
-	puts (str);
 
 	puts ("\nFPGA:  ");
 
@@ -171,6 +175,11 @@ int checkboard (void)
 	}
 
 	putc ('\n');
+
+	/*
+	 * Disable sleep mode in LXT971
+	 */
+	lxt971_no_sleep();
 
 	return 0;
 }

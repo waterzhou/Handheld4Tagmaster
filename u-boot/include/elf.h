@@ -41,14 +41,12 @@
 #include <inttypes.h>
 #elif defined(__linux__) && defined(USE_HOSTCC)
 #include <stdint.h>
+#elif defined(__WIN32__)
+#include <unistd.h>
+typedef 	 unsigned char	 uint8_t;
+typedef 	 unsigned short  uint16_t;
+typedef 	 unsigned int	 uint32_t;
 #endif
-
-#ifdef __CYGWIN__
-#include <sys/types.h>
-typedef unsigned long int uint32_t;
-typedef unsigned short    uint16_t;
-typedef unsigned char     uint8_t;
-#endif /* __CYGWIN__ */
 
 /*
  *  This version doesn't work for 64-bit ABIs - Erik.
@@ -115,9 +113,9 @@ typedef uint16_t	Elf32_Half;	/* Unsigned medium integer */
 
 /* e_ident */
 #define IS_ELF(ehdr) ((ehdr).e_ident[EI_MAG0] == ELFMAG0 && \
-                      (ehdr).e_ident[EI_MAG1] == ELFMAG1 && \
-                      (ehdr).e_ident[EI_MAG2] == ELFMAG2 && \
-                      (ehdr).e_ident[EI_MAG3] == ELFMAG3)
+		      (ehdr).e_ident[EI_MAG1] == ELFMAG1 && \
+		      (ehdr).e_ident[EI_MAG2] == ELFMAG2 && \
+		      (ehdr).e_ident[EI_MAG3] == ELFMAG3)
 
 /* ELF Header */
 typedef struct elfhdr{
@@ -531,7 +529,7 @@ unsigned long elf_hash(const unsigned char *name);
 /* Cygnus local bits below */
 #define EF_PPC_RELOCATABLE      0x00010000      /* PowerPC -mrelocatable flag*/
 #define EF_PPC_RELOCATABLE_LIB  0x00008000      /* PowerPC -mrelocatable-lib
-                                                   flag */
+						   flag */
 
 /* PowerPC relocations defined by the ABIs */
 #define R_PPC_NONE              0
@@ -606,4 +604,3 @@ unsigned long elf_hash(const unsigned char *name);
 #define R_PPC_TOC16             255
 
 #endif /* _ELF_H */
-

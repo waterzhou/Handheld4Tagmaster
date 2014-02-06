@@ -21,12 +21,14 @@
  * MA 02111-1307 USA
  */
 
+/* #define DEBUG */
+
 #include <common.h>
 #include <flash.h>
 
 #if !defined(CFG_NO_FLASH)
 
-extern flash_info_t  flash_info[CFG_MAX_FLASH_BANKS]; /* info for FLASH chips */
+extern flash_info_t  flash_info[]; /* info for FLASH chips */
 
 /*-----------------------------------------------------------------------
  * Functions
@@ -44,6 +46,11 @@ flash_protect (int flag, ulong from, ulong to, flash_info_t *info)
 	ulong b_end = info->start[0] + info->size - 1;	/* bank end address */
 	short s_end = info->sector_count - 1;	/* index of last sector */
 	int i;
+
+	debug ("flash_protect %s: from 0x%08lX to 0x%08lX\n",
+		(flag & FLAG_PROTECT_SET) ? "ON" :
+			(flag & FLAG_PROTECT_CLEAR) ? "OFF" : "???",
+		from, to);
 
 	/* Do nothing if input data is bad. */
 	if (info->sector_count == 0 || info->size == 0 || to < from) {
@@ -73,6 +80,7 @@ flash_protect (int flag, ulong from, ulong to, flash_info_t *info)
 #else
 				info->protect[i] = 0;
 #endif	/* CFG_FLASH_PROTECTION */
+				debug ("protect off %d\n", i);
 			}
 			else if (flag & FLAG_PROTECT_SET) {
 #if defined(CFG_FLASH_PROTECTION)
@@ -80,6 +88,7 @@ flash_protect (int flag, ulong from, ulong to, flash_info_t *info)
 #else
 				info->protect[i] = 1;
 #endif	/* CFG_FLASH_PROTECTION */
+				debug ("protect on %d\n", i);
 			}
 		}
 	}
@@ -126,7 +135,7 @@ addr2info (ulong addr)
  *			(only some targets require alignment)
  */
 int
-flash_write (uchar *src, ulong addr, ulong cnt)
+flash_write (char *src, ulong addr, ulong cnt)
 {
 #ifdef CONFIG_SPD823TS
 	return (ERR_TIMOUT);	/* any other error codes are possible as well */
@@ -165,7 +174,7 @@ flash_write (uchar *src, ulong addr, ulong cnt)
 		len = info->start[0] + info->size - addr;
 		if (len > cnt)
 			len = cnt;
-		if ((i = write_buff(info, src, addr, len)) != 0) {
+		if ((i = write_buff(info, (uchar *)src, addr, len)) != 0) {
 			return (i);
 		}
 		cnt  -= len;

@@ -32,10 +32,13 @@
 #include <common.h>
 #include <command.h>
 #include <ide.h>
-#include <cmd_disk.h>
 #include "part_mac.h"
 
-#if ((CONFIG_COMMANDS & CFG_CMD_IDE) || (CONFIG_COMMANDS & CFG_CMD_SCSI)) && defined(CONFIG_MAC_PARTITION)
+#if ((CONFIG_COMMANDS & CFG_CMD_IDE)	|| \
+     (CONFIG_COMMANDS & CFG_CMD_SCSI)	|| \
+     (CONFIG_COMMANDS & CFG_CMD_USB)	|| \
+     defined(CONFIG_MMC) || \
+     defined(CONFIG_SYSTEMACE) ) && defined(CONFIG_MAC_PARTITION)
 
 /* stdlib.h causes some compatibility problems; should fixe these! -- wd */
 #ifndef __ldiv_t_defined
@@ -190,9 +193,9 @@ static int part_mac_read_pdb (block_dev_desc_t *dev_desc, int part, mac_partitio
 
 	for (;;) {
 		/*
-                 * We must always read the descritpor block for
-                 * partition 1 first since this is the only way to
-                 * know how many partitions we have.
+		 * We must always read the descritpor block for
+		 * partition 1 first since this is the only way to
+		 * know how many partitions we have.
 		 */
 		if (dev_desc->block_read (dev_desc->dev, n, 1, (ulong *)pdb_p) != 1) {
 			printf ("** Can't read Partition Map on %d:%d **\n",

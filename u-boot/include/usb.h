@@ -12,7 +12,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -29,18 +29,17 @@
 #include <usb_defs.h>
 
 /* Everything is aribtrary */
-#define USB_ALTSETTINGALLOC          4
-#define USB_MAXALTSETTING	           128  /* Hard limit */
+#define USB_ALTSETTINGALLOC		4
+#define USB_MAXALTSETTING		128	/* Hard limit */
 
-#define USB_MAX_DEVICE              32
-#define USB_MAXCONFIG		            8
-#define USB_MAXINTERFACES	          8
-#define USB_MAXENDPOINTS	          16
-#define USB_MAXCHILDREN  						8 	/* This is arbitrary */
-#define USB_MAX_HUB									16
+#define USB_MAX_DEVICE			32
+#define USB_MAXCONFIG			8
+#define USB_MAXINTERFACES		8
+#define USB_MAXENDPOINTS		16
+#define USB_MAXCHILDREN			8	/* This is arbitrary */
+#define USB_MAX_HUB			16
 
 #define USB_CNTL_TIMEOUT 100 /* 100ms timeout */
-
 
 /* String descriptor */
 struct usb_string_descriptor {
@@ -57,7 +56,6 @@ struct devrequest {
 	unsigned short index;
 	unsigned short length;
 } __attribute__ ((packed));
-
 
 
 /* All standard descriptors have these 2 fields in common */
@@ -126,22 +124,22 @@ struct usb_config_descriptor {
 	unsigned char  bmAttributes;
 	unsigned char  MaxPower;
 
-	unsigned char  no_of_if;			/* number of interfaces */
+	unsigned char  no_of_if;		/* number of interfaces */
 	struct usb_interface_descriptor if_desc[USB_MAXINTERFACES];
 } __attribute__ ((packed));
 
 
 struct usb_device {
-	int devnum;								/* Device number on USB bus */
-	int slow;									/* Slow device? */
-	char mf[32];		     			/* manufacturer */
-	char prod[32];		     		/* product */
-	char serial[32];       	  /* serial number */
+	int devnum;			/* Device number on USB bus */
+	int slow;			/* Slow device? */
+	char mf[32];			/* manufacturer */
+	char prod[32];			/* product */
+	char serial[32];		/* serial number */
 
-	int maxpacketsize;		    /* Maximum packet size; encoded as 0,1,2,3 = 8,16,32,64 */
+	int maxpacketsize;		/* Maximum packet size; encoded as 0,1,2,3 = 8,16,32,64 */
 	unsigned int toggle[2];		/* one bit for each endpoint ([0] = IN, [1] = OUT) */
 	unsigned int halted[2];		/* endpoint halts; one bit per endpoint # & direction; */
-                            /* [0] = IN, [1] = OUT */
+			    /* [0] = IN, [1] = OUT */
 	int epmaxpacketin[16];		/* INput endpoint specific maximums */
 	int epmaxpacketout[16];		/* OUTput endpoint specific maximums */
 
@@ -153,7 +151,7 @@ struct usb_device {
 	int string_langid;		/* language ID for strings */
 	int (*irq_handle)(struct usb_device *dev);
 	unsigned long irq_status;
-	int irq_act_len;			/* transfered bytes */
+	int irq_act_len;		/* transfered bytes */
 	void *privptr;
 	/*
 	 * Child devices -  if this is a hub device
@@ -170,7 +168,7 @@ struct usb_device {
  * this is how the lowlevel part communicate with the outer world
  */
 
-#ifdef CONFIG_USB_UHCI
+#if defined(CONFIG_USB_UHCI) || defined(CONFIG_USB_OHCI) || defined (CONFIG_USB_SL811HS)
 int usb_lowlevel_init(void);
 int usb_lowlevel_stop(void);
 int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,int transfer_len);
@@ -181,7 +179,7 @@ int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 
 /* Defines */
 #define USB_UHCI_VEND_ID 0x8086
-#define USB_UHCI_DEV_ID  0x7112
+#define USB_UHCI_DEV_ID	 0x7112
 
 #else
 #error USB Lowlevel not defined
@@ -192,6 +190,7 @@ int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 #define USB_MAX_STOR_DEV 5
 block_dev_desc_t *usb_stor_get_dev(int index);
 int usb_stor_scan(int mode);
+void usb_stor_info(void);
 
 #endif
 
@@ -229,16 +228,25 @@ int usb_string(struct usb_device *dev, int index, char *buf, size_t size);
 int usb_set_interface(struct usb_device *dev, int interface, int alternate);
 
 /* big endian -> little endian conversion */
+/* some CPUs are already little endian e.g. the ARM920T */
+#ifdef LITTLEENDIAN
+#define swap_16(x) ((unsigned short)(x))
+#define swap_32(x) ((unsigned long)(x))
+#else
 #define swap_16(x) \
-	((unsigned short)( \
-		(((unsigned short)(x) & (unsigned short)0x00ffU) << 8) | \
-		(((unsigned short)(x) & (unsigned short)0xff00U) >> 8) ))
+	({ unsigned short x_ = (unsigned short)x; \
+	 (unsigned short)( \
+		((x_ & 0x00FFU) << 8) | ((x_ & 0xFF00U) >> 8) ); \
+	})
 #define swap_32(x) \
-	((unsigned long)( \
-		(((unsigned long)(x) & (unsigned long)0x000000ffUL) << 24) | \
-		(((unsigned long)(x) & (unsigned long)0x0000ff00UL) <<  8) | \
-		(((unsigned long)(x) & (unsigned long)0x00ff0000UL) >>  8) | \
-		(((unsigned long)(x) & (unsigned long)0xff000000UL) >> 24) ))
+	({ unsigned long x_ = (unsigned long)x; \
+	 (unsigned long)( \
+		((x_ & 0x000000FFUL) << 24) | \
+		((x_ & 0x0000FF00UL) <<	 8) | \
+		((x_ & 0x00FF0000UL) >>	 8) | \
+		((x_ & 0xFF000000UL) >> 24) ); \
+	})
+#endif /* LITTLEENDIAN */
 
 /*
  * Calling this entity a "pipe" is glorifying it. A USB pipe
@@ -290,7 +298,7 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate);
 
 /* The D0/D1 toggle bits */
 #define usb_gettoggle(dev, ep, out) (((dev)->toggle[out] >> ep) & 1)
-#define	usb_dotoggle(dev, ep, out)  ((dev)->toggle[out] ^= (1 << ep))
+#define usb_dotoggle(dev, ep, out)  ((dev)->toggle[out] ^= (1 << ep))
 #define usb_settoggle(dev, ep, out, bit) ((dev)->toggle[out] = ((dev)->toggle[out] & ~(1 << ep)) | ((bit) << ep))
 
 /* Endpoint halt control/status */

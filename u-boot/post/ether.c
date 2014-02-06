@@ -38,7 +38,7 @@
 #ifdef CONFIG_POST
 
 #include <post.h>
-
+#if CONFIG_POST & CFG_POST_ETHER
 #if defined(CONFIG_8xx)
 #include <commproc.h>
 #elif defined(CONFIG_MPC8260)
@@ -49,8 +49,7 @@
 
 #include <command.h>
 #include <net.h>
-
-#if CONFIG_POST & CFG_POST_ETHER
+#include <serial.h>
 
 #define MIN_PACKET_LENGTH	64
 #define MAX_PACKET_LENGTH	256
@@ -72,14 +71,12 @@ static int ctlr_list[][2] = { };
 
 static struct {
 	void (*init) (int index);
+	void (*halt) (int index);
 	int (*send) (int index, volatile void *packet, int length);
 	int (*recv) (int index, void *packet, int length);
 } ctlr_proc[1];
 
 static char *ctlr_name[1] = { "SCC" };
-
-static int used_by_uart[1] = { -1 };
-static int used_by_ether[1] = { -1 };
 
 /* Ethernet Transmit and Receive Buffers */
 #define DBUF_LENGTH  1520
@@ -130,8 +127,8 @@ CPM_CR_CH_SCC4 };
 			~(SCC_GSMRL_ENR | SCC_GSMRL_ENT);
 
 #if defined(CONFIG_FADS)
-#if defined(CONFIG_MPC860T)
-	/* The FADS860T doesn't use the MODEM_EN or DATA_VOICE signals. */
+#if defined(CONFIG_MPC860T) || defined(CONFIG_MPC86xADS)
+	/* The FADS860T and MPC86xADS don't use the MODEM_EN or DATA_VOICE signals. */
 	*((uint *) BCSR4) &= ~BCSR4_ETHLOOP;
 	*((uint *) BCSR4) |= BCSR4_TFPLDL | BCSR4_TPSQEL;
 	*((uint *) BCSR1) &= ~BCSR1_ETHEN;
@@ -360,10 +357,10 @@ CPM_CR_CH_SCC4 };
 	 */
 
 	immr->im_cpm.cp_scc[scc_index].scc_gsmrl = (SCC_GSMRL_TCI |
-												SCC_GSMRL_TPL_48 |
-												SCC_GSMRL_TPP_10 |
-												SCC_GSMRL_DIAG_LOOP |
-												SCC_GSMRL_MODE_ENET);
+						    SCC_GSMRL_TPL_48 |
+						    SCC_GSMRL_TPP_10 |
+						    SCC_GSMRL_DIAG_LOOP |
+						    SCC_GSMRL_MODE_ENET);
 
 	/*
 	 * Initialize the DSR -- see section 13.14.4 (pg. 513) v0.4
@@ -454,6 +451,15 @@ CPM_CR_CH_SCC4 };
 #endif
 }
 
+static void scc_halt (int scc_index)
+{
+	volatile immap_t *immr = (immap_t *) CFG_IMMR;
+
+	immr->im_cpm.cp_scc[scc_index].scc_gsmrl &=
+			~(SCC_GSMRL_ENR | SCC_GSMRL_ENT);
+	immr->im_ioport.iop_pcso  &=  ~(PC_ENET_CLSN | PC_ENET_RENA);
+}
+
 static int scc_send (int index, volatile void *packet, int length)
 {
 	int i, j = 0;
@@ -507,7 +513,7 @@ static int scc_recv (int index, void *packet, int max_length)
 		rxIdx++;
 	}
 
-  Done:
+Done:
 	return length;
 }
 
@@ -573,21 +579,9 @@ static int test_ctlr (int ctlr, int index)
 
 	res = 0;
 
-  Done:
+Done:
 
-#if !defined(CONFIG_8xx_CONS_NONE)
-	if (used_by_uart[ctlr] == index) {
-		serial_init ();
-	}
-#endif
-
-#if defined(SCC_ENET)
-	if (used_by_ether[ctlr] == index) {
-		DECLARE_GLOBAL_DATA_PTR;
-
-		eth_init (gd->bd);
-	}
-#endif
+	ctlr_proc[ctlr].halt (index);
 
 	/*
 	 * SCC2 Ethernet parameter RAM space overlaps
@@ -614,21 +608,8 @@ int ether_post_test (int flags)
 	int res = 0;
 	int i;
 
-#if defined(CONFIG_8xx_CONS_SCC1)
-	used_by_uart[CTLR_SCC] = 0;
-#elif defined(CONFIG_8xx_CONS_SCC2)
-	used_by_uart[CTLR_SCC] = 1;
-#elif defined(CONFIG_8xx_CONS_SCC3)
-	used_by_uart[CTLR_SCC] = 2;
-#elif defined(CONFIG_8xx_CONS_SCC4)
-	used_by_uart[CTLR_SCC] = 3;
-#endif
-
-#if defined(SCC_ENET)
-	used_by_ether[CTLR_SCC] = SCC_ENET;
-#endif
-
 	ctlr_proc[CTLR_SCC].init = scc_init;
+	ctlr_proc[CTLR_SCC].halt = scc_halt;
 	ctlr_proc[CTLR_SCC].send = scc_send;
 	ctlr_proc[CTLR_SCC].recv = scc_recv;
 
@@ -638,6 +619,9 @@ int ether_post_test (int flags)
 		}
 	}
 
+#if !defined(CONFIG_8xx_CONS_NONE)
+	serial_reinit_all ();
+#endif
 	return res;
 }
 

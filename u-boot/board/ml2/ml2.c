@@ -22,8 +22,7 @@
 #include <asm/processor.h>
 
 
-
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	return 0;
 }
@@ -31,8 +30,8 @@ int board_pre_init (void)
 
 int checkboard (void)
 {
-	unsigned char *s = getenv ("serial#");
-	unsigned char *e;
+	char *s = getenv ("serial#");
+	char *e;
 
 	if (!s || strncmp (s, "ML2", 9)) {
 		printf ("### No HW ID - assuming ML2");

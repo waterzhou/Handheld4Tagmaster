@@ -26,28 +26,31 @@ OUTPUT_ARCH(arm)
 ENTRY(_start)
 SECTIONS
 {
-        . = 0x00000000;
+	. = 0x00000000;
 
-        . = ALIGN(4);
+	. = ALIGN(4);
 	.text      :
 	{
 	  cpu/arm720t/start.o	(.text)
 	  *(.text)
 	}
 
-        . = ALIGN(4);
-        .rodata : { *(.rodata) }
+	. = ALIGN(4);
+	.rodata : { *(.rodata) }
 
-        . = ALIGN(4);
-        .data : { *(.data) }
+	. = ALIGN(4);
+	.data : { *(.data) }
 
-        . = ALIGN(4);
-        .got : { *(.got) }
+	. = ALIGN(4);
+	.got : { *(.got) }
 
-	armboot_end_data = .;
+	. = .;
+	__u_boot_cmd_start = .;
+	.u_boot_cmd : { *(.u_boot_cmd) }
+	__u_boot_cmd_end = .;
 
-        . = ALIGN(4);
-        .bss : { *(.bss) }
-
-	armboot_end = .;
+	. = ALIGN(4);
+	__bss_start = .;
+	.bss : { *(.bss) }
+	_end = .;
 }

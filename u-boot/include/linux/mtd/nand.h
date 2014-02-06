@@ -5,7 +5,7 @@
  *                     Steven J. Hill <sjhill@cotw.com>
  *		       Thomas Gleixner <gleixner@autronix.de>
  *
- * $Id: nand.h,v 1.13 2002/04/28 13:40:41 gleixner Exp $
+ * $Id: nand.h,v 1.7 2003/07/24 23:30:46 a0384864 Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -24,7 +24,7 @@
  *			bat later if I did something naughty.
  *   10-11-2000 SJH     Added private NAND flash structure for driver
  *   10-24-2000 SJH     Added prototype for 'nand_scan' function
- *   10-29-2001 TG	changed nand_chip structure to support 
+ *   10-29-2001 TG	changed nand_chip structure to support
  *			hardwarespecific function for accessing control lines
  *   02-21-2002 TG	added support for different read/write adress and
  *			ready/busy line access function
@@ -67,7 +67,7 @@ typedef enum {
  *
  * Structure overview:
  *
- *  IO_ADDR - address to access the 8 I/O lines of the flash device 
+ *  IO_ADDR - address to access the 8 I/O lines of the flash device
  *
  *  hwcontrol - hardwarespecific function for accesing control-lines
  *
@@ -119,9 +119,10 @@ struct nand_chip {
 	char pageadrlen;
 	unsigned long IO_ADDR;  /* address to access the 8 I/O lines to the flash device */
 	unsigned long totlen;
-	uint oobblock;  // Size of OOB blocks (e.g. 512)
-	uint oobsize;   // Amount of OOB data per block (e.g. 16)
+	uint oobblock;  /* Size of OOB blocks (e.g. 512) */
+	uint oobsize;   /* Amount of OOB data per block (e.g. 16) */
 	uint eccsize;
+	int bus16;
 };
 
 /*
@@ -165,6 +166,7 @@ struct nand_flash_dev {
 	char page256;
 	char pageadrlen;
 	unsigned long erasesize;
+	int bus16;
 };
 
 /*
@@ -174,8 +176,8 @@ struct nand_flash_dev {
 #define NAND_NOOB_ECCPOS1		1
 #define NAND_NOOB_ECCPOS2		2
 #define NAND_NOOB_ECCPOS3		3
-#define NAND_NOOB_ECCPOS4		4
-#define NAND_NOOB_ECCPOS5		5
+#define NAND_NOOB_ECCPOS4		6
+#define NAND_NOOB_ECCPOS5		7
 #define NAND_NOOB_BADBPOS		-1
 #define NAND_NOOB_ECCVPOS		-1
 
@@ -193,6 +195,6 @@ struct nand_flash_dev {
 #define NAND_JFFS2_OOB8_FSDALEN		2
 #define NAND_JFFS2_OOB16_FSDALEN	8
 
-void nand_probe(unsigned long physadr);
+unsigned long nand_probe(unsigned long physadr);
 
 #endif /* __LINUX_MTD_NAND_H */

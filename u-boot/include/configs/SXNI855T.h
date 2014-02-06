@@ -81,6 +81,8 @@
 #define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 #endif
 
+#define CONFIG_HAS_ETH1
+
 /*-----------------------------------------------------------------------
  * Definitions for status LED
  */
@@ -140,16 +142,45 @@
 # define CFG_I2C_EEPROM_ADDR_LEN 2	/* two byte address		*/
 
 #define	CONFIG_FEC_ENET		1	/* use FEC ethernet  */
+#define	CONFIG_MII		1
 
 #define CFG_DISCOVER_PHY
 
 #define CONFIG_COMMANDS		(CONFIG_CMD_DFL		| \
 				 CFG_CMD_EEPROM		| \
+				 CFG_CMD_JFFS2		| \
 				 CFG_CMD_NAND		| \
 				 CFG_CMD_DATE)
 
 /* this must be included AFTER the definition of CONFIG_COMMANDS (if any) */
 #include <cmd_confdefs.h>
+
+#define CFG_JFFS2_SORT_FRAGMENTS
+
+/*
+ * JFFS2 partitions
+ *
+ */
+/* No command line, one static partition */
+#undef CONFIG_JFFS2_CMDLINE
+
+/*
+#define CONFIG_JFFS2_DEV		"nor0"
+#define CONFIG_JFFS2_PART_SIZE		0x00780000
+#define CONFIG_JFFS2_PART_OFFSET	0x00080000
+*/
+
+#define CONFIG_JFFS2_DEV		"nand0"
+#define CONFIG_JFFS2_PART_SIZE		0x00200000
+#define CONFIG_JFFS2_PART_OFFSET	0x00000000
+
+/* mtdparts command line support */
+/* Note: fake mtd_id used, no linux mtd map file */
+/*
+#define CONFIG_JFFS2_CMDLINE
+#define MTDIDS_DEFAULT		"nor0=sixnet-0,nand0=sixnet-nand"
+#define MTDPARTS_DEFAULT	"mtdparts=sixnet-0:7680k@512k();sixnet-nand:2m(jffs2-nand)"
+*/
 
 /* NAND flash support */
 #define CONFIG_MTD_NAND_ECC_JFFS2
@@ -405,13 +436,18 @@
 
 #define CONFIG_RESET_ON_PANIC		/* reset if system panic() */
 
-/* to put environment in EEROM */
-#define	CFG_ENV_IS_IN_EEPROM	1
-#define CFG_ENV_OFFSET		0	/* Start right at beginning of NVRAM */
-#define CFG_ENV_SIZE		1024	/* Use only a part of it*/
-
-#if 1
-#define CONFIG_BOOT_RETRY_TIME	60	/* boot if no command in 60 seconds */
+#define CFG_ENV_IS_IN_FLASH
+#ifdef CFG_ENV_IS_IN_FLASH
+  /* environment is in FLASH */
+  #define CFG_ENV_ADDR		0xF8040000	/* AM29LV641 or AM29LV800BT */
+  #define CFG_ENV_ADDR_REDUND	0xF8050000	/* AM29LV641 or AM29LV800BT */
+  #define CFG_ENV_SECT_SIZE	0x00010000
+  #define CFG_ENV_SIZE		0x00002000
+#else
+  /* environment is in EEPROM */
+  #define CFG_ENV_IS_IN_EEPROM		1
+  #define CFG_ENV_OFFSET		0	/* at beginning of EEPROM */
+  #define CFG_ENV_SIZE		     1024	/* Use only a part of it*/
 #endif
 
 #if 1

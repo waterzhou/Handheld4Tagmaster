@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2001, 2002
+ * (C) Copyright 2001-2004
  * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
  *
  * See file CREDITS for list of people who contributed to this
@@ -31,24 +31,53 @@
 extern int gt6426x_eth_initialize(bd_t *bis);
 #endif
 
+extern int au1x00_enet_initialize(bd_t*);
+extern int dc21x4x_initialize(bd_t*);
 extern int e1000_initialize(bd_t*);
 extern int eepro100_initialize(bd_t*);
+extern int eth_3com_initialize(bd_t*);
+extern int fec_initialize(bd_t*);
+extern int inca_switch_initialize(bd_t*);
+extern int mpc5xxx_fec_initialize(bd_t*);
+extern int mpc8220_fec_initialize(bd_t*);
+extern int mv6436x_eth_initialize(bd_t *);
+extern int mv6446x_eth_initialize(bd_t *);
 extern int natsemi_initialize(bd_t*);
 extern int ns8382x_initialize(bd_t*);
-extern int dc21x4x_initialize(bd_t*);
-extern int eth_3com_initialize(bd_t*);
 extern int pcnet_initialize(bd_t*);
-extern int fec_initialize(bd_t*);
-extern int scc_initialize(bd_t*);
-extern int inca_switch_initialize(bd_t*);
-extern int ppc_4xx_eth_initialize(bd_t *);
 extern int plb2800_eth_initialize(bd_t*);
+extern int ppc_4xx_eth_initialize(bd_t *);
+extern int rtl8139_initialize(bd_t*);
+extern int rtl8169_initialize(bd_t*);
+extern int scc_initialize(bd_t*);
+extern int skge_initialize(bd_t*);
+extern int tsec_initialize(bd_t*, int, char *);
 
 static struct eth_device *eth_devices, *eth_current;
 
 struct eth_device *eth_get_dev(void)
 {
 	return eth_current;
+}
+
+struct eth_device *eth_get_dev_by_name(char *devname)
+{
+	struct eth_device *dev, *target_dev;
+
+	if (!eth_devices)
+		return NULL;
+
+	dev = eth_devices;
+	target_dev = NULL;
+	do {
+		if (strcmp(devname, dev->name) == 0) {
+			target_dev = dev;
+			break;
+		}
+		dev = dev->next;
+	} while (dev != eth_devices);
+
+	return target_dev;
 }
 
 int eth_get_dev_index (void)
@@ -79,6 +108,14 @@ int eth_register(struct eth_device* dev)
 
 	if (!eth_devices) {
 		eth_current = eth_devices = dev;
+#ifdef CONFIG_NET_MULTI
+		/* update current ethernet name */
+		{
+			char *act = getenv("ethact");
+			if (act == NULL || strcmp(act, eth_current->name) != 0)
+				setenv("ethact", eth_current->name);
+		}
+#endif
 	} else {
 		for (d=eth_devices; d->next!=eth_devices; d=d->next);
 		d->next = dev;
@@ -92,21 +129,72 @@ int eth_register(struct eth_device* dev)
 
 int eth_initialize(bd_t *bis)
 {
-	unsigned char enetvar[32], env_enetaddr[6];
+	char enetvar[32], env_enetaddr[6];
 	int i, eth_number = 0;
 	char *tmp, *end;
 
 	eth_devices = NULL;
 	eth_current = NULL;
 
-#if defined(CONFIG_405GP) || defined(CONFIG_440) || defined(CONFIG_405EP)
-        ppc_4xx_eth_initialize(bis);
+#ifdef CONFIG_DB64360
+	mv6436x_eth_initialize(bis);
+#endif
+#ifdef CONFIG_CPCI750
+	mv6436x_eth_initialize(bis);
+#endif
+#ifdef CONFIG_DB64460
+	mv6446x_eth_initialize(bis);
+#endif
+#if defined(CONFIG_4xx) && !defined(CONFIG_IOP480) && !defined(CONFIG_AP1000)
+	ppc_4xx_eth_initialize(bis);
 #endif
 #ifdef CONFIG_INCA_IP_SWITCH
 	inca_switch_initialize(bis);
 #endif
 #ifdef CONFIG_PLB2800_ETHER
 	plb2800_eth_initialize(bis);
+#endif
+#ifdef SCC_ENET
+	scc_initialize(bis);
+#endif
+#if defined(FEC_ENET) || defined(CONFIG_ETHER_ON_FCC)
+	fec_initialize(bis);
+#endif
+#if defined(CONFIG_MPC5xxx_FEC)
+	mpc5xxx_fec_initialize(bis);
+#endif
+#if defined(CONFIG_MPC8220_FEC)
+	mpc8220_fec_initialize(bis);
+#endif
+#if defined(CONFIG_SK98)
+	skge_initialize(bis);
+#endif
+#if defined(CONFIG_MPC85XX_TSEC1)
+	tsec_initialize(bis, 0, CONFIG_MPC85XX_TSEC1_NAME);
+#elif defined(CONFIG_MPC83XX_TSEC1)
+	tsec_initialize(bis, 0, CONFIG_MPC83XX_TSEC1_NAME);
+#endif
+#if defined(CONFIG_MPC85XX_TSEC2)
+	tsec_initialize(bis, 1, CONFIG_MPC85XX_TSEC2_NAME);
+#elif defined(CONFIG_MPC83XX_TSEC2)
+	tsec_initialize(bis, 1, CONFIG_MPC83XX_TSEC2_NAME);
+#endif
+#if defined(CONFIG_MPC85XX_FEC)
+	tsec_initialize(bis, 2, CONFIG_MPC85XX_FEC_NAME);
+#else
+#    if defined(CONFIG_MPC85XX_TSEC3)
+	tsec_initialize(bis, 2, CONFIG_MPC85XX_TSEC3_NAME);
+#    elif defined(CONFIG_MPC83XX_TSEC3)
+	tsec_initialize(bis, 2, CONFIG_MPC83XX_TSEC3_NAME);
+#    endif
+#    if defined(CONFIG_MPC85XX_TSEC4)
+	tsec_initialize(bis, 3, CONFIG_MPC85XX_TSEC4_NAME);
+#    elif defined(CONFIG_MPC83XX_TSEC4)
+	tsec_initialize(bis, 3, CONFIG_MPC83XX_TSEC4_NAME);
+#    endif
+#endif
+#if defined(CONFIG_AU1X00)
+	au1x00_enet_initialize(bis);
 #endif
 #ifdef CONFIG_E1000
 	e1000_initialize(bis);
@@ -132,11 +220,11 @@ int eth_initialize(bd_t *bis)
 #ifdef CONFIG_NS8382X
 	ns8382x_initialize(bis);
 #endif
-#ifdef SCC_ENET
-	scc_initialize(bis);
+#if defined(CONFIG_RTL8139)
+	rtl8139_initialize(bis);
 #endif
-#if defined(FEC_ENET) || defined(CONFIG_ETHER_ON_FCC)
-	fec_initialize(bis);
+#if defined(CONFIG_RTL8169)
+	rtl8169_initialize(bis);
 #endif
 
 	if (!eth_devices) {
@@ -169,13 +257,14 @@ int eth_initialize(bd_t *bis)
 				if (memcmp(dev->enetaddr, "\0\0\0\0\0\0", 6) &&
 				    memcmp(dev->enetaddr, env_enetaddr, 6))
 				{
-					printf("\nWarning: %s MAC addresses don't match:\n", dev->name);
-					printf("Address in SROM is         "
+					printf ("\nWarning: %s MAC addresses don't match:\n",
+						dev->name);
+					printf ("Address in SROM is         "
 					       "%02X:%02X:%02X:%02X:%02X:%02X\n",
 					       dev->enetaddr[0], dev->enetaddr[1],
 					       dev->enetaddr[2], dev->enetaddr[3],
 					       dev->enetaddr[4], dev->enetaddr[5]);
-					printf("Address in environment is  "
+					printf ("Address in environment is  "
 					       "%02X:%02X:%02X:%02X:%02X:%02X\n",
 					       env_enetaddr[0], env_enetaddr[1],
 					       env_enetaddr[2], env_enetaddr[3],
@@ -189,6 +278,16 @@ int eth_initialize(bd_t *bis)
 			dev = dev->next;
 		} while(dev != eth_devices);
 
+#ifdef CONFIG_NET_MULTI
+		/* update current ethernet name */
+		if (eth_current) {
+			char *act = getenv("ethact");
+			if (act == NULL || strcmp(act, eth_current->name) != 0)
+				setenv("ethact", eth_current->name);
+		} else
+			setenv("ethact", NULL);
+#endif
+
 		putc ('\n');
 	}
 
@@ -201,9 +300,8 @@ void eth_set_enetaddr(int num, char *addr) {
 	char *end;
 	int i;
 
-#ifdef DEBUG
-	printf("eth_set_enetaddr(num=%d, addr=%s)\n", num, addr);
-#endif
+	debug ("eth_set_enetaddr(num=%d, addr=%s)\n", num, addr);
+
 	if (!eth_devices)
 		return;
 
@@ -221,14 +319,12 @@ void eth_set_enetaddr(int num, char *addr) {
 			return;
 	}
 
-#ifdef DEBUG
-	printf("Setting new HW address on %s\n", dev->name);
-	printf("New Address is             "
-	       "%02X:%02X:%02X:%02X:%02X:%02X\n",
-	       dev->enetaddr[0], dev->enetaddr[1],
-	       dev->enetaddr[2], dev->enetaddr[3],
-	       dev->enetaddr[4], dev->enetaddr[5]);
-#endif
+	debug ( "Setting new HW address on %s\n"
+		"New Address is             %02X:%02X:%02X:%02X:%02X:%02X\n",
+		dev->name,
+		enetaddr[0], enetaddr[1],
+		enetaddr[2], enetaddr[3],
+		enetaddr[4], enetaddr[5]);
 
 	memcpy(dev->enetaddr, enetaddr, 6);
 }
@@ -242,19 +338,14 @@ int eth_init(bd_t *bis)
 
 	old_current = eth_current;
 	do {
-#ifdef DEBUG
-		printf("Trying %s\n", eth_current->name);
-#endif
+		debug ("Trying %s\n", eth_current->name);
 
 		if (eth_current->init(eth_current, bis)) {
 			eth_current->state = ETH_STATE_ACTIVE;
 
 			return 1;
 		}
-
-#ifdef DEBUG
-		puts ("FAIL\n");
-#endif
+		debug  ("FAIL\n");
 
 		eth_try_another(0);
 	} while (old_current != eth_current);
@@ -295,17 +386,75 @@ void eth_try_another(int first_restart)
 	if (!eth_current)
 		return;
 
-	if (first_restart)
-	{
+	if (first_restart) {
 		first_failed = eth_current;
 	}
 
 	eth_current = eth_current->next;
 
-	if (first_failed == eth_current)
+#ifdef CONFIG_NET_MULTI
+	/* update current ethernet name */
 	{
+		char *act = getenv("ethact");
+		if (act == NULL || strcmp(act, eth_current->name) != 0)
+			setenv("ethact", eth_current->name);
+	}
+#endif
+
+	if (first_failed == eth_current) {
 		NetRestartWrap = 1;
 	}
 }
 
+#ifdef CONFIG_NET_MULTI
+void eth_set_current(void)
+{
+	char *act;
+	struct eth_device* old_current;
+
+	if (!eth_current)	/* XXX no current */
+		return;
+
+	act = getenv("ethact");
+	if (act != NULL) {
+		old_current = eth_current;
+		do {
+			if (strcmp(eth_current->name, act) == 0)
+				return;
+			eth_current = eth_current->next;
+		} while (old_current != eth_current);
+	}
+
+	setenv("ethact", eth_current->name);
+}
+#endif
+
+char *eth_get_name (void)
+{
+	return (eth_current ? eth_current->name : "unknown");
+}
+#elif (CONFIG_COMMANDS & CFG_CMD_NET) && !defined(CONFIG_NET_MULTI)
+
+extern int at91rm9200_miiphy_initialize(bd_t *bis);
+extern int emac4xx_miiphy_initialize(bd_t *bis);
+extern int mcf52x2_miiphy_initialize(bd_t *bis);
+extern int ns7520_miiphy_initialize(bd_t *bis);
+
+int eth_initialize(bd_t *bis)
+{
+#if defined(CONFIG_AT91RM9200)
+	at91rm9200_miiphy_initialize(bis);
+#endif
+#if defined(CONFIG_4xx) && !defined(CONFIG_IOP480) \
+	&& !defined(CONFIG_AP1000) && !defined(CONFIG_405)
+	emac4xx_miiphy_initialize(bis);
+#endif
+#if defined(CONFIG_MCF52x2)
+	mcf52x2_miiphy_initialize(bis);
+#endif
+#if defined(CONFIG_NETARM)
+	ns7520_miiphy_initialize(bis);
+#endif
+	return 0;
+}
 #endif

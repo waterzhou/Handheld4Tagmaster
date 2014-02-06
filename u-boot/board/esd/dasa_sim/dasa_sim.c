@@ -137,7 +137,7 @@ static int fpgaBoot (void)
 }
 
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	/*
 	 * Init pci regs
@@ -162,7 +162,7 @@ int checkboard (void)
 {
 	int index;
 	int len;
-	unsigned char str[64];
+	char str[64];
 	int i = getenv_r ("serial#", str, sizeof (str));
 	int fpga;
 	unsigned short val;

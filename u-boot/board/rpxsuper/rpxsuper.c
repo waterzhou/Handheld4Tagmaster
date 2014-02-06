@@ -42,7 +42,7 @@ const iop_conf_t iop_conf_tab[4][32] = {
 
     /* Port A configuration */
     {	/*	      conf ppar psor pdir podr pdat */
-        /* PA31 */ {   1,   0,   0,   0,   0,   0   }, /* FCC1 *ATMTXEN */
+	/* PA31 */ {   1,   0,   0,   0,   0,   0   }, /* FCC1 *ATMTXEN */
 	/* PA30 */ {   1,   0,   0,   0,   0,   0   }, /* FCC1 ATMTCA   */
 	/* PA29 */ {   1,   0,   0,   0,   0,   0   }, /* FCC1 ATMTSOC  */
 	/* PA28 */ {   1,   0,   0,   0,   0,   0   }, /* FCC1 *ATMRXEN */
@@ -191,7 +191,7 @@ const iop_conf_t iop_conf_tab[4][32] = {
  * Setup CS4 to enable the Board Control/Status registers.
  * Otherwise the smcs won't work.
 */
-int board_pre_init (void)
+int board_early_init_f (void)
 {
     volatile t_rpx_regs *regs = (t_rpx_regs*)CFG_REGS_BASE;
     volatile immap_t *immap  = (immap_t *)CFG_IMMR;
@@ -271,7 +271,7 @@ long int initdram(int board_type)
 
     memctl->memc_psdmr = psdmr | PSDMR_OP_CBRR;
     for (i = 0; i < 8; i++)
-        *ramaddr = c;
+	*ramaddr = c;
 
     memctl->memc_psdmr = psdmr | PSDMR_OP_MRW;
     *ramaddr = c;

@@ -24,9 +24,9 @@
 /* #define DEBUG */
 
 #include <common.h>
-#include <cmd_bsp.h>
 #include <malloc.h>
 #include <s3c2400.h>
+#include <command.h>
 
 /* ------------------------------------------------------------------------- */
 
@@ -57,7 +57,7 @@ static void udelay_no_timer (int usec)
 	int i;
 	int delay = usec * 3;
 
-	for (i = 0; i < delay; i ++) gd->bd->bi_arch_number = 145;
+	for (i = 0; i < delay; i ++) gd->bd->bi_arch_number = MACH_TYPE_TRAB;
 }
 #endif /* CONFIG_MODEM_SUPPORT */
 
@@ -105,10 +105,11 @@ int board_init ()
 	gpio->PGUP  = 0x0;
 	gpio->OPENCR= 0x0;
 
-	/* arch number of SAMSUNG-Board */
-	/* MACH_TYPE_SMDK2400 */
-	/* XXX this isn't really correct, but keep it for now */
-	gd->bd->bi_arch_number = 145;
+	/* suppress flicker of the VFDs */
+	gpio->MISCCR = 0x40;
+	gpio->PFCON |= (2<<12);
+
+	gd->bd->bi_arch_number = MACH_TYPE_TRAB;
 
 	/* adress of boot parameters */
 	gd->bd->bi_boot_params = 0x0c000100;
@@ -129,6 +130,11 @@ int board_init ()
 		do_mdm_init = 1;
 	}
 #endif	/* CONFIG_MODEM_SUPPORT */
+
+#ifdef CONFIG_DRIVER_S3C24X0_I2C
+	/* Configure I/O ports PG5 und PG6 for I2C */
+ 	gpio->PGCON = (gpio->PGCON & 0x003c00) | 0x003c00;
+#endif /* CONFIG_DRIVER_S3C24X0_I2C */
 
 	return 0;
 }
@@ -159,6 +165,12 @@ int misc_init_r (void)
 	uchar keybd_env[KEYBD_KEY_NUM + 1];
 	uchar *str;
 	int i;
+
+#ifdef CONFIG_AUTO_UPDATE
+	extern int do_auto_update(void);
+	/* this has priority over all else */
+	do_auto_update();
+#endif
 
 	for (i = 0; i < KEYBD_KEY_NUM; ++i) {
 		keybd_env[i] = '0' + ((kbd_data >> i) & 1);
@@ -297,6 +309,12 @@ int do_kbd (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 	setenv ("keybd", keybd_env);
 	return 0;
 }
+
+U_BOOT_CMD(
+ 	kbd,	1,	1,	do_kbd,
+ 	"kbd     - read keyboard status\n",
+ 	NULL
+);
 
 #ifdef CONFIG_MODEM_SUPPORT
 static int key_pressed(void)

@@ -37,4 +37,10 @@ int do_mmc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return 0;
 }
 
+U_BOOT_CMD(
+	mmcinit,	1,	0,	do_mmc,
+	"mmcinit - init mmc card\n",
+	NULL
+);
+
 #endif	/* CFG_CMD_MMC */

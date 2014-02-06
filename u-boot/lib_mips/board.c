@@ -25,7 +25,6 @@
 #include <command.h>
 #include <malloc.h>
 #include <devices.h>
-#include <syscall.h>
 #include <version.h>
 #include <net.h>
 #include <environment.h>
@@ -41,6 +40,8 @@
 #undef DEBUG
 
 extern int timer_init(void);
+
+extern int incaip_set_cpuclk(void);
 
 extern ulong uboot_end_data;
 extern ulong uboot_end;
@@ -164,6 +165,9 @@ typedef int (init_fnc_t) (void);
 init_fnc_t *init_sequence[] = {
 	timer_init,
 	env_init,		/* initialize environment */
+#ifdef CONFIG_INCA_IP
+	incaip_set_cpuclk,	/* set cpu clock according to environment variable */
+#endif
 	init_baudrate,		/* initialze baudrate settings */
 	serial_init,		/* serial communications setup */
 	console_init_f,
@@ -186,10 +190,13 @@ void board_init_f(ulong bootflag)
 	void copy_code (ulong);
 #endif
 
-		/* Pointer is writable since we allocated a register for it.
-		 */
+	/* Pointer is writable since we allocated a register for it.
+	 */
 	gd = &gd_data;
-	memset (gd, 0, sizeof (gd_t));
+	/* compiler optimization barrier needed for GCC >= 3.4 */
+	__asm__ __volatile__("": : :"memory");
+
+	memset ((void *)gd, 0, sizeof (gd_t));
 
 	for (init_fnc_ptr = init_sequence; *init_fnc_ptr; ++init_fnc_ptr) {
 		if ((*init_fnc_ptr)() != 0) {
@@ -203,33 +210,27 @@ void board_init_f(ulong bootflag)
 	 */
 	addr = CFG_SDRAM_BASE + gd->ram_size;
 
-		/* We can reserve some RAM "on top" here.
-		 */
+	/* We can reserve some RAM "on top" here.
+	 */
 
-		/* round down to next 4 kB limit.
-		 */
+	/* round down to next 4 kB limit.
+	 */
 	addr &= ~(4096 - 1);
-#ifdef DEBUG
-	printf ("Top of RAM usable for U-Boot at: %08lx\n", addr);
-#endif
-	 
-		/* Reserve memory for U-Boot code, data & bss
-		 * round down to next 16 kB limit
-		 */
+	debug ("Top of RAM usable for U-Boot at: %08lx\n", addr);
+
+	/* Reserve memory for U-Boot code, data & bss
+	 * round down to next 16 kB limit
+	 */
 	addr -= len;
 	addr &= ~(16 * 1024 - 1);
 
-#ifdef DEBUG
-	printf ("Reserving %ldk for U-Boot at: %08lx\n", len >> 10, addr);
-#endif
+	debug ("Reserving %ldk for U-Boot at: %08lx\n", len >> 10, addr);
 
-	 	/* Reserve memory for malloc() arena.
-		 */
+	 /* Reserve memory for malloc() arena.
+	 */
 	addr_sp = addr - TOTAL_MALLOC_LEN;
-#ifdef DEBUG
-	printf ("Reserving %dk for malloc() at: %08lx\n",
+	debug ("Reserving %dk for malloc() at: %08lx\n",
 			TOTAL_MALLOC_LEN >> 10, addr_sp);
-#endif
 
 	/*
 	 * (permanently) allocate a Board Info struct
@@ -238,25 +239,20 @@ void board_init_f(ulong bootflag)
 	addr_sp -= sizeof(bd_t);
 	bd = (bd_t *)addr_sp;
 	gd->bd = bd;
-#ifdef DEBUG
-	printf ("Reserving %d Bytes for Board Info at: %08lx\n",
+	debug ("Reserving %d Bytes for Board Info at: %08lx\n",
 			sizeof(bd_t), addr_sp);
-#endif
+
 	addr_sp -= sizeof(gd_t);
 	id = (gd_t *)addr_sp;
-#ifdef DEBUG
-	printf ("Reserving %d Bytes for Global Data at: %08lx\n",
+	debug ("Reserving %d Bytes for Global Data at: %08lx\n",
 			sizeof (gd_t), addr_sp);
-#endif
 
-	 	/* Reserve memory for boot params.
-		 */
+ 	/* Reserve memory for boot params.
+	 */
 	addr_sp -= CFG_BOOTPARAMS_LEN;
 	bd->bi_boot_params = addr_sp;
-#ifdef DEBUG
-	printf ("Reserving %dk for malloc() at: %08lx\n",
+	debug ("Reserving %dk for boot params() at: %08lx\n",
 			CFG_BOOTPARAMS_LEN >> 10, addr_sp);
-#endif
 
 	/*
 	 * Finally, we set up a new (bigger) stack.
@@ -268,9 +264,8 @@ void board_init_f(ulong bootflag)
 	addr_sp &= ~0xF;
 	*((ulong *) addr_sp)-- = 0;
 	*((ulong *) addr_sp)-- = 0;
-#ifdef DEBUG
-	printf ("Stack Pointer at: %08lx\n", addr_sp);
-#endif
+	debug ("Stack Pointer at: %08lx\n", addr_sp);
+
 	/*
 	 * Save local variables to board info struct
 	 */
@@ -278,7 +273,7 @@ void board_init_f(ulong bootflag)
 	bd->bi_memsize	= gd->ram_size;		/* size  of  DRAM memory in bytes */
 	bd->bi_baudrate	= gd->baudrate;		/* Console Baudrate */
 
-	memcpy (id, gd, sizeof (gd_t));
+	memcpy (id, (void *)gd, sizeof (gd_t));
 
 	/* On the purple board we copy the code in a special way
 	 * in order to solve flash problems
@@ -304,7 +299,6 @@ void board_init_f(ulong bootflag)
 void board_init_r (gd_t *id, ulong dest_addr)
 {
 	DECLARE_GLOBAL_DATA_PTR;
-
 	cmd_tbl_t *cmdtp;
 	ulong size;
 	extern void malloc_bin_reloc (void);
@@ -318,9 +312,7 @@ void board_init_r (gd_t *id, ulong dest_addr)
 	gd = id;
 	gd->flags |= GD_FLG_RELOC;	/* tell others: relocation done */
 
-#ifdef DEBUG
-	printf ("Now running in RAM - U-Boot at: %08lx\n", dest_addr);
-#endif
+	debug ("Now running in RAM - U-Boot at: %08lx\n", dest_addr);
 
 	gd->reloc_off = dest_addr - CFG_MONITOR_BASE;
 
@@ -329,7 +321,7 @@ void board_init_r (gd_t *id, ulong dest_addr)
 	/*
 	 * We have to relocate the command table manually
 	 */
-	for (cmdtp = &cmd_tbl[0]; cmdtp->name; cmdtp++) {
+ 	for (cmdtp = &__u_boot_cmd_start; cmdtp !=  &__u_boot_cmd_end; cmdtp++) {
 		ulong addr;
 
 		addr = (ulong) (cmdtp->cmd) + gd->reloc_off;
@@ -358,7 +350,7 @@ void board_init_r (gd_t *id, ulong dest_addr)
 #ifndef CFG_ENV_IS_NOWHERE
 	env_name_spec += gd->reloc_off;
 #endif
-	
+
 	/* configure available FLASH banks */
 	size = flash_init();
 	display_flash_config (size);
@@ -390,12 +382,18 @@ void board_init_r (gd_t *id, ulong dest_addr)
 	/* IP Address */
 	bd->bi_ip_addr = getenv_IPaddr("ipaddr");
 
+#if defined(CONFIG_PCI)
+	/*
+	 * Do pci configuration
+	 */
+	pci_init();
+#endif
+
 /** leave this here (after malloc(), environment and PCI are working) **/
 	/* Initialize devices */
 	devices_init ();
 
-	/* allocate syscalls table (console_init_r will fill it in */
-	syscall_tbl = (void **) malloc (NR_SYSCALLS * sizeof (void *));
+	jumptable_init ();
 
 	/* Initialize the console (after the relocation and devices init) */
 	console_init_r ();
@@ -416,8 +414,10 @@ void board_init_r (gd_t *id, ulong dest_addr)
 	misc_init_r ();
 #endif
 
-#if (CONFIG_COMMANDS & CFG_CMD_NET) && defined(CONFIG_NET_MULTI)
+#if (CONFIG_COMMANDS & CFG_CMD_NET)
+#if defined(CONFIG_NET_MULTI)
 	puts ("Net:   ");
+#endif
 	eth_initialize(gd->bd);
 #endif
 
@@ -434,4 +434,3 @@ void hang (void)
 	puts ("### ERROR ### Please RESET the board ###\n");
 	for (;;);
 }
-

@@ -21,7 +21,12 @@
  * MA 02111-1307 USA
  */
 
+#ifndef __ASSEMBLY__
+#define	__ASSEMBLY__			/* Dirty trick to get only #defines	*/
+#endif
+#define	__ASM_STUB_PROCESSOR_H__	/* don't include asm/processor.		*/
 #include <config.h>
+#undef	__ASSEMBLY__
 #include <environment.h>
 
 /*
@@ -53,7 +58,8 @@
      defined(CONFIG_R360MPI)	|| \
      defined(CONFIG_TQM8xxL)	|| \
      defined(CONFIG_RRVISION)	|| \
-     defined(CONFIG_TRAB)   )	&& \
+     defined(CONFIG_TRAB)   	|| \
+     defined(CONFIG_PPCHAMELEONEVB) )	&& \
      defined(ENV_CRC) /* Environment embedded in U-Boot .ppcenv section */
 /* XXX - This only works with GNU C */
 #  define __PPCENV__ __attribute__ ((section(".ppcenv")))
@@ -128,6 +134,9 @@ env_t environment __PPCENV__ = {
 #endif
 #ifdef	CONFIG_ETH2ADDR
 	"eth2addr="	MK_STR(CONFIG_ETH2ADDR)		"\0"
+#endif
+#ifdef	CONFIG_ETH3ADDR
+	"eth3addr="	MK_STR(CONFIG_ETH3ADDR)		"\0"
 #endif
 #ifdef	CONFIG_ETHPRIME
 	"ethprime="	CONFIG_ETHPRIME			"\0"

@@ -69,6 +69,7 @@
 #include <miiphy.h>
 #include "../common/common_util.h"
 #include <i2c.h>
+#include <rtc.h>
 extern block_dev_desc_t * scsi_get_dev(int dev);
 extern block_dev_desc_t * ide_get_dev(int dev);
 
@@ -110,14 +111,14 @@ typedef struct {
 } sdram_t;
 #if defined(CONFIG_MIP405T)
 const sdram_t sdram_table[] = {
-	{ 0x01,	/* MIP405T Rev A, 64MByte -1 Board */
+	{ 0x0F,	/* MIP405T Rev A, 64MByte -1 Board */
 		3,	/* Case Latenty = 3 */
 		3,	/* trp 20ns / 7.5 ns datain[27] */
 		3,	/* trcd 20ns /7.5 ns (datain[29]) */
 		6,	/* tras 44ns /7.5 ns  (datain[30]) */
 		4,	/* tcpt 44 - 20ns = 24ns */
-		3,	/* Address Mode = 3 (13x9x4) */
-		4,	/* size value (64MByte) */
+		2,	/* Address Mode = 2 (12x9x4) */
+		3,	/* size value (32MByte) */
 		0},	/* ECC disabled */
 	{ 0xff, /* terminator */
 	  0xff,
@@ -158,6 +159,15 @@ const sdram_t sdram_table[] = {
 		5,	/* size value */
 		1},	/* ECC enabled */
 	{ 0x1f,	/* Rev B, 128MByte -3 Board */
+		3,	/* Case Latenty = 3 */
+		3,	/* trp 20ns / 7.5 ns datain[27] */
+		3,	/* trcd 20ns /7.5 ns (datain[29]) */
+		6,	/* tras 44ns /7.5 ns  (datain[30]) */
+		4,	/* tcpt 44 - 20ns = 24ns */
+		3,	/* Address Mode = 3 */
+		5,	/* size value */
+		1},	/* ECC enabled */
+	{ 0x2f,	/* Rev C, 128MByte -3 Board */
 		3,	/* Case Latenty = 3 */
 		3,	/* trp 20ns / 7.5 ns datain[27] */
 		3,	/* trcd 20ns /7.5 ns (datain[29]) */
@@ -281,11 +291,6 @@ int init_sdram (void)
 	if((bc & 0x80)==0x80)
 		SDRAM_err ("U-Boot configured for a MIP405 not for a MIP405T!!!\n");
 #endif
-#if !defined(CONFIG_MIP405T)
-	/* since the ECC initialisation needs some time,
-	 * we show that we're alive
-	 */
-	serial_puts ("\nInitializing SDRAM, Please stand by");
 	/* set-up the chipselect machine */
 	mtdcr (ebccfga, pb0cr);		/* get cs0 config reg */
 	tmp = mfdcr (ebccfgd);
@@ -311,7 +316,6 @@ int init_sdram (void)
 	mtdcr (ebccfgd, UART1_AP);
 	mtdcr (ebccfga, pb3cr);
 	mtdcr (ebccfgd, UART1_CR);
-#endif
 	bc = in8 (PLD_BOARD_CFG_REG);
 #ifdef SDRAM_DEBUG
 	serial_puts ("\nstart SDRAM Setup\n");
@@ -333,6 +337,11 @@ int init_sdram (void)
 	write_hex (i);
 	serial_puts (" \n");
 #endif
+	/* since the ECC initialisation needs some time,
+	 * we show that we're alive
+	 */
+	if (sdram_table[i].ecc)
+		serial_puts ("\nInitializing SDRAM, Please stand by");
 	cal_val = sdram_table[i].cal - 1;	/* Cas Latency */
 	trp_clocks = sdram_table[i].trp;	/* 20ns / 7.5 ns datain[27] */
 	trcd_clocks = sdram_table[i].trcd;	/* 20ns /7.5 ns (datain[29]) */
@@ -460,7 +469,7 @@ int init_sdram (void)
 	return (0);
 }
 
-int board_pre_init (void)
+int board_early_init_f (void)
 {
 	init_sdram ();
 
@@ -511,7 +520,6 @@ unsigned short get_pld_parvers (void)
 }
 
 
-
 void user_led0 (unsigned char on)
 {
 	if (on)
@@ -551,7 +559,8 @@ void get_pcbrev_var(unsigned char *pcbrev, unsigned char *var)
 		tmp >>= 1;
 	}
 	rc++;
-	if((((bc>>4) & 0xf)==0x1) /* Rev B PCB with */
+	if((  (((bc>>4) & 0xf)==0x2) /* Rev C PCB or */
+	   || (((bc>>4) & 0xf)==0x1)) /* Rev B PCB with */
 		&& (rc==0x1))     /* Population Option 1 is a -3 */
 		rc=3;
 	*pcbrev=(bc >> 4) & 0xf;
@@ -560,7 +569,7 @@ void get_pcbrev_var(unsigned char *pcbrev, unsigned char *var)
 	unsigned char bc;
 	bc = in8 (PLD_BOARD_CFG_REG);
 	*pcbrev=(bc >> 4) & 0xf;
-	*var=bc & 0xf ;
+	*var=16-(bc & 0xf);
 #endif
 }
 
@@ -576,15 +585,15 @@ void get_pcbrev_var(unsigned char *pcbrev, unsigned char *var)
 
 int checkboard (void)
 {
-	unsigned char s[50];
+	char s[50];
 	unsigned char bc, var;
 	int i;
 	backup_t *b = (backup_t *) s;
 
 	puts ("Board: ");
 	get_pcbrev_var(&bc,&var);
-	i = getenv_r ("serial#", s, 32);
-	if ((i == 0) || strncmp (s, BOARD_NAME,sizeof(BOARD_NAME))) {
+	i = getenv_r ("serial#", (char *)s, 32);
+	if ((i == 0) || strncmp ((char *)s, BOARD_NAME,sizeof(BOARD_NAME))) {
 		get_backup_values (b);
 		if (strncmp (b->signature, "MPL\0", 4) != 0) {
 			puts ("### No HW ID - assuming " BOARD_NAME);
@@ -655,8 +664,6 @@ long int initdram (int board_type)
 
 /* ------------------------------------------------------------------------- */
 
-extern int mem_test (unsigned long start, unsigned long ramsize,
-					 int quiet);
 
 static int test_dram (unsigned long ramsize)
 {
@@ -667,8 +674,22 @@ static int test_dram (unsigned long ramsize)
 	return (1);
 }
 
+/* used to check if the time in RTC is valid */
+static unsigned long start;
+static struct rtc_time tm;
+extern flash_info_t flash_info[];	/* info for FLASH chips */
+
 int misc_init_r (void)
 {
+	DECLARE_GLOBAL_DATA_PTR;
+	/* adjust flash start and size as well as the offset */
+	gd->bd->bi_flashstart=0-flash_info[0].size;
+	gd->bd->bi_flashsize=flash_info[0].size-CFG_MONITOR_LEN;
+	gd->bd->bi_flashoffset=0;
+
+	/* check, if RTC is running */
+	rtc_get (&tm);
+	start=get_timer(0);
 	/* if MIP405 has booted from PCI, reset CCR0[24] as described in errata PCI_18 */
 	if (mfdcr(strap) & PSR_ROM_LOC)
 	       mtspr(ccr0, (mfspr(ccr0) & ~0x80));
@@ -688,23 +709,58 @@ void print_mip405_rev (void)
 			var, pcbrev + 'A', part & 0x7F, vers);
 }
 
+
+#ifdef CONFIG_POST
+/*
+ * Returns 1 if keys pressed to start the power-on long-running tests
+ * Called from board_init_f().
+ */
+int post_hotkeys_pressed(void)
+{
+	return 0;	/* No hotkeys supported */
+}
+#endif
+
 extern void mem_test_reloc(void);
+extern int mk_date (char *, struct rtc_time *);
 
 int last_stage_init (void)
 {
+	unsigned long stop;
+	struct rtc_time newtm;
+	char *s;
 	mem_test_reloc();
 	/* write correct LED configuration */
-	if (miiphy_write (0x1, 0x14, 0x2402) != 0) {
+	if (miiphy_write("ppc_4xx_eth0", 0x1, 0x14, 0x2402) != 0) {
 		printf ("Error writing to the PHY\n");
 	}
 	/* since LED/CFG2 is not connected on the -2,
 	 * write to correct capability information */
-	if (miiphy_write (0x1, 0x4, 0x01E1) != 0) {
+	if (miiphy_write("ppc_4xx_eth0", 0x1, 0x4, 0x01E1) != 0) {
 		printf ("Error writing to the PHY\n");
 	}
 	print_mip405_rev ();
 	show_stdio_dev ();
 	check_env ();
+	/* check if RTC time is valid */
+	stop=get_timer(start);
+	while(stop<1200) {   /* we wait 1.2 sec to check if the RTC is running */
+		udelay(1000);
+		stop=get_timer(start);
+	}
+	rtc_get (&newtm);
+	if(tm.tm_sec==newtm.tm_sec) {
+		s=getenv("defaultdate");
+		if(!s)
+			mk_date ("010112001970", &newtm);
+		else
+			if(mk_date (s, &newtm)!=0) {
+				printf("RTC: Bad date format in defaultdate\n");
+				return 0;
+			}
+		rtc_reset ();
+		rtc_set(&newtm);
+	}
 	return 0;
 }
 
@@ -746,10 +802,10 @@ void print_mip405_info (void)
 	printf ("SER1 uses handshakes %s\n",
 			(ext & 0x80) ? "DTR/DSR" : "RTS/CTS");
 #else
-	printf ("User Config Switch %d %d %d %d %d %d %d %d %d\n",
+	printf ("User Config Switch %d %d %d %d %d %d %d %d\n",
 			(ext) & 0x1, (ext >> 1) & 0x1, (ext >> 2) & 0x1,
 			(ext >> 3) & 0x1, (ext >> 4) & 0x1, (ext >> 5) & 0x1,
-			(ext >> 6) & 0x1,(ext >> 7) & 0x1,(ext >> 8) & 0x1);
+			(ext >> 6) & 0x1,(ext >> 7) & 0x1);
 #endif
 	printf ("IDE Reset %s\n", (ext & 0x01) ? "asserted" : "not asserted");
 	printf ("IRQs:\n");
@@ -762,5 +818,3 @@ void print_mip405_info (void)
 	printf ("  PIIX INIT: %s\n", (irq_reg & 0x8) ? "inactive" : "active");
 	printf ("  PIIX NMI:  %s\n", (irq_reg & 0x4) ? "inactive" : "active");
 }
-
-

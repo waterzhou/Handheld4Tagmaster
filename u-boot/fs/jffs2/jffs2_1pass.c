@@ -1,4 +1,3 @@
-/* vi: set sw=4 ts=4: */
 /*
 -------------------------------------------------------------------------
  * Filename:      jffs2.c
@@ -107,8 +106,8 @@
  *
  * You still should have paper bags at hand :-(. The code lacks more or less
  * any comment, and is still arcane and difficult to read in places. As this
- * is incompatible with any new code from the jffs2 maintainers anyway, it
- * should probably be dumped and replaced by something like jffs2reader!
+ * might be incompatible with any new code from the jffs2 maintainers anyway,
+ * it should probably be dumped and replaced by something like jffs2reader!
  */
 
 
@@ -141,6 +140,192 @@
 # define DEBUGF(fmt,args...)
 #endif
 
+/* keeps pointer to currentlu processed partition */
+static struct part_info *current_part;
+
+#if defined(CONFIG_JFFS2_NAND) && (CONFIG_COMMANDS & CFG_CMD_NAND)
+/*
+ * Support for jffs2 on top of NAND-flash
+ *
+ * NAND memory isn't mapped in processor's address space,
+ * so data should be fetched from flash before
+ * being processed. This is exactly what functions declared
+ * here do.
+ *
+ */
+
+/* this one defined in cmd_nand.c */
+int read_jffs2_nand(size_t start, size_t len,
+		    size_t * retlen, u_char * buf, int nanddev);
+
+#define NAND_PAGE_SIZE 512
+#define NAND_PAGE_SHIFT 9
+#define NAND_PAGE_MASK (~(NAND_PAGE_SIZE-1))
+
+#ifndef NAND_CACHE_PAGES
+#define NAND_CACHE_PAGES 16
+#endif
+#define NAND_CACHE_SIZE (NAND_CACHE_PAGES*NAND_PAGE_SIZE)
+
+static u8* nand_cache = NULL;
+static u32 nand_cache_off = (u32)-1;
+
+static int read_nand_cached(u32 off, u32 size, u_char *buf)
+{
+	struct mtdids *id = current_part->dev->id;
+	u32 bytes_read = 0;
+	size_t retlen;
+	int cpy_bytes;
+
+	while (bytes_read < size) {
+		if ((off + bytes_read < nand_cache_off) ||
+		    (off + bytes_read >= nand_cache_off+NAND_CACHE_SIZE)) {
+			nand_cache_off = (off + bytes_read) & NAND_PAGE_MASK;
+			if (!nand_cache) {
+				/* This memory never gets freed but 'cause
+				   it's a bootloader, nobody cares */
+				nand_cache = malloc(NAND_CACHE_SIZE);
+				if (!nand_cache) {
+					printf("read_nand_cached: can't alloc cache size %d bytes\n",
+					       NAND_CACHE_SIZE);
+					return -1;
+				}
+			}
+			if (read_jffs2_nand(nand_cache_off, NAND_CACHE_SIZE,
+						&retlen, nand_cache, id->num) < 0 ||
+					retlen != NAND_CACHE_SIZE) {
+				printf("read_nand_cached: error reading nand off %#x size %d bytes\n",
+						nand_cache_off, NAND_CACHE_SIZE);
+				return -1;
+			}
+		}
+		cpy_bytes = nand_cache_off + NAND_CACHE_SIZE - (off + bytes_read);
+		if (cpy_bytes > size - bytes_read)
+			cpy_bytes = size - bytes_read;
+		memcpy(buf + bytes_read,
+		       nand_cache + off + bytes_read - nand_cache_off,
+		       cpy_bytes);
+		bytes_read += cpy_bytes;
+	}
+	return bytes_read;
+}
+
+static void *get_fl_mem_nand(u32 off, u32 size, void *ext_buf)
+{
+	u_char *buf = ext_buf ? (u_char*)ext_buf : (u_char*)malloc(size);
+
+	if (NULL == buf) {
+		printf("get_fl_mem_nand: can't alloc %d bytes\n", size);
+		return NULL;
+	}
+	if (read_nand_cached(off, size, buf) < 0) {
+		if (!ext_buf)
+			free(buf);
+		return NULL;
+	}
+
+	return buf;
+}
+
+static void *get_node_mem_nand(u32 off)
+{
+	struct jffs2_unknown_node node;
+	void *ret = NULL;
+
+	if (NULL == get_fl_mem_nand(off, sizeof(node), &node))
+		return NULL;
+
+	if (!(ret = get_fl_mem_nand(off, node.magic ==
+			       JFFS2_MAGIC_BITMASK ? node.totlen : sizeof(node),
+			       NULL))) {
+		printf("off = %#x magic %#x type %#x node.totlen = %d\n",
+		       off, node.magic, node.nodetype, node.totlen);
+	}
+	return ret;
+}
+
+static void put_fl_mem_nand(void *buf)
+{
+	free(buf);
+}
+#endif /* #if defined(CONFIG_JFFS2_NAND) && (CONFIG_COMMANDS & CFG_CMD_NAND) */
+
+
+#if (CONFIG_COMMANDS & CFG_CMD_FLASH)
+/*
+ * Support for jffs2 on top of NOR-flash
+ *
+ * NOR flash memory is mapped in processor's address space,
+ * just return address.
+ */
+static inline void *get_fl_mem_nor(u32 off)
+{
+	u32 addr = off;
+	struct mtdids *id = current_part->dev->id;
+
+	extern flash_info_t flash_info[];
+	flash_info_t *flash = &flash_info[id->num];
+
+	addr += flash->start[0];
+	return (void*)addr;
+}
+
+static inline void *get_node_mem_nor(u32 off)
+{
+	return (void*)get_fl_mem_nor(off);
+}
+#endif /* #if (CONFIG_COMMANDS & CFG_CMD_FLASH) */
+
+
+/*
+ * Generic jffs2 raw memory and node read routines.
+ *
+ */
+static inline void *get_fl_mem(u32 off, u32 size, void *ext_buf)
+{
+	struct mtdids *id = current_part->dev->id;
+
+#if (CONFIG_COMMANDS & CFG_CMD_FLASH)
+	if (id->type == MTD_DEV_TYPE_NOR)
+		return get_fl_mem_nor(off);
+#endif
+
+#if defined(CONFIG_JFFS2_NAND) && (CONFIG_COMMANDS & CFG_CMD_NAND)
+	if (id->type == MTD_DEV_TYPE_NAND)
+		return get_fl_mem_nand(off, size, ext_buf);
+#endif
+
+	printf("get_fl_mem: unknown device type, using raw offset!\n");
+	return (void*)off;
+}
+
+static inline void *get_node_mem(u32 off)
+{
+	struct mtdids *id = current_part->dev->id;
+
+#if (CONFIG_COMMANDS & CFG_CMD_FLASH)
+	if (id->type == MTD_DEV_TYPE_NOR)
+		return get_node_mem_nor(off);
+#endif
+
+#if defined(CONFIG_JFFS2_NAND) && (CONFIG_COMMANDS & CFG_CMD_NAND)
+	if (id->type == MTD_DEV_TYPE_NAND)
+		return get_node_mem_nand(off);
+#endif
+
+	printf("get_node_mem: unknown device type, using raw offset!\n");
+	return (void*)off;
+}
+
+static inline void put_fl_mem(void *buf)
+{
+#if defined(CONFIG_JFFS2_NAND) && (CONFIG_COMMANDS & CFG_CMD_NAND)
+	struct mtdids *id = current_part->dev->id;
+
+	if (id->type == MTD_DEV_TYPE_NAND)
+		return put_fl_mem_nand(buf);
+#endif
+}
 
 /* Compression names */
 static char *compr_names[] = {
@@ -150,7 +335,11 @@ static char *compr_names[] = {
 	"RUBINMIPS",
 	"COPY",
 	"DYNRUBIN",
-	"ZLIB"
+	"ZLIB",
+#if defined(CONFIG_JFFS2_LZO_LZARI)
+	"LZO",
+	"LZARI",
+#endif
 };
 
 /* Spinning wheel */
@@ -265,40 +454,86 @@ insert_node(struct b_list *list, u32 offset)
 }
 
 #ifdef CFG_JFFS2_SORT_FRAGMENTS
+/* Sort data entries with the latest version last, so that if there
+ * is overlapping data the latest version will be used.
+ */
 static int compare_inodes(struct b_node *new, struct b_node *old)
 {
-	struct jffs2_raw_inode *jNew = (struct jffs2_raw_inode *)new->offset;
-	struct jffs2_raw_inode *jOld = (struct jffs2_raw_inode *)old->offset;
-
-	return jNew->version < jOld->version;
-}
-
-static int compare_dirents(struct b_node *new, struct b_node *old)
-{
-	struct jffs2_raw_dirent *jNew = (struct jffs2_raw_dirent *)new->offset;
-	struct jffs2_raw_dirent *jOld = (struct jffs2_raw_dirent *)old->offset;
+	struct jffs2_raw_inode ojNew;
+	struct jffs2_raw_inode ojOld;
+	struct jffs2_raw_inode *jNew =
+		(struct jffs2_raw_inode *)get_fl_mem(new->offset, sizeof(ojNew), &ojNew);
+	struct jffs2_raw_inode *jOld =
+		(struct jffs2_raw_inode *)get_fl_mem(old->offset, sizeof(ojOld), &ojOld);
 
 	return jNew->version > jOld->version;
+}
+
+/* Sort directory entries so all entries in the same directory
+ * with the same name are grouped together, with the latest version
+ * last. This makes it easy to eliminate all but the latest version
+ * by marking the previous version dead by setting the inode to 0.
+ */
+static int compare_dirents(struct b_node *new, struct b_node *old)
+{
+	struct jffs2_raw_dirent ojNew;
+	struct jffs2_raw_dirent ojOld;
+	struct jffs2_raw_dirent *jNew =
+		(struct jffs2_raw_dirent *)get_fl_mem(new->offset, sizeof(ojNew), &ojNew);
+	struct jffs2_raw_dirent *jOld =
+		(struct jffs2_raw_dirent *)get_fl_mem(old->offset, sizeof(ojOld), &ojOld);
+	int cmp;
+
+	/* ascending sort by pino */
+	if (jNew->pino != jOld->pino)
+		return jNew->pino > jOld->pino;
+
+	/* pino is the same, so use ascending sort by nsize, so
+	 * we don't do strncmp unless we really must.
+	 */
+	if (jNew->nsize != jOld->nsize)
+		return jNew->nsize > jOld->nsize;
+
+	/* length is also the same, so use ascending sort by name
+	 */
+	cmp = strncmp((char *)jNew->name, (char *)jOld->name, jNew->nsize);
+	if (cmp != 0)
+		return cmp > 0;
+
+	/* we have duplicate names in this directory, so use ascending
+	 * sort by version
+	 */
+	if (jNew->version > jOld->version) {
+		/* since jNew is newer, we know jOld is not valid, so
+		 * mark it with inode 0 and it will not be used
+		 */
+		jOld->ino = 0;
+		return 1;
+	}
+
+	return 0;
 }
 #endif
 
 static u32
 jffs2_scan_empty(u32 start_offset, struct part_info *part)
 {
-	char *max = part->offset + part->size - sizeof(struct jffs2_raw_inode);
-	char *offset = part->offset + start_offset;
+	char *max = (char *)(part->offset + part->size - sizeof(struct jffs2_raw_inode));
+	char *offset = (char *)(part->offset + start_offset);
+	u32 off;
 
-	while (offset < max && *(u32 *)offset == 0xFFFFFFFF) {
+	while (offset < max &&
+	       *(u32*)get_fl_mem((u32)offset, sizeof(u32), &off) == 0xFFFFFFFF) {
 		offset += sizeof(u32);
 		/* return if spinning is due */
 		if (((u32)offset & ((1 << SPIN_BLKSIZE)-1)) == 0) break;
 	}
 
-	return offset - part->offset;
+	return (u32)offset - part->offset;
 }
 
-static u32
-jffs_init_1pass_list(struct part_info *part)
+void
+jffs2_free_cache(struct part_info *part)
 {
 	struct b_lists *pL;
 
@@ -308,6 +543,15 @@ jffs_init_1pass_list(struct part_info *part)
 		free_nodes(&pL->dir);
 		free(pL);
 	}
+}
+
+static u32
+jffs_init_1pass_list(struct part_info *part)
+{
+	struct b_lists *pL;
+
+	jffs2_free_cache(part);
+
 	if (NULL != (part->jffs2_priv = malloc(sizeof(struct b_lists)))) {
 		pL = (struct b_lists *)part->jffs2_priv;
 
@@ -327,15 +571,36 @@ jffs2_1pass_read_inode(struct b_lists *pL, u32 inode, char *dest)
 	struct b_node *b;
 	struct jffs2_raw_inode *jNode;
 	u32 totalSize = 0;
-	u16 latestVersion = 0;
-	char *lDest;
-	char *src;
+	u32 latestVersion = 0;
+	uchar *lDest;
+	uchar *src;
 	long ret;
 	int i;
 	u32 counter = 0;
+#ifdef CFG_JFFS2_SORT_FRAGMENTS
+	/* Find file size before loading any data, so fragments that
+	 * start past the end of file can be ignored. A fragment
+	 * that is partially in the file is loaded, so extra data may
+	 * be loaded up to the next 4K boundary above the file size.
+	 * This shouldn't cause trouble when loading kernel images, so
+	 * we will live with it.
+	 */
+	for (b = pL->frag.listHead; b != NULL; b = b->next) {
+		jNode = (struct jffs2_raw_inode *) get_fl_mem(b->offset,
+		        sizeof(struct jffs2_raw_inode), NULL);
+		if ((inode == jNode->ino)) {
+			/* get actual file length from the newest node */
+			if (jNode->version >= latestVersion) {
+				totalSize = jNode->isize;
+				latestVersion = jNode->version;
+			}
+		}
+		put_fl_mem(jNode);
+	}
+#endif
 
 	for (b = pL->frag.listHead; b != NULL; b = b->next) {
-		jNode = (struct jffs2_raw_inode *) (b->offset);
+		jNode = (struct jffs2_raw_inode *) get_node_mem(b->offset);
 		if ((inode == jNode->ino)) {
 #if 0
 			putLabeledWord("\r\n\r\nread_inode: totlen = ", jNode->totlen);
@@ -349,19 +614,24 @@ jffs2_1pass_read_inode(struct b_lists *pL, u32 inode, char *dest)
 			putLabeledWord("read_inode: usercompr = ", jNode->usercompr);
 			putLabeledWord("read_inode: flags = ", jNode->flags);
 #endif
+
+#ifndef CFG_JFFS2_SORT_FRAGMENTS
 			/* get actual file length from the newest node */
 			if (jNode->version >= latestVersion) {
 				totalSize = jNode->isize;
 				latestVersion = jNode->version;
 			}
+#endif
 
 			if(dest) {
-				src = ((char *) jNode) + sizeof(struct jffs2_raw_inode);
+				src = ((uchar *) jNode) + sizeof(struct jffs2_raw_inode);
 				/* ignore data behind latest known EOF */
-				if (jNode->offset > totalSize)
+				if (jNode->offset > totalSize) {
+					put_fl_mem(jNode);
 					continue;
+				}
 
-				lDest = (char *) (dest + jNode->offset);
+				lDest = (uchar *) (dest + jNode->offset);
 #if 0
 				putLabeledWord("read_inode: src = ", src);
 				putLabeledWord("read_inode: dest = ", lDest);
@@ -387,9 +657,18 @@ jffs2_1pass_read_inode(struct b_lists *pL, u32 inode, char *dest)
 				case JFFS2_COMPR_ZLIB:
 					ret = zlib_decompress(src, lDest, jNode->csize, jNode->dsize);
 					break;
+#if defined(CONFIG_JFFS2_LZO_LZARI)
+				case JFFS2_COMPR_LZO:
+					ret = lzo_decompress(src, lDest, jNode->csize, jNode->dsize);
+					break;
+				case JFFS2_COMPR_LZARI:
+					ret = lzari_decompress(src, lDest, jNode->csize, jNode->dsize);
+					break;
+#endif
 				default:
 					/* unknown */
 					putLabeledWord("UNKOWN COMPRESSION METHOD = ", jNode->compr);
+					put_fl_mem(jNode);
 					return -1;
 					break;
 				}
@@ -401,6 +680,7 @@ jffs2_1pass_read_inode(struct b_lists *pL, u32 inode, char *dest)
 #endif
 		}
 		counter++;
+		put_fl_mem(jNode);
 	}
 
 #if 0
@@ -426,19 +706,17 @@ jffs2_1pass_find_inode(struct b_lists * pL, const char *name, u32 pino)
 	counter = 0;
 	/* we need to search all and return the inode with the highest version */
 	for(b = pL->dir.listHead; b; b = b->next, counter++) {
-		jDir = (struct jffs2_raw_dirent *) (b->offset);
+		jDir = (struct jffs2_raw_dirent *) get_node_mem(b->offset);
 		if ((pino == jDir->pino) && (len == jDir->nsize) &&
 		    (jDir->ino) &&	/* 0 for unlink */
-		    (!strncmp(jDir->name, name, len))) {	/* a match */
-			if (jDir->version < version) continue;
+		    (!strncmp((char *)jDir->name, name, len))) {	/* a match */
+			if (jDir->version < version) {
+				put_fl_mem(jDir);
+				continue;
+			}
 
-		        if(jDir->version == 0) {
-			    	/* Is this legal? */
-				putstr(" ** WARNING ** ");
-				putnstr(jDir->name, jDir->nsize);
-				putstr(" is version 0 (in find, ignoring)\r\n");
-			} else if(jDir->version == version) {
-			    	/* Im pretty sure this isn't ... */
+			if (jDir->version == version && inode != 0) {
+			    	/* I'm pretty sure this isn't legal */
 				putstr(" ** ERROR ** ");
 				putnstr(jDir->name, jDir->nsize);
 				putLabeledWord(" has dup version =", version);
@@ -455,11 +733,12 @@ jffs2_1pass_find_inode(struct b_lists * pL, const char *name, u32 pino)
 		putLabeledWord("b = ", (u32) b);
 		putLabeledWord("counter = ", counter);
 #endif
+		put_fl_mem(jDir);
 	}
 	return inode;
 }
 
-static char *mkmodestr(unsigned long mode, char *str)
+char *mkmodestr(unsigned long mode, char *str)
 {
 	static const char *l = "xwr";
 	int mask = 1, i;
@@ -497,7 +776,7 @@ static inline void dump_stat(struct stat *st, const char *name)
 	if (st->st_mtime == (time_t)(-1)) /* some ctimes really hate -1 */
 		st->st_mtime = 1;
 
-	ctime_r(&st->st_mtime, s/*,64*/); /* newlib ctime doesn't have buflen */
+	ctime_r((time_t *)&st->st_mtime, s/*,64*/); /* newlib ctime doesn't have buflen */
 
 	if ((p = strchr(s,'\n')) != NULL) *p = '\0';
 	if ((p = strchr(s,'\r')) != NULL) *p = '\0';
@@ -517,7 +796,7 @@ static inline u32 dump_inode(struct b_lists * pL, struct jffs2_raw_dirent *d, st
 
 	if(!d || !i) return -1;
 
-	strncpy(fname, d->name, d->nsize);
+	strncpy(fname, (char *)d->name, d->nsize);
 	fname[d->nsize] = '\0';
 
 	memset(&st,0,sizeof(st));
@@ -550,22 +829,32 @@ jffs2_1pass_list_inodes(struct b_lists * pL, u32 pino)
 	struct jffs2_raw_dirent *jDir;
 
 	for (b = pL->dir.listHead; b; b = b->next) {
-		jDir = (struct jffs2_raw_dirent *) (b->offset);
+		jDir = (struct jffs2_raw_dirent *) get_node_mem(b->offset);
 		if ((pino == jDir->pino) && (jDir->ino)) { /* ino=0 -> unlink */
 			u32 i_version = 0;
+			struct jffs2_raw_inode ojNode;
 			struct jffs2_raw_inode *jNode, *i = NULL;
 			struct b_node *b2 = pL->frag.listHead;
 
 			while (b2) {
-				jNode = (struct jffs2_raw_inode *) (b2->offset);
-				if (jNode->ino == jDir->ino
-				    && jNode->version >= i_version)
-					i = jNode;
+				jNode = (struct jffs2_raw_inode *)
+					get_fl_mem(b2->offset, sizeof(ojNode), &ojNode);
+				if (jNode->ino == jDir->ino && jNode->version >= i_version) {
+					if (i)
+						put_fl_mem(i);
+
+					if (jDir->type == DT_LNK)
+						i = get_node_mem(b2->offset);
+					else
+						i = get_fl_mem(b2->offset, sizeof(*i), NULL);
+				}
 				b2 = b2->next;
 			}
 
 			dump_inode(pL, jDir, i);
+			put_fl_mem(i);
 		}
+		put_fl_mem(jDir);
 	}
 	return pino;
 }
@@ -633,7 +922,9 @@ jffs2_1pass_resolve_inode(struct b_lists * pL, u32 ino)
 	struct b_node *b2;
 	struct jffs2_raw_dirent *jDir;
 	struct jffs2_raw_inode *jNode;
-	struct jffs2_raw_dirent *jDirFound = NULL;
+	u8 jDirFoundType = 0;
+	u32 jDirFoundIno = 0;
+	u32 jDirFoundPino = 0;
 	char tmp[256];
 	u32 version = 0;
 	u32 pino;
@@ -641,37 +932,38 @@ jffs2_1pass_resolve_inode(struct b_lists * pL, u32 ino)
 
 	/* we need to search all and return the inode with the highest version */
 	for(b = pL->dir.listHead; b; b = b->next) {
-		jDir = (struct jffs2_raw_dirent *) (b->offset);
+		jDir = (struct jffs2_raw_dirent *) get_node_mem(b->offset);
 		if (ino == jDir->ino) {
-		    	if(jDir->version < version) continue;
+		    	if (jDir->version < version) {
+				put_fl_mem(jDir);
+				continue;
+			}
 
-			if(jDir->version == 0) {
-			    	/* Is this legal? */
-				putstr(" ** WARNING ** ");
-				putnstr(jDir->name, jDir->nsize);
-				putstr(" is version 0 (in resolve, ignoring)\r\n");
-			} else if(jDir->version == version) {
-			    	/* Im pretty sure this isn't ... */
+			if (jDir->version == version && jDirFoundType) {
+			    	/* I'm pretty sure this isn't legal */
 				putstr(" ** ERROR ** ");
 				putnstr(jDir->name, jDir->nsize);
 				putLabeledWord(" has dup version (resolve) = ",
 					version);
 			}
 
-			jDirFound = jDir;
+			jDirFoundType = jDir->type;
+			jDirFoundIno = jDir->ino;
+			jDirFoundPino = jDir->pino;
 			version = jDir->version;
 		}
+		put_fl_mem(jDir);
 	}
 	/* now we found the right entry again. (shoulda returned inode*) */
-	if (jDirFound->type != DT_LNK)
-		return jDirFound->ino;
+	if (jDirFoundType != DT_LNK)
+		return jDirFoundIno;
 
 	/* it's a soft link so we follow it again. */
 	b2 = pL->frag.listHead;
 	while (b2) {
-		jNode = (struct jffs2_raw_inode *) (b2->offset);
-		if (jNode->ino == jDirFound->ino) {
-			src = (unsigned char *) (b2->offset + sizeof(struct jffs2_raw_inode));
+		jNode = (struct jffs2_raw_inode *) get_node_mem(b2->offset);
+		if (jNode->ino == jDirFoundIno) {
+			src = (unsigned char *)jNode + sizeof(struct jffs2_raw_inode);
 
 #if 0
 			putLabeledWord("\t\t dsize = ", jNode->dsize);
@@ -679,18 +971,20 @@ jffs2_1pass_resolve_inode(struct b_lists * pL, u32 ino)
 			putnstr(src, jNode->dsize);
 			putstr("\r\n");
 #endif
-			strncpy(tmp, src, jNode->dsize);
+			strncpy(tmp, (char *)src, jNode->dsize);
 			tmp[jNode->dsize] = '\0';
+			put_fl_mem(jNode);
 			break;
 		}
 		b2 = b2->next;
+		put_fl_mem(jNode);
 	}
 	/* ok so the name of the new file to find is in tmp */
 	/* if it starts with a slash it is root based else shared dirs */
 	if (tmp[0] == '/')
 		pino = 1;
 	else
-		pino = jDirFound->pino;
+		pino = jDirFoundPino;
 
 	return jffs2_1pass_search_inode(pL, tmp, pino);
 }
@@ -747,6 +1041,7 @@ unsigned char
 jffs2_1pass_rescan_needed(struct part_info *part)
 {
 	struct b_node *b;
+	struct jffs2_unknown_node onode;
 	struct jffs2_unknown_node *node;
 	struct b_lists *pL = (struct b_lists *)part->jffs2_priv;
 
@@ -754,21 +1049,18 @@ jffs2_1pass_rescan_needed(struct part_info *part)
 		DEBUGF ("rescan: First time in use\n");
 		return 1;
 	}
+
 	/* if we have no list, we need to rescan */
 	if (pL->frag.listCount == 0) {
 		DEBUGF ("rescan: fraglist zero\n");
 		return 1;
 	}
 
-	/* or if we are scanning a new partition */
-	if (pL->partOffset != part->offset) {
-		DEBUGF ("rescan: different partition\n");
-		return 1;
-	}
 	/* but suppose someone reflashed a partition at the same offset... */
 	b = pL->dir.listHead;
 	while (b) {
-		node = (struct jffs2_unknown_node *) (b->offset);
+		node = (struct jffs2_unknown_node *) get_fl_mem(b->offset,
+			sizeof(onode), &onode);
 		if (node->nodetype != JFFS2_NODETYPE_DIRENT) {
 			DEBUGF ("rescan: fs changed beneath me? (%lx)\n",
 					(unsigned long) b->offset);
@@ -784,12 +1076,14 @@ static void
 dump_fragments(struct b_lists *pL)
 {
 	struct b_node *b;
+	struct jffs2_raw_inode ojNode;
 	struct jffs2_raw_inode *jNode;
 
 	putstr("\r\n\r\n******The fragment Entries******\r\n");
 	b = pL->frag.listHead;
 	while (b) {
-		jNode = (struct jffs2_raw_inode *) (b->offset);
+		jNode = (struct jffs2_raw_inode *) get_fl_mem(b->offset,
+			sizeof(ojNode), &ojNode);
 		putLabeledWord("\r\n\tbuild_list: FLASH_OFFSET = ", b->offset);
 		putLabeledWord("\tbuild_list: totlen = ", jNode->totlen);
 		putLabeledWord("\tbuild_list: inode = ", jNode->ino);
@@ -802,7 +1096,7 @@ dump_fragments(struct b_lists *pL)
 		putLabeledWord("\tbuild_list: compr = ", jNode->compr);
 		putLabeledWord("\tbuild_list: usercompr = ", jNode->usercompr);
 		putLabeledWord("\tbuild_list: flags = ", jNode->flags);
-		putLabeledWord("\tbuild_list: offset = ", b->offset);	// FIXME: ? [RS]
+		putLabeledWord("\tbuild_list: offset = ", b->offset);	/* FIXME: ? [RS] */
 		b = b->next;
 	}
 }
@@ -818,7 +1112,7 @@ dump_dirents(struct b_lists *pL)
 	putstr("\r\n\r\n******The directory Entries******\r\n");
 	b = pL->dir.listHead;
 	while (b) {
-		jDir = (struct jffs2_raw_dirent *) (b->offset);
+		jDir = (struct jffs2_raw_dirent *) get_node_mem(b->offset);
 		putstr("\r\n");
 		putnstr(jDir->name, jDir->nsize);
 		putLabeledWord("\r\n\tbuild_list: magic = ", jDir->magic);
@@ -832,8 +1126,9 @@ dump_dirents(struct b_lists *pL)
 		putLabeledWord("\tbuild_list: type = ", jDir->type);
 		putLabeledWord("\tbuild_list: node_crc = ", jDir->node_crc);
 		putLabeledWord("\tbuild_list: name_crc = ", jDir->name_crc);
-		putLabeledWord("\tbuild_list: offset = ", b->offset); 	// FIXME: ? [RS]
+		putLabeledWord("\tbuild_list: offset = ", b->offset); 	/* FIXME: ? [RS] */
 		b = b->next;
+		put_fl_mem(jDir);
 	}
 }
 #endif
@@ -858,9 +1153,8 @@ jffs2_1pass_build_lists(struct part_info * part)
 	/* if we are building a list we need to refresh the cache. */
 	jffs_init_1pass_list(part);
 	pL = (struct b_lists *)part->jffs2_priv;
-	pL->partOffset = part->offset;
 	offset = 0;
-	printf("Scanning JFFS2 FS:   ");
+	puts ("Scanning JFFS2 FS:   ");
 
 	/* start at the beginning of the partition */
 	while (offset < max) {
@@ -869,27 +1163,36 @@ jffs2_1pass_build_lists(struct part_info * part)
 			oldoffset = offset;
 		}
 
-		node = (struct jffs2_unknown_node *) (part->offset + offset);
+		node = (struct jffs2_unknown_node *) get_node_mem((u32)part->offset + offset);
 		if (node->magic == JFFS2_MAGIC_BITMASK && hdr_crc(node)) {
 			/* if its a fragment add it */
 			if (node->nodetype == JFFS2_NODETYPE_INODE &&
 				    inode_crc((struct jffs2_raw_inode *) node)) {
 				if (insert_node(&pL->frag, (u32) part->offset +
-								offset) == NULL)
+						offset) == NULL) {
+					put_fl_mem(node);
 					return 0;
+				}
 			} else if (node->nodetype == JFFS2_NODETYPE_DIRENT &&
 				   dirent_crc((struct jffs2_raw_dirent *) node)  &&
 				   dirent_name_crc((struct jffs2_raw_dirent *) node)) {
 				if (! (counterN%100))
-					printf("\b\b.  ");
+					puts ("\b\b.  ");
 				if (insert_node(&pL->dir, (u32) part->offset +
-								offset) == NULL)
+						offset) == NULL) {
+					put_fl_mem(node);
 					return 0;
+				}
 				counterN++;
 			} else if (node->nodetype == JFFS2_NODETYPE_CLEANMARKER) {
 				if (node->totlen != sizeof(struct jffs2_unknown_node))
 					printf("OOPS Cleanmarker has bad size "
 						"%d != %d\n", node->totlen,
+						sizeof(struct jffs2_unknown_node));
+			} else if (node->nodetype == JFFS2_NODETYPE_PADDING) {
+				if (node->totlen < sizeof(struct jffs2_unknown_node))
+					printf("OOPS Padding has bad size "
+						"%d < %d\n", node->totlen,
 						sizeof(struct jffs2_unknown_node));
 			} else {
 				printf("Unknown node type: %x len %d "
@@ -906,7 +1209,7 @@ jffs2_1pass_build_lists(struct part_info * part)
 			counter4++;
 		}
 /*             printf("unknown node magic %4.4x %4.4x @ %lx\n", node->magic, node->nodetype, (unsigned long)node); */
-
+		put_fl_mem(node);
 	}
 
 	putstr("\b\b done.\r\n");		/* close off the dots */
@@ -935,13 +1238,11 @@ jffs2_1pass_build_lists(struct part_info * part)
 }
 
 
-
-
-
 static u32
 jffs2_1pass_fill_info(struct b_lists * pL, struct b_jffs2_info * piL)
 {
 	struct b_node *b;
+	struct jffs2_raw_inode ojNode;
 	struct jffs2_raw_inode *jNode;
 	int i;
 
@@ -953,7 +1254,8 @@ jffs2_1pass_fill_info(struct b_lists * pL, struct b_jffs2_info * piL)
 
 	b = pL->frag.listHead;
 	while (b) {
-		jNode = (struct jffs2_raw_inode *) (b->offset);
+		jNode = (struct jffs2_raw_inode *) get_fl_mem(b->offset,
+			sizeof(ojNode), &ojNode);
 		if (jNode->compr < JFFS2_NUM_COMPR) {
 			piL->compr_info[jNode->compr].num_frags++;
 			piL->compr_info[jNode->compr].compr_sum += jNode->csize;
@@ -965,10 +1267,12 @@ jffs2_1pass_fill_info(struct b_lists * pL, struct b_jffs2_info * piL)
 }
 
 
-
 static struct b_lists *
 jffs2_get_list(struct part_info * part, const char *who)
 {
+	/* copy requested part_info struct pointer to global location */
+	current_part = part;
+
 	if (jffs2_1pass_rescan_needed(part)) {
 		if (!jffs2_1pass_build_lists(part)) {
 			printf("%s: Failed to scan JFFSv2 file structure\n", who);
@@ -984,7 +1288,7 @@ u32
 jffs2_1pass_ls(struct part_info * part, const char *fname)
 {
 	struct b_lists *pl;
-	long ret = 0;
+	long ret = 1;
 	u32 inode;
 
 	if (! (pl = jffs2_get_list(part, "ls")))
@@ -1005,16 +1309,13 @@ jffs2_1pass_ls(struct part_info * part, const char *fname)
 }
 
 
-
-
-
 /* Load a file from flash into memory. fname can be a full path */
 u32
 jffs2_1pass_load(char *dest, struct part_info * part, const char *fname)
 {
 
 	struct b_lists *pl;
-	long ret = 0;
+	long ret = 1;
 	u32 inode;
 
 	if (! (pl  = jffs2_get_list(part, "load")))
@@ -1054,10 +1355,14 @@ jffs2_1pass_info(struct part_info * part)
 
 	jffs2_1pass_fill_info(pl, &info);
 	for (i = 0; i < JFFS2_NUM_COMPR; i++) {
-		printf("Compression: %s\n", compr_names[i]);
-		printf("\tfrag count: %d\n", info.compr_info[i].num_frags);
-		printf("\tcompressed sum: %d\n", info.compr_info[i].compr_sum);
-		printf("\tuncompressed sum: %d\n", info.compr_info[i].decompr_sum);
+		printf ("Compression: %s\n"
+			"\tfrag count: %d\n"
+			"\tcompressed sum: %d\n"
+			"\tuncompressed sum: %d\n",
+			compr_names[i],
+			info.compr_info[i].num_frags,
+			info.compr_info[i].compr_sum,
+			info.compr_info[i].decompr_sum);
 	}
 	return 1;
 }

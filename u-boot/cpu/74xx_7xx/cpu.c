@@ -79,12 +79,24 @@ get_cpu_type(void)
 		type = CPU_750FX;
 		break;
 
+	case 0x7002:
+		type = CPU_750GX;
+		break;
+
 	case 0x800C:
 		type = CPU_7410;
 		break;
 
 	case 0x8000:
 		type = CPU_7450;
+		break;
+
+	case 0x8001:
+		type = CPU_7455;
+		break;
+
+	case 0x8002:
+		type = CPU_7457;
 		break;
 
 	default:
@@ -124,6 +136,10 @@ int checkcpu (void)
 		str = "750FX";
 		break;
 
+	case CPU_750GX:
+		str = "750GX";
+		break;
+
 	case CPU_755:
 		str = "755";
 		break;
@@ -138,6 +154,14 @@ int checkcpu (void)
 
 	case CPU_7450:
 		str = "MPC7450";
+		break;
+
+	case CPU_7455:
+		str = "MPC7455";
+		break;
+
+	case CPU_7457:
+		str = "MPC7457";
 		break;
 
 	default:
@@ -194,7 +218,7 @@ soft_restart(unsigned long addr)
     !defined(CONFIG_ELPPC)
 /* no generic way to do board reset. simply call soft_reset. */
 void
-do_reset (cmd_tbl_t *cmdtp, bd_t *bd, int flag, int argc, char *argv[])
+do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
     	ulong addr;
 	/* flush and disable I/D cache */

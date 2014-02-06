@@ -86,7 +86,7 @@ ulong flash_init(void)
 	if (i == 0)
 	  flashbase = PHYS_FLASH_1;
 	else
-	  panic("configured to many flash banks!\n");
+	  panic("configured too many flash banks!\n");
 	for (j = 0; j < flash_info[i].sector_count; j++)
 	{
 	    if (j <= 7)
@@ -159,6 +159,7 @@ void flash_print_info  (flash_info_t *info)
     printf ("\n");
 
 Done:
+    ;
 }
 
 /*-----------------------------------------------------------------------
@@ -317,7 +318,7 @@ int	flash_erase (flash_info_t *info, int s_first, int s_last)
 	    *addr = PUZZLE_TO_FLASH(CMD_READ_ARRAY);
 
 	    if ((rc = flash_error(result)) != ERR_OK)
-	    	goto outahere;
+		goto outahere;
 
 	    printf("ok.\n");
 	}
@@ -358,7 +359,7 @@ volatile static int write_word (flash_info_t *info, ulong dest, ulong data)
      */
     result = PUZZLE_FROM_FLASH(*addr);
     if ((result & data) != data)
-        return ERR_NOT_ERASED;
+	return ERR_NOT_ERASED;
 
     /*
      * Disable interrupts which might cause a timeout

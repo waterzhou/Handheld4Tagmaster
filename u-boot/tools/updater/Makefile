@@ -29,11 +29,11 @@ PROG    = updater
 IMAGE   = updater.image
 SRC     = update.c flash.c flash_hw.c utils.c cmd_flash.c string.c ctype.c dummy.c
 ASRC    = ppcstring.S
-OBJS	= $(SRC:.c=.o) $(ASRC:.S=.o) 
+OBJS	= $(SRC:.c=.o) $(ASRC:.S=.o)
 
-LIB	= $(TOPDIR)/examples/libsyscall.a 
-LIBAOBJS= $(TOPDIR)/examples/syscall.o
-LIBCOBJS=
+LIB	= $(TOPDIR)/examples/libstubs.a
+LIBAOBJS=
+LIBCOBJS= $(TOPDIR)/examples/stubs.o
 LIBOBJS	= $(LIBAOBJS) $(LIBCOBJS)
 
 CPPFLAGS += -I$(TOPDIR) -I$(TOPDIR)/board/MAI/AmigaOneG3SE
@@ -50,14 +50,14 @@ $(LIB): .depend $(LIBOBJS)
 	$(OBJCOPY) -O srec $(<:.o=) $@
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) -c $< 
+	$(CC) $(CPPFLAGS) -c $<
 
 %.o: %.S
 	$(CC) $(CPPFLAGS) -c $<
 
 #########################################################################
 
-updater: $(OBJS) $(LIB) $(TOPDIR)/board/MAI/AmigaOneG3SE/memio.o 
+updater: $(OBJS) $(LIB) $(TOPDIR)/board/MAI/AmigaOneG3SE/memio.o
 	$(LD) -g -Ttext $(LOAD_ADDR) -o updater -e _main $(OBJS) $(LIB)  \
 	$(TOPDIR)/board/MAI/AmigaOneG3SE/memio.o
 	$(OBJCOPY) -O binary updater updater.bin
