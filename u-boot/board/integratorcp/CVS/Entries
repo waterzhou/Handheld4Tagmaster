@@ -1,9 +1,0 @@
-/Makefile/1.3/Thu Oct  6 21:47:43 2005/-ko/
-/config.mk/1.2/Sun Mar 14 22:25:41 2004/-ko/
-/flash.c/1.2/Wed Jan 12 00:38:04 2005/-ko/
-/integratorcp.c/1.6/Sun Sep 25 00:01:38 2005/-ko/
-/lowlevel_init.S/1.2/Sat Oct  8 22:24:14 2005/-ko/
-/memsetup.S/1.2/Sun Sep 25 00:01:38 2005/-ko/
-/split_by_variant.sh/1.3/Sat Oct  8 22:24:14 2005/-ko/
-/u-boot.lds.template/1.1/Sat Oct  8 22:24:14 2005/-ko/
-D
